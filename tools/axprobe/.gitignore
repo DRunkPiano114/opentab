@@ -1,0 +1,7 @@
+build/
+.cert-stamp
+
+# AX dumps contain live window titles, document names, open URLs and text
+# element values. Review a file and add it deliberately (`git add -f`) rather
+# than committing the directory.
+out/
