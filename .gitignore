@@ -1,0 +1,37 @@
+# Generated Xcode project — regenerate with `xcodegen generate`
+*.xcodeproj/
+*.xcworkspace/
+
+# Generated from project.yml. Anchored: tools/*/Support holds hand-written files.
+/Support/Info.plist
+/Support/OpenTab.entitlements
+
+# Build output
+build/
+.build/
+DerivedData/
+*.dmg
+
+# SwiftPM
+.swiftpm/
+Package.resolved
+
+# Signing material — never commit
+*.p12
+*.cer
+*.pem
+*.mobileprovision
+
+# macOS
+.DS_Store
+._*
+.AppleDouble
+
+# Editor
+*.xcuserdatad
+xcuserdata/
+.idea/
+.vscode/
+
+# Local design/planning notes — not published
+runbook/
