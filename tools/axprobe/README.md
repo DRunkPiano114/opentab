@@ -52,6 +52,8 @@ given again.
 | `make dump APP=<bundle-id\|name>` | What does this app's full AX tree look like? |
 | `make tabs APP=<bundle-id\|name>` | Which tab-location strategy works for this app, and where exactly? |
 | `make spaces` | Which CGWindowIDs are reachable through AX, and which are not? |
+| `make token PID=<pid> WID=<id[,id]>` | Can the remote-token path reach a window AX will not enumerate (other Space, fullscreen)? |
+| `make spacemap WID=<id[,id]>` | Which Space is each window on, and which Space is active per display? |
 | `make dumps` | Run `dump` and `tabs` across every target app that is currently running. |
 | `make selftest` | Do the walker's depth/breadth/budget/deadline caps actually hold? |
 | `make reset-perms` | Revoke the grant to retest the first-run experience. |
@@ -93,6 +95,40 @@ with `.optionAll` over-reports layer 0 heavily — drop shadows and toolbar stri
 appear as windows — so rows smaller than 100pt in either axis are labelled
 `smallOrArtifact` and excluded from that count. Every row keeps its label in the
 JSON, so the cut can be re-judged without re-running the probe.
+
+## Reaching windows AX will not enumerate (`token`)
+
+`spaces` establishes which windows the plain AX enumeration misses — windows on
+another Space, and fullscreen windows (whose owning app reports zero AX windows
+at all). `token` tests whether the remote-token path reaches them.
+
+`_AXUIElementRemoteTokenCreate` on a reachable window yields a 20-byte token:
+
+```
+0x00  4B  pid
+0x04  4B  0
+0x08  4B  0x636f636f  "coco"
+0x0c  8B  AXUIElementID   (per-window; the first 12 bytes are a process constant)
+```
+
+`token` dumps that token for every reachable window, then holds the 12-byte
+prefix fixed and sweeps the id at `0x0c`, feeding each candidate to
+`_AXUIElementCreateWithRemoteToken`. A candidate is a hit when
+`_AXUIElementGetWindow` on it returns the requested CGWindowID **and** its role
+is `AXWindow` — the id gate alone matches descendants (tab bar, buttons) too.
+When the target app reports no reachable window to seed the prefix from
+(fullscreen), the prefix is synthesized as `[pid][0]["coco"]`.
+
+Each invocation targets one pid and flushes per window, so a bad token that
+segfaults costs one data point, not the batch. The sweep is bounded by
+`--budget` (wall clock, default 8s) and `--max-id` (default 32768).
+
+`spacemap` answers Space attribution with no AX call:
+`CGSCopyManagedDisplaySpaces` gives the current Space of each display and
+`CGSCopySpacesForWindows` (mask `0x7`) gives the Space of each window, so
+"is this window on its display's active Space" is a set-membership test.
+`SLSWindowIsOnCurrentSpace` is unreliable here (it returns false even for
+current-Space windows); use the CGS set instead.
 
 ## Bounding, and why it is there
 

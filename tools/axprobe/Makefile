@@ -26,7 +26,7 @@ SWIFTFLAGS := -swift-version 6 -strict-concurrency=complete -O \
               -target arm64-apple-macos14.0 \
               -framework AppKit -framework ApplicationServices -framework Security
 
-.PHONY: all build sign install doctor list spaces selftest dumps reset-perms clean help
+.PHONY: all build sign install doctor list spaces token spacemap selftest dumps reset-perms clean help
 
 all: install
 
@@ -36,6 +36,8 @@ help:
 	@echo "make doctor       Ask the installed app whether it holds the grant"
 	@echo "make list         List running apps and their window counts"
 	@echo "make spaces       Compare AX-reachable windows against the WindowServer"
+	@echo "make token PID=<pid> WID=<id[,id]>  Strategy C: reach windows via remote token"
+	@echo "make spacemap WID=<id[,id]>         CGS Space attribution for the given windows"
 	@echo "make dumps        Dump every target app that is currently running"
 	@echo "make dump APP=<bundle-id|name>   Dump one app"
 	@echo "make tabs APP=<bundle-id|name>   Probe one app for tab elements"
@@ -96,6 +98,21 @@ spaces:
 
 selftest:
 	$(call run,selftest,selftest)
+
+## Strategy C. One process per invocation so a bad token segfaults one run, not
+## the batch. PID selects the process, WID the comma-separated CGWindowIDs to reach.
+PID ?=
+WID ?=
+token:
+	@test -n "$(PID)" || { echo "usage: make token PID=<pid> WID=<id[,id]>"; exit 2; }
+	@mkdir -p "$(OUT)"
+	@open -n -W -a "$(INSTALLED)" --args token --pid "$(PID)" --wid "$(WID)" --out "$(OUT)" || true
+	@cat "$(OUT)"/token-pid$(PID)*.txt 2>/dev/null || cat "$(OUT)/token-error.txt"
+
+spacemap:
+	@mkdir -p "$(OUT)"
+	@open -n -W -a "$(INSTALLED)" --args spacemap --wid "$(WID)" --out "$(OUT)" || true
+	@cat "$(OUT)/spacemap.txt" 2>/dev/null || cat "$(OUT)/spacemap-error.txt"
 
 APP ?=
 dump:

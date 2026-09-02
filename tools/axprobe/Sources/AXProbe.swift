@@ -60,6 +60,8 @@ enum AXProbe {
         case "dump": return try CommandDump.run(cli: cli, output: output)
         case "tabs": return try CommandTabs.run(cli: cli, output: output)
         case "spaces": return try CommandSpaces.run(cli: cli, output: output)
+        case "token": return try CommandToken.run(cli: cli, output: output)
+        case "spacemap": return try CommandSpaceMap.run(cli: cli, output: output)
         case "selftest": return try CommandSelfTest.run(output: output)
         default: throw CLIError("unknown command '\(cli.command)'")
         }

@@ -17,7 +17,7 @@ struct CLI {
 
     static let valueOptions: Set<String> = [
         "out", "max-depth", "max-nodes", "max-children", "budget", "timeout",
-        "max-string", "pid",
+        "max-string", "pid", "wid", "max-id",
     ]
     static let switchOptions: Set<String> = [
         "values", "include-menubar", "help", "exact",
@@ -110,6 +110,8 @@ struct CLI {
       dump <bundle-id|name>  Dump the full AX tree of an app to JSON.
       tabs <bundle-id|name>  Try every tab-location strategy and report which worked.
       spaces                 Compare AX-reachable windows against the WindowServer list.
+      token                  Strategy C: reach off-Space/fullscreen windows via remote token.
+      spacemap               CGS Space attribution: which Space each window and display is on.
       selftest               Verify the walker's depth/breadth/budget/deadline caps.
 
     OPTIONS
@@ -125,7 +127,9 @@ struct CLI {
       --exact                Match the bundle id or name exactly; never fall back
                              to a substring match (batch runs want this, so that
                              "com.apple.Safari" cannot resolve to a Safari helper).
-      --pid <pid>            For dump/tabs: target this pid instead of matching a name.
+      --pid <pid>            For dump/tabs/token: target this pid instead of matching a name.
+      --wid <id[,id…]>       For token/spacemap: CGWindowID(s) to reach or attribute.
+      --max-id <n>           token: highest AXUIElementID to sweep (default: 32768).
 
     This tool is read-only: it never performs an AX action and never sets an
     attribute. It must be launched with `open -a` so that it gets its own TCC
