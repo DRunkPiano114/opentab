@@ -35,3 +35,9 @@ xcuserdata/
 
 # Local design/planning notes — not published
 runbook/
+
+# Signing-identity stamp written by the Makefile
+.cert-stamp
+
+# Probe output: contains real window titles, never commit
+tools/*/out*/
