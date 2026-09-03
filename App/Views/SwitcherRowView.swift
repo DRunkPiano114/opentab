@@ -65,8 +65,8 @@ struct SwitcherRowView: View {
 
     /// `offsets` index `Array(text)`, as `SearchHit` reports them. Matched
     /// characters get the heavier font and full white.
-    private static func emphasised(_ text: String, at offsets: [Int], font: Font, color: Color,
-                                   emphasis: Font) -> AttributedString {
+    static func emphasised(_ text: String, at offsets: [Int], font: Font, color: Color,
+                           emphasis: Font) -> AttributedString {
         var out = AttributedString(text)
         out.font = font
         out.foregroundColor = color

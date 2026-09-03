@@ -13,6 +13,15 @@ final class StatusMenuController: NSObject {
     /// Browsers never asked for Apple Events consent; the item runs the
     /// guided request.
     var tabsAwaitingRequest: [(bundleID: String, name: String)] = [] { didSet { rebuild() } }
+    /// Favicon lookups that leave the machine. Off unless the user turns it
+    /// on, and the menu says what it costs.
+    var faviconRemoteEnabled = false { didSet { rebuild() } }
+    var faviconRemoteDisclosure = "" { didSet { rebuild() } }
+    /// Whether the user has picked ~/Library/Safari, which is the only way to
+    /// read Safari's favicon cache without Full Disk Access.
+    var safariCacheGranted = false { didSet { rebuild() } }
+    var onToggleFaviconRemote: ((Bool) -> Void)?
+    var onGrantSafariCache: (() -> Void)?
     var onRebuildIndex: (() -> Void)?
     var onOpenAutomationSettings: (() -> Void)?
     var onEnableTabs: ((String) -> Void)?
@@ -68,6 +77,8 @@ final class StatusMenuController: NSObject {
             menu.addItem(enable)
         }
         menu.addItem(.separator())
+        for item in faviconItems() { menu.addItem(item) }
+        menu.addItem(.separator())
 
         let rebuildItem = NSMenuItem(title: "Rebuild Index", action: #selector(rebuildIndex), keyEquivalent: "")
         rebuildItem.target = self
@@ -80,6 +91,30 @@ final class StatusMenuController: NSObject {
         menu.addItem(quit)
 
         item.menu = menu
+    }
+
+    /// The favicon section. Tab rows fall back to the app icon when no local
+    /// cache has the site, so both items below are conveniences, not
+    /// requirements.
+    private func faviconItems() -> [NSMenuItem] {
+        var items: [NSMenuItem] = [disabled("Favicons")]
+        if safariCacheGranted {
+            items.append(disabled("  Safari cache: readable"))
+        } else {
+            let grant = NSMenuItem(title: "  Allow Reading Safari's Favicon Cache…",
+                                   action: #selector(grantSafariCache), keyEquivalent: "")
+            grant.target = self
+            items.append(grant)
+        }
+        let remote = NSMenuItem(title: "  Look Up Missing Favicons on Google",
+                                action: #selector(toggleFaviconRemote), keyEquivalent: "")
+        remote.target = self
+        remote.state = faviconRemoteEnabled ? .on : .off
+        items.append(remote)
+        if !faviconRemoteDisclosure.isEmpty {
+            items.append(disabled("  \(faviconRemoteDisclosure)"))
+        }
+        return items
     }
 
     private func disabled(_ title: String) -> NSMenuItem {
@@ -98,6 +133,14 @@ final class StatusMenuController: NSObject {
 
     @objc private func openAutomationSettings() {
         onOpenAutomationSettings?()
+    }
+
+    @objc private func toggleFaviconRemote() {
+        onToggleFaviconRemote?(!faviconRemoteEnabled)
+    }
+
+    @objc private func grantSafariCache() {
+        onGrantSafariCache?()
     }
 
     @objc private func enableTabs(_ sender: NSMenuItem) {

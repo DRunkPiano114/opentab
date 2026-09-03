@@ -8,7 +8,21 @@ import os
 /// rules for which keys belong to the input method.
 @MainActor
 final class SearchFieldController: NSObject, NSTextFieldDelegate {
-    enum Command: Equatable { case moveUp, moveDown, moveNext, movePrevious, commit, cancel }
+    enum Command: Equatable {
+        case moveUp, moveDown, moveNext, movePrevious, commit, cancel
+        /// Right arrow with the caret already at the end of the query.
+        case enterDetail
+        /// Left arrow with the caret already at the start.
+        case leaveDetail
+    }
+
+    static let defaultPlaceholder = "Search"
+
+    /// Follows the pane on screen: the detail pane names the app it is
+    /// searching inside.
+    var placeholder: String = SearchFieldController.defaultPlaceholder {
+        didSet { applyPlaceholder() }
+    }
 
     /// Fired on every change of the field's full string, marked text
     /// included, so the list filters while pinyin is still being composed.
@@ -40,10 +54,7 @@ final class SearchFieldController: NSObject, NSTextFieldDelegate {
         field.autoresizingMask = []
         field.font = .systemFont(ofSize: 15)
         field.textColor = .white
-        field.placeholderAttributedString = NSAttributedString(
-            string: "Search",
-            attributes: [.foregroundColor: NSColor.white.withAlphaComponent(0.30),
-                         .font: NSFont.systemFont(ofSize: 15)])
+        applyPlaceholder()
         field.isBezeled = false
         field.isBordered = false
         field.drawsBackground = false
@@ -153,6 +164,14 @@ final class SearchFieldController: NSObject, NSTextFieldDelegate {
         case #selector(NSResponder.insertBacktab(_:)): command = .movePrevious
         case #selector(NSResponder.insertNewline(_:)): command = .commit
         case #selector(NSResponder.cancelOperation(_:)): command = .cancel
+        // The arrows belong to the text first. They only change pane from the
+        // edge the pane sits on, so a caret inside the query still moves.
+        case #selector(NSResponder.moveRight(_:)):
+            guard !textView.hasMarkedText(), Self.caretIsAtEnd(of: textView) else { return false }
+            command = .enterDetail
+        case #selector(NSResponder.moveLeft(_:)):
+            guard !textView.hasMarkedText(), Self.caretIsAtStart(of: textView) else { return false }
+            command = .leaveDetail
         default: return false
         }
         // While marked text is pending, Return commits the composition and
@@ -175,6 +194,23 @@ final class SearchFieldController: NSObject, NSTextFieldDelegate {
     }
 
     // MARK: - Private
+
+    private func applyPlaceholder() {
+        field.placeholderAttributedString = NSAttributedString(
+            string: placeholder,
+            attributes: [.foregroundColor: NSColor.white.withAlphaComponent(0.30),
+                         .font: NSFont.systemFont(ofSize: 15)])
+    }
+
+    private static func caretIsAtEnd(of textView: NSTextView) -> Bool {
+        let selection = textView.selectedRange()
+        return selection.length == 0 && selection.location == (textView.string as NSString).length
+    }
+
+    private static func caretIsAtStart(of textView: NSTextView) -> Bool {
+        let selection = textView.selectedRange()
+        return selection.length == 0 && selection.location == 0
+    }
 
     private func reportTextIfChanged() {
         guard !suppressChanges else { return }

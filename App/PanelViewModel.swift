@@ -78,8 +78,12 @@ final class PanelViewModel {
     var hoverEnabled = false
     /// False shows the onboarding message instead of the list.
     var accessibilityGranted = true
+    /// Non-nil while the second-level pane is up; the main list is then
+    /// frozen behind it and comes back unchanged when the pane closes.
+    var detail: DetailPane?
     var onHover: (Int) -> Void = { _ in }
     var onActivate: (Int) -> Void = { _ in }
+    var onDetailBack: () -> Void = {}
 
     /// Replaces the list for a fresh open. The scroll view keeps its offset
     /// across shows, so the list is rewound to the top unless the panel opened
@@ -92,6 +96,15 @@ final class PanelViewModel {
         } else {
             scrollRequest = ScrollRequest(serial: scrollRequest.serial + 1, row: selectedIndex, anchor: nil)
         }
+    }
+
+    /// Replaces the second-level pane, or takes it down when `pane` is nil.
+    /// Same scroll rule as `present(rows:selectedIndex:)`.
+    func presentDetail(_ pane: DetailPane?, selectedIndex: Int) {
+        detail = pane
+        self.selectedIndex = selectedIndex
+        scrollRequest = ScrollRequest(serial: scrollRequest.serial + 1, row: selectedIndex,
+                                      anchor: selectedIndex == 0 ? .top : nil)
     }
 
     /// Only keyboard selections scroll. A pointer selection must never move

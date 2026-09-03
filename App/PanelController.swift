@@ -61,7 +61,7 @@ final class PanelController {
         hosting.autoresizingMask = [.width, .height]
         container.addSubview(hosting)
         let field = searchField.view
-        field.frame = Self.searchFieldFrame(in: container.bounds)
+        field.frame = Self.searchFieldFrame(in: container.bounds, detail: false)
         field.autoresizingMask = [.width, .minYMargin]
         field.isHidden = true
         container.addSubview(field)
@@ -70,14 +70,60 @@ final class PanelController {
 
     var isVisible: Bool { panel.isVisible }
 
-    /// The field sits inside the backdrop `SwitcherRootView` draws for the
-    /// search state, inset so the text lines up with the row content.
-    private static func searchFieldFrame(in bounds: NSRect) -> NSRect {
+    /// The field sits inside the backdrop the SwiftUI layer draws for the
+    /// search state, inset so the text lines up with the row content. The two
+    /// panes put that backdrop at different heights.
+    private static func searchFieldFrame(in bounds: NSRect, detail: Bool) -> NSRect {
         let inset = Theme.contentInsetH + Theme.fieldInsetH
         let height = Theme.fieldHeight - 2 * Theme.fieldTextInsetV
+        let topToField = detail
+            ? DetailMetrics.headerHeight - DetailMetrics.fieldListGap - Theme.fieldHeight
+            : Metrics.topPad
         return NSRect(x: inset,
-                      y: bounds.maxY - Metrics.topPad - Theme.fieldHeight + Theme.fieldTextInsetV,
+                      y: bounds.maxY - topToField - Theme.fieldHeight + Theme.fieldTextInsetV,
                       width: bounds.width - 2 * inset, height: height)
+    }
+
+    /// Opens the second-level pane. The search field moves to the pane's own
+    /// header position and takes the pane's placeholder.
+    func showDetail(_ pane: DetailPane, selectedIndex: Int) {
+        model.presentDetail(pane, selectedIndex: selectedIndex)
+        searchField.placeholder = pane.searchPlaceholder
+        refit(height: DetailMetrics.height(rowCount: pane.rows.count,
+                                           visibleHeight: panel.screen?.visibleFrame.height))
+        layoutSearchField()
+    }
+
+    /// A refresh inside the open pane: the rows are replaced without moving
+    /// the list, the way `update(rows:selectedIndex:)` does for the main one.
+    func refreshDetail(_ pane: DetailPane, selectedIndex: Int) {
+        model.detail = pane
+        model.selectedIndex = selectedIndex
+        refit(height: DetailMetrics.height(rowCount: pane.rows.count,
+                                           visibleHeight: panel.screen?.visibleFrame.height))
+    }
+
+    /// Takes the pane down and hands the main list back unchanged.
+    func hideDetail(rows: [PanelViewModel.Row], selectedIndex: Int) {
+        model.presentDetail(nil, selectedIndex: selectedIndex)
+        model.rows = rows
+        searchField.placeholder = SearchFieldController.defaultPlaceholder
+        layoutSearchField()
+        refit(rowCount: rows.count)
+    }
+
+    private func layoutSearchField() {
+        guard let bounds = panel.contentView?.bounds else { return }
+        searchField.view.frame = Self.searchFieldFrame(in: bounds, detail: model.detail != nil)
+    }
+
+    /// Refits to an explicit content height with the top edge fixed.
+    func refit(height: CGFloat) {
+        let current = panel.frame
+        guard height != current.height else { return }
+        let frame = NSRect(x: current.minX, y: current.maxY - height, width: current.width, height: height)
+        panel.setFrame(frame, display: true)
+        layoutSearchField()
     }
 
     /// SwiftUI's first layout pass in a process costs ~78ms against an 80ms
@@ -167,12 +213,8 @@ final class PanelController {
     /// Refits the panel to `rowCount` rows with the top edge fixed, so a list
     /// that shrinks while the user types shrinks from the bottom.
     func refit(rowCount: Int) {
-        let current = panel.frame
-        let visibleHeight = panel.screen?.visibleFrame.height
-        let size = Metrics.size(rowCount: rowCount, visibleHeight: visibleHeight)
-        guard size.height != current.height else { return }
-        let frame = NSRect(x: current.minX, y: current.maxY - size.height, width: size.width, height: size.height)
-        panel.setFrame(frame, display: true)
+        refit(height: Metrics.size(rowCount: rowCount,
+                                   visibleHeight: panel.screen?.visibleFrame.height).height)
     }
 
     /// The display topology changed under a visible panel: it is taken down
@@ -196,6 +238,9 @@ final class PanelController {
         hoverGuard = nil
         model.hoverEnabled = false
         exitSearch()
+        model.detail = nil
+        searchField.placeholder = SearchFieldController.defaultPlaceholder
+        layoutSearchField()
         panel.orderOut(nil)
     }
 

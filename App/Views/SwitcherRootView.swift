@@ -13,12 +13,16 @@ struct SwitcherRootView: View {
         ZStack {
             panelShape.fill(Theme.panelBackground)
             panelShape.strokeBorder(Theme.panelBorder, lineWidth: Theme.panelBorderWidth)
-            VStack(spacing: 0) {
-                searchControl
-                    .padding(.bottom, Theme.fieldListGap)
-                content
+            if let detail = model.detail {
+                DetailPaneView(model: model, pane: detail)
+            } else {
+                VStack(spacing: 0) {
+                    searchControl
+                        .padding(.bottom, Theme.fieldListGap)
+                    content
+                }
+                .padding(.top, Theme.panelPadTop)
             }
-            .padding(.top, Theme.panelPadTop)
         }
         .clipShape(panelShape)
     }

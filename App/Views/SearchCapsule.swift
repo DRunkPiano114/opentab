@@ -4,8 +4,10 @@ import SwiftUI
 /// The idle search control: a centred, content-fitting pill. Pressing Enter
 /// swaps it for `SearchFieldBackdrop` with the real text field on top.
 struct SearchCapsule: View {
+    var text = "Search"
+
     var body: some View {
-        Text("Search")
+        Text(text)
             .font(Theme.placeholderFont)
             .foregroundStyle(Theme.textPlaceholder)
             .padding(.horizontal, Theme.fieldInsetH)
@@ -34,7 +36,7 @@ struct SearchFieldBackdrop: View {
 /// underneath the window's own content, so it punches through the opaque
 /// background drawn behind it. A flat grey fill would look obviously wrong on a
 /// light desktop.
-private struct VibrancyBackdrop: NSViewRepresentable {
+struct VibrancyBackdrop: NSViewRepresentable {
     let cornerRadius: CGFloat
 
     func makeNSView(context: Context) -> NSVisualEffectView {

@@ -37,6 +37,7 @@ enum SelfTest {
             let report = await source.measure(apps: apps)
             lines.append(report.text)
             lines.append(contentsOf: await perAppSummary(apps: apps, source: source, directory: directory))
+            lines.append(contentsOf: await accessibilityTabScan(apps: apps))
             if let bundleID = argument("--activate") {
                 lines.append(contentsOf: await activationCheck(bundleID: bundleID, apps: apps, source: source))
             }
@@ -113,6 +114,35 @@ enum SelfTest {
         return lines
     }
 
+    /// The Accessibility tab scan run against every running app: what it
+    /// finds, how much tree it walks, and what it costs. Counts only, never a
+    /// tab title (L16).
+    ///
+    /// This is also where the Chromium path is checked. The product reads
+    /// Chromium tabs over AppleScript, which is the only route that can tell
+    /// an incognito window apart (L16), so the scan itself is verified here
+    /// rather than through the list.
+    private static func accessibilityTabScan(apps: [AppInfo]) async -> [String] {
+        let provider = AXTabProvider()
+        guard provider.isAvailable else { return ["axTabs: unavailable, _AXUIElementGetWindow did not resolve"] }
+        var lines = ["axTabs (bundle windows tabs titlesNonEmpty windowsNotExactlyOneActive nodes stops took):"]
+        var totalNodes = 0
+        var totalTabs = 0
+        let started = ContinuousClock.now
+        for app in apps.sorted(by: { $0.bundleID < $1.bundleID }) {
+            guard let report = await provider.report(for: app, deadline: .now + .milliseconds(500)),
+                  report.windowsScanned > 0 else { continue }
+            totalNodes += report.nodesVisited
+            totalTabs += report.tabsFound
+            let name = report.bundleID.isEmpty ? "pid\(app.pid)" : report.bundleID
+            lines.append("  \(name) \(report.windowsScanned) \(report.tabsFound) \(report.titlesNonEmpty) " +
+                         "\(report.windowsWithoutOneActiveTab) \(report.nodesVisited) " +
+                         "\(report.stops.isEmpty ? "-" : report.stops.joined(separator: ",")) \(format(report.duration))")
+        }
+        lines.append("  axTabs total tabs=\(totalTabs) nodes=\(totalNodes) serialWall=\(format(ContinuousClock.now - started))")
+        return lines
+    }
+
     /// `--activate <bundle id>`: raise that app's first listed window through
     /// the production activator and report the read-back verdict (L2).
     private static func activationCheck(bundleID: String, apps: [AppInfo], source: AXWindowSource) async -> [String] {
@@ -174,10 +204,46 @@ enum SelfTest {
             lines.append(panelTiming(controller, coordinator, label: "panelShowWhileStalled"))
         }
 
+        lines.append(contentsOf: await faviconReport(coordinator))
+
         if let bundleID = argument("--activate-tab") {
             lines.append(contentsOf: await tabActivationCheck(bundleID: bundleID, coordinator: coordinator, providers: providers))
         }
         return lines
+    }
+
+    /// The favicon tiers measured against the tabs the store actually holds,
+    /// which is what the detail pane would ask for. Counts only: no host and
+    /// no URL is written (L16). The remote tier stays off unless the user
+    /// turned it on, so a run with it off measures the local caches alone.
+    private static func faviconReport(_ coordinator: SwitcherCoordinator) async -> [String] {
+        let urls = coordinator.store.entries.values.compactMap(\.url)
+        let origins = Set(urls.compactMap { url in url.host().map { "\(url.scheme ?? "")://\($0)" } })
+        let store = FaviconStore.shared
+        var lines = ["favicons: tabsWithURL=\(urls.count) distinctOrigins=\(origins.count) " +
+                     "remoteEnabled=\(store.isRemoteLookupEnabled) safariCache=\(store.hasSafariCacheAccess)"]
+        guard !urls.isEmpty else { return lines }
+
+        let signal = Signal()
+        let started = ContinuousClock.now
+        store.prefetch(urls) { signal.done = true }
+        var waited = Duration.zero
+        while !signal.done, waited < .seconds(10) {
+            try? await Task.sleep(for: .milliseconds(50))
+            waited += .milliseconds(50)
+        }
+        let stats = store.stats
+        let resolved = stats.browserCache + stats.remote
+        let asked = max(resolved + stats.missed, 1)
+        lines.append("  browserCache=\(stats.browserCache) remote=\(stats.remote) missed=\(stats.missed) " +
+                     "hitRate=\(String(format: "%.0f%%", Double(resolved) * 100 / Double(asked))) " +
+                     "took=\(format(ContinuousClock.now - started))")
+        return lines
+    }
+
+    @MainActor
+    private final class Signal {
+        var done = false
     }
 
     private static func describe(_ coordinator: SwitcherCoordinator, gate: AutomationGateKeeper,

@@ -335,7 +335,11 @@ final class SwitcherCoordinator {
 
     private func readTabs(of app: AppInfo) async {
         guard let provider = providers.provider(for: app) else { return }
-        guard await gate.mayReadTabs(of: app) else { return }
+        // Accessibility reads need no Automation consent, and asking for it
+        // would put a browser consent dialog in front of Finder.
+        if !(provider is any AccessibilityTabReads) {
+            guard await gate.mayReadTabs(of: app) else { return }
+        }
         _ = await readTabsNow(of: app, provider: provider, coalesce: true)
     }
 
@@ -370,6 +374,12 @@ final class SwitcherCoordinator {
         var changed = tabsUnavailable.remove(app.key) != nil
         let rekeyed = rekeyScriptWindows(in: snapshots, app: app)
         let result = store.applyTabs(rekeyed, for: app, stability: provider.tokenStability, stamp: stamp)
+        // An Accessibility scan that completed and saw no tab strip is direct
+        // evidence, unlike a script call that answered nothing.
+        if result.disposition == .rejectedEmpty, rekeyed.isEmpty, provider is any AccessibilityTabReads {
+            await dropTabs(of: app)
+            return rekeyed
+        }
         if result.disposition == .applied, result.changed { changed = true }
         if changed { notify() }
         if result.disposition == .applied {
@@ -444,6 +454,40 @@ final class SwitcherCoordinator {
 
     private static func scriptedKey(for wid: UInt32, app: AppInfo) -> WindowKey {
         .scripted(bundleID: app.bundleID, token: String(wid))
+    }
+
+    // MARK: - The detail pane
+
+    /// The script window whose tabs a row stands for: a tab row names it
+    /// directly, a window row through the claim the store recorded.
+    func scriptWindow(for entry: Entry) -> WindowKey? {
+        switch entry.kind {
+        case .tab: return entry.key
+        case .window: return store.scriptWindow(owning: entry.key)
+        }
+    }
+
+    /// The tabs of one script window, in provider order.
+    func tabs(in window: WindowKey) -> [Entry] { store.tabs(in: window) }
+
+    /// Closes a tab where it is, without selecting it first, and re-reads the
+    /// browser so the store matches. Returns whether the provider confirmed
+    /// the close; the caller drops the row on its own, because the store
+    /// defers removals while the panel is up (H).
+    func closeTab(_ entry: Entry) async -> Bool {
+        guard entry.kind == .tab, let token = entry.id.tabToken,
+              let provider = providers.provider(for: entry.app),
+              let closer = provider as? any TabCloser else { return false }
+        let tab = TabSnapshot(windowKey: entry.key, token: token, title: entry.title, url: entry.url,
+                              isActive: false, isPrivate: entry.isPrivate)
+        do {
+            try await closer.close(tab, deadline: .now + configuration.tabActivationBudget)
+        } catch {
+            log.notice("close tab failed pid=\(entry.app.pid, privacy: .public) error=\(String(describing: error), privacy: .public)")
+            return false
+        }
+        _ = await readTabsNow(of: entry.app, provider: provider, coalesce: false)
+        return true
     }
 
     // MARK: - Activation (I)

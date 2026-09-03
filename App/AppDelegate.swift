@@ -112,6 +112,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         statusMenu.onOpenAutomationSettings = { [weak self] in self?.automation.openSettings() }
         statusMenu.onEnableTabs = { [weak self] bundleID in self?.offerTabs(for: bundleID) }
+        statusMenu.faviconRemoteDisclosure = FaviconStore.remoteDisclosureText
+        statusMenu.faviconRemoteEnabled = FaviconStore.shared.isRemoteLookupEnabled
+        statusMenu.safariCacheGranted = FaviconStore.shared.hasSafariCacheAccess
+        statusMenu.onToggleFaviconRemote = { [weak self] enabled in
+            FaviconStore.shared.isRemoteLookupEnabled = enabled
+            self?.statusMenu.faviconRemoteEnabled = enabled
+            self?.log.notice("favicon remote lookup enabled=\(enabled, privacy: .public)")
+        }
+        statusMenu.onGrantSafariCache = { [weak self] in
+            // The open panel is modal and an accessory app is not active when
+            // its status item is clicked.
+            NSApp.activate()
+            let granted = FaviconStore.shared.requestSafariCacheAccess()
+            self?.statusMenu.safariCacheGranted = granted
+        }
         if !source.isWindowIDBridgeAvailable {
             log.error("_AXUIElementGetWindow unavailable: windows keyed by AX element only")
         }
@@ -199,7 +214,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func onboardAutomation() async {
         guard !onboarded else { return }
         onboarded = true
-        for app in directory.runningApps() where providers.provider(for: app) != nil {
+        for app in directory.runningApps() where providers.usesAppleEvents(for: app) {
             guard automation.awaitingRequest.contains(app.bundleID) || !automation.deniedBundleIDs.contains(app.bundleID) else { continue }
             await automation.requestThroughGuide(app)
         }

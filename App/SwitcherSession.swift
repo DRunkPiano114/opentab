@@ -22,6 +22,15 @@ final class SwitcherSession {
         case searching
     }
 
+    private struct Parked {
+        var presented: [Entry]
+        var rows: [PanelViewModel.Row]
+        var selection: Selection
+        var query: String
+        var isFiltered: Bool
+        var index: EntrySearchIndex
+    }
+
     private let coordinator: SwitcherCoordinator
     private let panel: PanelController
     private let hotKeys: HotKeyCenter
@@ -40,6 +49,20 @@ final class SwitcherSession {
     private var pointerLocation = NSPoint.zero
     private var searchIndex = EntrySearchIndex()
     private var query = ""
+    /// The main list, parked while the second-level pane is up.
+    private var parked: Parked?
+    /// The script window the open pane is showing, and the app it belongs to.
+    private var detailWindow: WindowKey?
+    private var detailApp: AppInfo?
+    private var detailRows: [DetailPane.Row] = []
+    /// Match offsets of the last search, so the pane can emphasise them
+    /// without ranking the query a second time.
+    private var titleMatches: [EntryID: [Int]] = [:]
+    /// Rows the user closed with Cmd+W. The store defers removals while the
+    /// panel is up (H), so without this the row would come back on the next
+    /// refresh.
+    private var dismissed: Set<EntryID> = []
+    private let commandKeys = DetailKeyMonitor()
     /// The app that was frontmost before search activated this one; it gets
     /// focus back when the search is cancelled.
     private var previousApp: NSRunningApplication?
@@ -57,6 +80,8 @@ final class SwitcherSession {
         hotKeys.onModifierReleased = { [weak self] modifier in self?.modifierReleased(modifier) }
         model.onHover = { [weak self] row in self?.hover(row) }
         model.onActivate = { [weak self] row in self?.activate(rowAt: row) }
+        model.onDetailBack = { [weak self] in self?.exitDetail() }
+        commandKeys.onCloseSelected = { [weak self] in self?.closeSelected() }
         coordinator.onChange = { [weak self] in self?.indexChanged() }
         panel.searchField.onTextChange = { [weak self] text in self?.queryChanged(text) }
         panel.searchField.onCommand = { [weak self] command in self?.searchCommand(command) }
@@ -145,8 +170,10 @@ final class SwitcherSession {
         switch key {
         case .next, .down: move(by: 1)
         case .previous, .up: move(by: -1)
-        case .left, .right: break
-        case .escape: close()
+        case .right: enterDetail()
+        case .left: exitDetail()
+        case .escape:
+            if detailWindow != nil { exitDetail() } else { close() }
         case .commit, .search: enterSearch()
         }
     }
@@ -201,6 +228,7 @@ final class SwitcherSession {
             hotKeys.registerNavigationKeys(for: holdModifier)
             return
         }
+        commandKeys.start()
         log.notice("search entered previous=\(self.previousApp?.processIdentifier ?? 0, privacy: .public)")
     }
 
@@ -217,11 +245,18 @@ final class SwitcherSession {
     /// best hit.
     private func present(hits: [SearchHit]) {
         let filtered = !query.allSatisfy(\.isWhitespace)
-        presented = hits.map(\.entry)
-        rows = filtered ? PanelController.rows(for: hits) : makeRows(presented)
-        selection = Selection(count: rows.count)
-        if filtered { selection.select(0) }
+        let visible = hits.filter { !dismissed.contains($0.entry.id) }
+        presented = visible.map(\.entry)
+        titleMatches = Dictionary(visible.map { ($0.entry.id, $0.titleMatches) },
+                                  uniquingKeysWith: { first, _ in first })
         model.isFiltered = filtered
+        selection = Selection(count: presented.count)
+        if filtered { selection.select(0) }
+        guard detailWindow == nil else {
+            showDetail(scrollTo: selection.index)
+            return
+        }
+        rows = filtered ? PanelController.rows(for: visible) : makeRows(presented)
         panel.present(rows: rows, selectedIndex: selection.index)
         panel.refit(rowCount: rows.count)
     }
@@ -232,12 +267,16 @@ final class SwitcherSession {
         case .moveDown, .moveNext: move(by: 1)
         case .moveUp, .movePrevious: move(by: -1)
         case .commit: commit()
+        case .enterDetail: enterDetail()
+        case .leaveDetail: exitDetail()
         case .cancel:
-            if query.isEmpty {
-                close(restoreFocus: true)
-            } else {
+            if !query.isEmpty {
                 panel.searchField.text = ""
                 queryChanged("")
+            } else if detailWindow != nil {
+                exitDetail()
+            } else {
+                close(restoreFocus: true)
             }
         }
     }
@@ -245,6 +284,137 @@ final class SwitcherSession {
     private static func milliseconds(_ duration: Duration) -> Double {
         let parts = duration.components
         return Double(parts.seconds) * 1_000 + Double(parts.attoseconds) / 1e15
+    }
+
+    // MARK: - The detail pane
+
+    /// Second level: the tabs of the window the highlighted row stands for.
+    /// A row with no tabs behind it stays put rather than opening an empty
+    /// pane. Entered from the right arrow in either state.
+    func enterDetail() {
+        guard state != .idle, detailWindow == nil,
+              presented.indices.contains(selection.index) else { return }
+        let entry = presented[selection.index]
+        guard let window = coordinator.scriptWindow(for: entry) else { return }
+        let tabs = coordinator.tabs(in: window).filter { !dismissed.contains($0.id) }
+        guard !tabs.isEmpty else { return }
+
+        parked = Parked(presented: presented, rows: rows, selection: selection, query: query,
+                        isFiltered: model.isFiltered, index: searchIndex)
+        detailWindow = window
+        detailApp = entry.app
+        query = ""
+        model.isFiltered = false
+        if state == .searching { panel.searchField.text = "" }
+        searchIndex = EntrySearchIndex()
+        searchIndex.update(with: tabs)
+        presented = tabs
+        selection = Selection(count: tabs.count)
+        // Opens on the tab the row stood for, so entering and leaving keeps
+        // the same thing selected.
+        selection.select(tabs.firstIndex { $0.id == entry.id } ?? 0)
+        titleMatches = [:]
+        showDetail(scrollTo: selection.index)
+        log.notice("detail opened pid=\(entry.app.pid, privacy: .public) tabs=\(tabs.count, privacy: .public)")
+    }
+
+    /// Back to the main list, exactly as it was left.
+    func exitDetail() {
+        guard let parked else { return }
+        detailWindow = nil
+        detailApp = nil
+        detailRows = []
+        titleMatches = [:]
+        presented = parked.presented.filter { !dismissed.contains($0.id) }
+        rows = parked.rows.filter { !dismissed.contains($0.id) }
+        selection = parked.selection
+        selection.listChanged(count: rows.count, previousRowNowAt: min(selection.index, max(rows.count - 1, 0)))
+        query = parked.query
+        searchIndex = parked.index
+        model.isFiltered = parked.isFiltered
+        self.parked = nil
+        if state == .searching { panel.searchField.text = query }
+        panel.hideDetail(rows: rows, selectedIndex: selection.index)
+    }
+
+    /// Rebuilds the pane from the current rows and puts it on screen,
+    /// rewinding the list the way a fresh main list is rewound.
+    private func showDetail(scrollTo index: Int) {
+        let pane = makeDetailPane()
+        detailRows = pane.rows
+        panel.showDetail(pane, selectedIndex: index)
+        prefetchFavicons()
+    }
+
+    /// The same rebuild for a refresh that arrived on its own: the list must
+    /// not scroll under the user.
+    private func refreshDetail() {
+        let pane = makeDetailPane()
+        detailRows = pane.rows
+        panel.refreshDetail(pane, selectedIndex: selection.index)
+        prefetchFavicons()
+    }
+
+    private func makeDetailPane() -> DetailPane {
+        DetailPane.make(app: detailApp,
+                        appIcon: detailApp.flatMap { IconCache.shared.icon(for: $0) },
+                        tabs: presented, matches: titleMatches,
+                        isFiltered: model.isFiltered, favicon: favicon)
+    }
+
+    private func favicon(for entry: Entry) -> NSImage? {
+        FaviconStore.shared.icon(for: entry.url, pointSize: DetailMetrics.faviconSize)
+    }
+
+    /// Favicons arrive after the pane is already drawn; the pane is rebuilt
+    /// once when a batch lands, so a row that started on the app icon picks
+    /// up its own.
+    private func prefetchFavicons() {
+        let urls = presented.compactMap(\.url)
+        guard !urls.isEmpty else { return }
+        FaviconStore.shared.prefetch(urls) { [weak self] in
+            guard let self, self.detailWindow != nil else { return }
+            let pane = self.makeDetailPane()
+            guard pane.rows != self.detailRows else { return }
+            self.detailRows = pane.rows
+            self.model.detail = pane
+        }
+    }
+
+    /// Cmd+W: closes the selected tab where it is and takes its row out.
+    /// Search state only - the panel is key there, so the chord is ours; in
+    /// navigation it would also reach the app in front (L14).
+    func closeSelected() {
+        guard state == .searching, presented.indices.contains(selection.index) else { return }
+        let entry = presented[selection.index]
+        guard entry.kind == .tab else { return }
+        let coordinator = coordinator
+        Task { [weak self] in
+            guard await coordinator.closeTab(entry) else { return }
+            self?.rowClosed(entry.id)
+        }
+    }
+
+    private func rowClosed(_ id: EntryID) {
+        guard state != .idle else { return }
+        dismissed.insert(id)
+        guard let index = presented.firstIndex(where: { $0.id == id }) else { return }
+        presented.remove(at: index)
+        if detailWindow != nil {
+            if presented.isEmpty {
+                exitDetail()
+                return
+            }
+            selection.listChanged(count: presented.count,
+                                  previousRowNowAt: min(index, presented.count - 1))
+            refreshDetail()
+        } else {
+            rows.remove(at: index)
+            selection.listChanged(count: rows.count, previousRowNowAt: min(index, max(rows.count - 1, 0)))
+            panel.update(rows: rows, selectedIndex: selection.index)
+            panel.refit(rowCount: rows.count)
+        }
+        log.notice("tab closed in place; rows=\(self.presented.count, privacy: .public)")
     }
 
     // MARK: - Panel
@@ -285,6 +455,10 @@ final class SwitcherSession {
     /// updates and additions, so rows never jump under the highlight.
     private func indexChanged() {
         guard state != .idle else { return }
+        if let window = detailWindow {
+            detailChanged(in: window)
+            return
+        }
         let fresh = coordinator.entries
         searchIndex.update(with: fresh)
         let selectedID = presented.indices.contains(selection.index) ? presented[selection.index].id : nil
@@ -311,7 +485,7 @@ final class SwitcherSession {
             kept.append(updated)
             seen.insert(entry.id)
         }
-        for entry in fresh where !seen.contains(entry.id) {
+        for entry in fresh where !seen.contains(entry.id) && !dismissed.contains(entry.id) {
             kept.append(entry)
         }
 
@@ -323,6 +497,30 @@ final class SwitcherSession {
         if state == .searching {
             panel.refit(rowCount: rows.count)
         }
+    }
+
+    /// A refresh while the pane is up touches only the pane. The window
+    /// losing its last tab closes the pane rather than leaving it empty.
+    private func detailChanged(in window: WindowKey) {
+        let fresh = coordinator.tabs(in: window).filter { !dismissed.contains($0.id) }
+        guard !fresh.isEmpty else {
+            exitDetail()
+            return
+        }
+        searchIndex.update(with: fresh)
+        let selectedID = presented.indices.contains(selection.index) ? presented[selection.index].id : nil
+        if model.isFiltered {
+            let hits = searchIndex.search(query).filter { !dismissed.contains($0.entry.id) }
+            presented = hits.map(\.entry)
+            titleMatches = Dictionary(hits.map { ($0.entry.id, $0.titleMatches) },
+                                      uniquingKeysWith: { first, _ in first })
+        } else {
+            presented = fresh
+            titleMatches = [:]
+        }
+        let newIndex = selectedID.flatMap { id in presented.firstIndex { $0.id == id } }
+        selection.listChanged(count: presented.count, previousRowNowAt: newIndex)
+        refreshDetail()
     }
 
     private func makeRows(_ entries: [Entry]) -> [PanelViewModel.Row] {
@@ -337,7 +535,7 @@ final class SwitcherSession {
     }
 
     private func hover(_ row: Int) {
-        guard state != .idle, model.hoverEnabled, rows.indices.contains(row) else { return }
+        guard state != .idle, model.hoverEnabled, presented.indices.contains(row) else { return }
         // A keyboard scroll slides a different row under a resting cursor and
         // the view reports that as a hover; only a cursor that moved may select.
         let location = NSEvent.mouseLocation
@@ -361,7 +559,7 @@ final class SwitcherSession {
     }
 
     private func activate(rowAt row: Int) {
-        guard state != .idle, rows.indices.contains(row) else { return }
+        guard state != .idle, presented.indices.contains(row) else { return }
         selection.select(row)
         commit()
     }
@@ -382,8 +580,14 @@ final class SwitcherSession {
     /// to make the target frontmost.
     private func close(restoreFocus: Bool = false) {
         stopRepeat()
+        commandKeys.stop()
         let wasSearching = state == .searching
         state = .idle
+        detailWindow = nil
+        detailApp = nil
+        detailRows = []
+        parked = nil
+        dismissed.removeAll()
         panel.hide()
         coordinator.setPanelVisible(false)
         hotKeys.unregisterNavigationKeys()

@@ -57,6 +57,9 @@ enum Theme {
     /// Matched characters in a search result.
     static let textMatch = Color(.sRGB, red: 1, green: 1, blue: 1, opacity: 1)
     static let iconPlaceholderFill = Color(.sRGB, red: 1, green: 1, blue: 1, opacity: 0.15)
+    /// Hairline separator. The main list has none; the detail pane draws one
+    /// between rows and under its header.
+    static let divider = Color(.sRGB, red: 1, green: 1, blue: 1, opacity: 0.045)
 
     /// Minimized windows are dimmed rather than badged.
     static let minimizedIconOpacity: Double = 0.55
