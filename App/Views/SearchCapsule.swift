@@ -1,9 +1,8 @@
 import AppKit
 import SwiftUI
 
-/// The idle search control: a centred, content-fitting pill.
-///
-/// P0 has no search, so this is display only.
+/// The idle search control: a centred, content-fitting pill. Pressing Enter
+/// swaps it for `SearchFieldBackdrop` with the real text field on top.
 struct SearchCapsule: View {
     var body: some View {
         Text("Search")
@@ -15,6 +14,16 @@ struct SearchCapsule: View {
                 VibrancyBackdrop(cornerRadius: Theme.idlePillRadius)
             }
             .fixedSize(horizontal: true, vertical: false)
+    }
+}
+
+/// The active search control: a full-width rounded rectangle (not a pill).
+/// It draws only the material; the text, caret and placeholder come from the
+/// `NSTextField` that `PanelController` lays over this exact frame.
+struct SearchFieldBackdrop: View {
+    var body: some View {
+        VibrancyBackdrop(cornerRadius: Theme.fieldRadius)
+            .frame(height: Theme.fieldHeight)
     }
 }
 

@@ -5,6 +5,8 @@ import os
 
 enum NavigationKey {
     case next, previous, escape, commit, up, down, left, right
+    /// The direct-to-search hotkey.
+    case search
 }
 
 enum KeyPhase {
@@ -35,6 +37,7 @@ final class HotKeyCenter {
     private static let persistent: [Binding] = [
         Binding(id: 1, keyCode: UInt32(kVK_Tab), modifiers: UInt32(optionKey), key: .next),
         Binding(id: 2, keyCode: UInt32(kVK_Tab), modifiers: UInt32(optionKey | shiftKey), key: .previous),
+        Binding(id: 3, keyCode: UInt32(kVK_ANSI_L), modifiers: UInt32(cmdKey | shiftKey), key: .search),
     ]
 
     /// Registered only while the panel is visible: these steal plain keys

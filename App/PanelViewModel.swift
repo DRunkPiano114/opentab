@@ -21,6 +21,9 @@ final class PanelViewModel {
         /// Group count in the fixed right column; `nil` omits the column.
         var count: Int?
         var isMinimized: Bool
+        /// Character offsets to emphasise when the row is a search result.
+        var appNameMatches: [Int] = []
+        var titleMatches: [Int] = []
 
         static func placeholders(count: Int) -> [Row] {
             (0..<count).map { index in
@@ -29,6 +32,13 @@ final class PanelViewModel {
                     count: index % 3 == 0 ? 2 : nil, isMinimized: false)
             }
         }
+    }
+
+    enum Mode {
+        /// Panel up, app inactive; Carbon hotkeys carry the keys.
+        case navigating
+        /// App active, the search field is first responder and owns the keys.
+        case searching
     }
 
     enum SelectionSource {
@@ -46,6 +56,9 @@ final class PanelViewModel {
 
     var rows: [Row] = []
     var selectedIndex: Int = 0
+    var mode: Mode = .navigating
+    /// True once the search query is non-empty; the list then shows results.
+    var isFiltered = false
     var scrollRequest = ScrollRequest()
     /// False during the hover guard right after the panel appears, so a cursor
     /// that happens to rest on the panel cannot override the keyboard selection.

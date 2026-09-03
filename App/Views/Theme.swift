@@ -41,6 +41,8 @@ enum Theme {
     static let fieldHeight: CGFloat = 36
     static let fieldInsetH: CGFloat = 14
     static let fieldRadius: CGFloat = 10
+    /// Vertical inset of the text field inside the field backdrop.
+    static let fieldTextInsetV: CGFloat = 7
     static let idlePillHeight: CGFloat = 36
     static let idlePillRadius: CGFloat = 18
 
@@ -52,6 +54,8 @@ enum Theme {
     static let textPrimary = Color(.sRGB, red: 1, green: 1, blue: 1, opacity: 1)
     static let textSecondary = Color(.sRGB, red: 1, green: 1, blue: 1, opacity: 0.85)
     static let textPlaceholder = Color(.sRGB, red: 1, green: 1, blue: 1, opacity: 0.30)
+    /// Matched characters in a search result.
+    static let textMatch = Color(.sRGB, red: 1, green: 1, blue: 1, opacity: 1)
     static let iconPlaceholderFill = Color(.sRGB, red: 1, green: 1, blue: 1, opacity: 0.15)
 
     /// Minimized windows are dimmed rather than badged.
@@ -62,6 +66,8 @@ enum Theme {
 
     static let rowTitleFont = Font.system(size: 13.5, weight: .semibold)
     static let rowSubtitleFont = Font.system(size: 12, weight: .regular)
+    static let rowTitleMatchFont = Font.system(size: 13.5, weight: .heavy)
+    static let rowSubtitleMatchFont = Font.system(size: 12, weight: .bold)
     static let rowCountFont = Font.system(size: 13, weight: .bold)
     static let placeholderFont = Font.system(size: 15, weight: .regular)
     static let messageFont = Font.system(size: 12, weight: .regular)

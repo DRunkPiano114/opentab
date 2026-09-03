@@ -49,20 +49,38 @@ struct SwitcherRowView: View {
     /// A row without a window title shows the app name alone, vertically centred.
     private var labels: some View {
         VStack(alignment: .leading, spacing: Theme.titleSubtitleGap) {
-            Text(row.appName)
-                .font(Theme.rowTitleFont)
-                .foregroundStyle(Theme.textPrimary)
+            Text(Self.emphasised(row.appName, at: row.appNameMatches, font: Theme.rowTitleFont,
+                                 color: Theme.textPrimary, emphasis: Theme.rowTitleMatchFont))
                 .opacity(row.isMinimized ? Theme.minimizedTitleOpacity : 1)
                 .lineLimit(1)
                 .truncationMode(.tail)
             if !row.title.isEmpty {
-                Text(row.title)
-                    .font(Theme.rowSubtitleFont)
-                    .foregroundStyle(Theme.textSecondary)
+                Text(Self.emphasised(row.title, at: row.titleMatches, font: Theme.rowSubtitleFont,
+                                     color: Theme.textSecondary, emphasis: Theme.rowSubtitleMatchFont))
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
         }
+    }
+
+    /// `offsets` index `Array(text)`, as `SearchHit` reports them. Matched
+    /// characters get the heavier font and full white.
+    private static func emphasised(_ text: String, at offsets: [Int], font: Font, color: Color,
+                                   emphasis: Font) -> AttributedString {
+        var out = AttributedString(text)
+        out.font = font
+        out.foregroundColor = color
+        guard !offsets.isEmpty else { return out }
+        let characters = Array(text)
+        for offset in offsets where offset >= 0 && offset < characters.count {
+            let start = text.index(text.startIndex, offsetBy: offset)
+            let end = text.index(after: start)
+            guard let lower = AttributedString.Index(start, within: out),
+                  let upper = AttributedString.Index(end, within: out) else { continue }
+            out[lower..<upper].font = emphasis
+            out[lower..<upper].foregroundColor = Theme.textMatch
+        }
+        return out
     }
 
     /// The count is centred in a fixed-width column, not trailing-aligned: a

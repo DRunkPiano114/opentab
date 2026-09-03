@@ -14,7 +14,7 @@ struct SwitcherRootView: View {
             panelShape.fill(Theme.panelBackground)
             panelShape.strokeBorder(Theme.panelBorder, lineWidth: Theme.panelBorderWidth)
             VStack(spacing: 0) {
-                SearchCapsule()
+                searchControl
                     .padding(.bottom, Theme.fieldListGap)
                 content
             }
@@ -27,12 +27,26 @@ struct SwitcherRootView: View {
         RoundedRectangle(cornerRadius: Theme.panelRadius, style: .continuous)
     }
 
+    /// The idle pill, or the full-width field background that the AppKit
+    /// search field sits on while searching.
+    @ViewBuilder
+    private var searchControl: some View {
+        switch model.mode {
+        case .navigating:
+            SearchCapsule()
+        case .searching:
+            SearchFieldBackdrop()
+                .padding(.horizontal, Theme.contentInsetH)
+        }
+    }
+
     @ViewBuilder
     private var content: some View {
         if !model.accessibilityGranted {
             onboarding
         } else if model.rows.isEmpty {
-            message("No windows", font: Theme.placeholderFont, color: Theme.textPlaceholder)
+            message(model.isFiltered ? "No results" : "No windows",
+                    font: Theme.placeholderFont, color: Theme.textPlaceholder)
         } else {
             list
         }

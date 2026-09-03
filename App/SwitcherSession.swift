@@ -4,7 +4,9 @@ import OpenTabCore
 import os
 
 /// The hold / tap / release state machine: idle until Option+Tab, engaged
-/// while the panel is up, committed when Option is released.
+/// while the panel is up, committed when Option is released. Enter (or the
+/// search hotkey) moves it to the search state, where the app is active and
+/// the text field owns the keyboard until commit or cancel.
 @MainActor
 final class SwitcherSession {
     /// Supplied by the owner; read once per open to refresh the frontmost app
@@ -18,6 +20,7 @@ final class SwitcherSession {
     private enum State {
         case idle
         case engaged
+        case searching
     }
 
     private let index: WindowIndex
@@ -35,6 +38,11 @@ final class SwitcherSession {
     private var repeatTask: Task<Void, Never>?
     /// Screen position of the last hover that was allowed to select.
     private var pointerLocation = NSPoint.zero
+    private var searchIndex = EntrySearchIndex()
+    private var query = ""
+    /// The app that was frontmost before search activated this one; it gets
+    /// focus back when the search is cancelled.
+    private var previousApp: NSRunningApplication?
 
     init(index: WindowIndex, activator: any WindowActivator, panel: PanelController,
          hotKeys: HotKeyCenter, model: PanelViewModel) {
@@ -51,6 +59,8 @@ final class SwitcherSession {
         model.onHover = { [weak self] row in self?.hover(row) }
         model.onActivate = { [weak self] row in self?.activate(rowAt: row) }
         index.onChange = { [weak self] in self?.indexChanged() }
+        panel.searchField.onTextChange = { [weak self] text in self?.queryChanged(text) }
+        panel.searchField.onCommand = { [weak self] command in self?.searchCommand(command) }
 
         let trusted = AXIsProcessTrusted()
         model.accessibilityGranted = trusted
@@ -77,11 +87,15 @@ final class SwitcherSession {
         let entered = ContinuousClock.now
         switch state {
         case .idle:
-            // Only the persistent Option+Tab hotkeys are registered while idle.
+            // Only the persistent hotkeys are registered while idle.
             guard phase == .pressed else { return }
             switch key {
             case .next: open(startAtEnd: false, since: entered)
             case .previous: open(startAtEnd: true, since: entered)
+            case .search:
+                open(startAtEnd: false, since: entered, commitOnReleasedModifier: false)
+                enterSearch()
+                return
             default: return
             }
             if state == .engaged {
@@ -100,6 +114,14 @@ final class SwitcherSession {
                     commit()
                 }
             }
+        case .searching:
+            // Only the persistent hotkeys reach here; the field owns the rest.
+            guard phase == .pressed else { return }
+            switch key {
+            case .next: move(by: 1)
+            case .previous: move(by: -1)
+            default: break
+            }
         }
     }
 
@@ -109,14 +131,14 @@ final class SwitcherSession {
         case .previous, .up: move(by: -1)
         case .left, .right: break
         case .escape: close()
-        case .commit: commit()
+        case .commit, .search: enterSearch()
         }
     }
 
     private static func repeats(_ key: NavigationKey) -> Bool {
         switch key {
         case .next, .previous, .up, .down: true
-        case .escape, .commit, .left, .right: false
+        case .escape, .commit, .left, .right, .search: false
         }
     }
 
@@ -143,10 +165,78 @@ final class SwitcherSession {
         commit()
     }
 
+    // MARK: - Search
+
+    /// Navigation to search (keymap.md §1): record who has focus, activate
+    /// ourselves and hand the keyboard to the text field. The navigation
+    /// hotkeys are released first: they are consumed system-wide and would
+    /// otherwise starve the field of Return, Escape, Tab and the arrows.
+    private func enterSearch() {
+        guard state == .engaged else { return }
+        let frontmost = NSWorkspace.shared.frontmostApplication
+        previousApp = frontmost?.processIdentifier == ProcessInfo.processInfo.processIdentifier ? nil : frontmost
+        stopRepeat()
+        hotKeys.unregisterNavigationKeys()
+        state = .searching
+        query = ""
+        guard panel.enterSearch() else {
+            log.error("search field did not become first responder; staying in navigation")
+            state = .engaged
+            hotKeys.registerNavigationKeys()
+            return
+        }
+        log.notice("search entered previous=\(self.previousApp?.processIdentifier ?? 0, privacy: .public)")
+    }
+
+    private func queryChanged(_ text: String) {
+        guard state == .searching, text != query else { return }
+        let started = ContinuousClock.now
+        query = text
+        present(hits: searchIndex.search(text))
+        log.notice("query len=\(text.count, privacy: .public) rows=\(self.rows.count, privacy: .public) took=\(Self.milliseconds(started.duration(to: .now)), format: .fixed(precision: 2), privacy: .public)ms")
+    }
+
+    /// Shows search results. An empty query is the recency list again and
+    /// opens on the second row like a fresh open; a real query opens on its
+    /// best hit.
+    private func present(hits: [SearchHit]) {
+        let filtered = !query.allSatisfy(\.isWhitespace)
+        presented = hits.map(\.entry)
+        rows = filtered ? PanelController.rows(for: hits) : PanelController.rows(for: presented, counts: index.groupCounts)
+        selection = Selection(count: rows.count)
+        if filtered { selection.select(0) }
+        model.isFiltered = filtered
+        panel.present(rows: rows, selectedIndex: selection.index)
+        panel.refit(rowCount: rows.count)
+    }
+
+    private func searchCommand(_ command: SearchFieldController.Command) {
+        guard state == .searching else { return }
+        switch command {
+        case .moveDown, .moveNext: move(by: 1)
+        case .moveUp, .movePrevious: move(by: -1)
+        case .commit: commit()
+        case .cancel:
+            if query.isEmpty {
+                close(restoreFocus: true)
+            } else {
+                panel.searchField.text = ""
+                queryChanged("")
+            }
+        }
+    }
+
+    private static func milliseconds(_ duration: Duration) -> Double {
+        let parts = duration.components
+        return Double(parts.seconds) * 1_000 + Double(parts.attoseconds) / 1e15
+    }
+
     // MARK: - Panel
 
-    private func open(startAtEnd: Bool, since entered: ContinuousClock.Instant) {
+    private func open(startAtEnd: Bool, since entered: ContinuousClock.Instant,
+                      commitOnReleasedModifier: Bool = true) {
         presented = index.entries
+        searchIndex.update(with: presented)
         rows = PanelController.rows(for: presented, counts: index.groupCounts)
         selection = Selection(count: rows.count)
         if startAtEnd {
@@ -167,19 +257,34 @@ final class SwitcherSession {
         // is not usable for this: it reflects the last event this (inactive)
         // app processed, which once reported Option up while it was held and
         // committed the panel the instant it opened.
-        if modifierReleaseObservable, !HotKeyCenter.optionCurrentlyHeld {
+        if commitOnReleasedModifier, modifierReleaseObservable, !HotKeyCenter.optionCurrentlyHeld {
             commit()
         }
     }
 
+    /// A refresh while the panel is up. With a query on screen the results
+    /// are ranked again; otherwise the list keeps its order and only takes
+    /// updates and additions, so rows never jump under the highlight.
     private func indexChanged() {
-        guard state == .engaged else { return }
+        guard state != .idle else { return }
         let fresh = index.entries
+        searchIndex.update(with: fresh)
+        let selectedID = presented.indices.contains(selection.index) ? presented[selection.index].id : nil
+
+        if state == .searching, model.isFiltered {
+            let hits = searchIndex.search(query)
+            presented = hits.map(\.entry)
+            rows = PanelController.rows(for: hits)
+            let newIndex = selectedID.flatMap { id in presented.firstIndex { $0.id == id } }
+            selection.listChanged(count: rows.count, previousRowNowAt: newIndex)
+            panel.update(rows: rows, selectedIndex: selection.index)
+            panel.refit(rowCount: rows.count)
+            return
+        }
         var byID: [EntryID: Entry] = [:]
         for entry in fresh {
             byID[entry.id] = entry
         }
-        let selectedID = presented.indices.contains(selection.index) ? presented[selection.index].id : nil
 
         var kept: [Entry] = []
         var seen: Set<EntryID> = []
@@ -197,17 +302,20 @@ final class SwitcherSession {
         let newIndex = selectedID.flatMap { id in kept.firstIndex { $0.id == id } }
         selection.listChanged(count: kept.count, previousRowNowAt: newIndex)
         panel.update(rows: rows, selectedIndex: selection.index)
+        if state == .searching {
+            panel.refit(rowCount: rows.count)
+        }
     }
 
     private func move(by delta: Int) {
-        guard state == .engaged, !selection.isEmpty else { return }
+        guard state != .idle, !selection.isEmpty else { return }
         selection.advance(by: delta)
         panel.select(selection.index, source: .keyboard)
         log.notice("select index=\(self.selection.index, privacy: .public) via=key \(self.describeSelected(), privacy: .public)")
     }
 
     private func hover(_ row: Int) {
-        guard state == .engaged, model.hoverEnabled, rows.indices.contains(row) else { return }
+        guard state != .idle, model.hoverEnabled, rows.indices.contains(row) else { return }
         // A keyboard scroll slides a different row under a resting cursor and
         // the view reports that as a hover; only a cursor that moved may select.
         let location = NSEvent.mouseLocation
@@ -231,15 +339,16 @@ final class SwitcherSession {
     }
 
     private func activate(rowAt row: Int) {
-        guard state == .engaged, rows.indices.contains(row) else { return }
+        guard state != .idle, rows.indices.contains(row) else { return }
         selection.select(row)
         commit()
     }
 
     private func commit() {
-        guard state == .engaged else { return }
+        guard state != .idle else { return }
         let target = presented.indices.contains(selection.index) ? presented[selection.index] : nil
-        close()
+        // With nothing to activate, focus must still go back where it was.
+        close(restoreFocus: target == nil)
         guard let target else { return }
         let key = target.key
         let pid = target.app.pid
@@ -255,13 +364,25 @@ final class SwitcherSession {
         }
     }
 
-    private func close() {
+    /// `restoreFocus` hands activation back to the app that had it before
+    /// search activated us; a commit skips it because the activator is about
+    /// to make the target frontmost.
+    private func close(restoreFocus: Bool = false) {
         stopRepeat()
+        let wasSearching = state == .searching
         state = .idle
         panel.hide()
         hotKeys.unregisterNavigationKeys()
         presented = []
         rows = []
         selection = Selection(count: 0)
+        query = ""
+        model.isFiltered = false
+        if wasSearching, restoreFocus, NSApp.isActive, let previousApp {
+            NSApp.yieldActivation(to: previousApp)
+            let restored = previousApp.activate(options: [])
+            log.notice("restore focus pid=\(previousApp.processIdentifier, privacy: .public) requested=\(restored, privacy: .public)")
+        }
+        previousApp = nil
     }
 }
