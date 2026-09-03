@@ -2,6 +2,8 @@ import AppKit
 import ApplicationServices
 import OpenTabAX
 import OpenTabCore
+import OpenTabScript
+import OpenTabWS
 
 /// `--selftest --out <dir>` diagnostic run. Results go to `<dir>/selftest.txt`
 /// because an app launched through `open` has no stdout. No window titles are
@@ -38,6 +40,7 @@ enum SelfTest {
             if let bundleID = argument("--activate") {
                 lines.append(contentsOf: await activationCheck(bundleID: bundleID, apps: apps, source: source))
             }
+            lines.append(contentsOf: await coordinatorReport())
         } else {
             lines.append("enumeration skipped: Accessibility not granted (grant ~/Applications/OpenTab.app and rerun)")
         }
@@ -128,6 +131,112 @@ enum SelfTest {
         } catch {
             return ["activate \(bundleID): FAILED \(String(describing: error)) after \(format(ContinuousClock.now - started))"]
         }
+    }
+
+    /// The production stack (off-space source, providers, store) run through
+    /// one full reconcile, then reported per app: rows versus windows, tabs
+    /// per window, degraded state and the store's own diagnostics. Counts
+    /// and keys only, never titles (L16). No consent prompt can appear here.
+    ///
+    /// `--stall <bundle id>` then stops that process with SIGSTOP, runs a
+    /// second reconcile and times the panel against it (the G-3 wedged
+    /// browser check); the process is continued before returning.
+    /// `--activate-tab <bundle id>` selects a tab that is not active in that
+    /// browser's first listed window, reads back where the browser landed,
+    /// and puts the previously active tab back.
+    private static func coordinatorReport() async -> [String] {
+        let source = AXWindowSource()
+        let offSpace = OffSpaceWindowSource(base: source)
+        let engine = AppleScriptEngine()
+        let gate = AutomationGateKeeper()
+        gate.promptsAllowed = { false }
+        let providers = TabProviderRegistry(engine: engine, includesPrivate: false)
+        let coordinator = SwitcherCoordinator(source: offSpace, activator: OffSpaceWindowActivator(source: offSpace),
+                                              directory: WorkspaceAppDirectory(), providers: providers,
+                                              gate: gate, resolver: WindowResolver(directBridge: source.isWindowIDBridgeAvailable),
+                                              windowServer: WindowServerIDs.current)
+        let controller = PanelController(model: PanelViewModel())
+        controller.prewarm()
+
+        var lines: [String] = []
+        let started = ContinuousClock.now
+        await coordinator.reconcile(seedFocus: true)
+        lines.append("coordinator: reconcile \(format(ContinuousClock.now - started))")
+        lines.append(contentsOf: describe(coordinator, gate: gate))
+        lines.append(panelTiming(controller, coordinator, label: "panelShowWithLiveRows"))
+
+        if let bundleID = argument("--stall"), let app = coordinator.entries.first(where: { $0.app.bundleID == bundleID })?.app {
+            kill(app.pid, SIGSTOP)
+            defer { kill(app.pid, SIGCONT) }
+            let stalled = ContinuousClock.now
+            await coordinator.reconcile()
+            lines.append("stalled \(bundleID): reconcile \(format(ContinuousClock.now - stalled))")
+            lines.append(contentsOf: describe(coordinator, gate: gate, only: app.key))
+            lines.append(panelTiming(controller, coordinator, label: "panelShowWhileStalled"))
+        }
+
+        if let bundleID = argument("--activate-tab") {
+            lines.append(contentsOf: await tabActivationCheck(bundleID: bundleID, coordinator: coordinator, providers: providers))
+        }
+        return lines
+    }
+
+    private static func describe(_ coordinator: SwitcherCoordinator, gate: AutomationGateKeeper,
+                                 only: AppKey? = nil) -> [String] {
+        let entries = coordinator.entries
+        let counts = coordinator.groupCounts
+        var lines = ["  rows=\(entries.count) store=\(coordinator.store.entries.count) " +
+                     "flaps=\(coordinator.store.flapCount) claimConflicts=\(coordinator.store.claimConflictCount) " +
+                     "droppedReads=\(coordinator.store.droppedReadCount) automationDenied=\(gate.deniedBundleIDs.sorted())"]
+        let byApp = Dictionary(grouping: entries, by: \.app.key)
+        for (key, rows) in byApp.sorted(by: { String(describing: $0.key) < String(describing: $1.key) }) {
+            if let only, key != only { continue }
+            let windows = rows.filter { $0.kind == .window }.count
+            let tabRows = rows.filter { $0.kind == .tab }
+            let status = rows.map(coordinator.rowStatus).first.map { String(describing: $0) } ?? "?"
+            var line = "  \(String(describing: key)) rows=\(rows.count) windowRows=\(windows) tabRows=\(tabRows.count) status=\(status)"
+            if !tabRows.isEmpty {
+                let perWindow = tabRows.map { counts.byWindowKey[$0.key] ?? 0 }
+                line += " tabsPerWindow=\(perWindow) claimed=\(tabRows.filter { coordinator.store.claimedWindow(for: $0.key) != nil }.count)"
+            }
+            lines.append(line)
+        }
+        return lines
+    }
+
+    /// The panel path with the real list, timed the way the hotkey path is:
+    /// rows from the store, then show.
+    private static func panelTiming(_ controller: PanelController, _ coordinator: SwitcherCoordinator, label: String) -> String {
+        let started = ContinuousClock.now
+        let rows = PanelController.rows(for: coordinator.entries, counts: coordinator.groupCounts, status: coordinator.rowStatus)
+        controller.show(rows: rows, selectedIndex: 1)
+        let line = "\(label)=\(format(ContinuousClock.now - started)) rows=\(rows.count)"
+        controller.hide()
+        return line
+    }
+
+    private static func tabActivationCheck(bundleID: String, coordinator: SwitcherCoordinator,
+                                           providers: TabProviderRegistry) async -> [String] {
+        guard let row = coordinator.entries.first(where: { $0.app.bundleID == bundleID && $0.kind == .tab }),
+              let provider = providers.provider(for: row.app) else {
+            return ["activate-tab \(bundleID): no tab row listed"]
+        }
+        let tabs = coordinator.store.tabs(in: row.key)
+        guard tabs.count > 1, let target = tabs.first(where: { $0.id != row.id }) else {
+            return ["activate-tab \(bundleID): the first window has a single tab"]
+        }
+        func activeToken() async -> String? {
+            let read = try? await provider.readTabs(for: row.app, deadline: .now + ScriptBudget.read)
+            return read?.first { $0.windowKey == row.key && $0.isActive }?.token
+        }
+        var lines: [String] = []
+        let started = ContinuousClock.now
+        await coordinator.activate(target)
+        let landed = await activeToken()
+        lines.append("activate-tab \(bundleID): expected=\(target.id.tabToken ?? "?") landed=\(landed ?? "nil") ok=\(landed == target.id.tabToken) in \(format(ContinuousClock.now - started))")
+        await coordinator.activate(row)
+        lines.append("activate-tab \(bundleID): restored=\(await activeToken() == row.id.tabToken)")
+        return lines
     }
 
     private static func format(_ duration: Duration?) -> String {
