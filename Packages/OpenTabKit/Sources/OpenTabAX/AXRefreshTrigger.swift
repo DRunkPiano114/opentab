@@ -136,6 +136,8 @@ public final class AXRefreshTrigger: RefreshTrigger {
             guard let self, !Task.isCancelled, self.frontmost == nil else { return }
             guard NSWorkspace.shared.frontmostApplication?.processIdentifier == app.pid else { return }
             self.frontmost = FrontmostObserver(app: app, trigger: self)
+            // A focus change during the gap was missed; catch up once.
+            if self.frontmost != nil { self.continuation.yield(.focusedWindowChanged(app)) }
         }
     }
 }

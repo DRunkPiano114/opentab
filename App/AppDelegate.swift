@@ -47,7 +47,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let rules = IgnoreRules(titlePatterns: UserDefaults.standard.stringArray(forKey: "ignoreTitlePatterns") ?? [])
-        source = AXWindowSource()
+        // `open` cannot pass environment variables, so the L10 degradation
+        // path is reachable from the command line as well.
+        source = AXWindowSource(windowIDBridgeEnabled: !CommandLine.arguments.contains("--disable-window-id-bridge"))
         directory = WorkspaceAppDirectory(ignoreRules: rules)
         index = WindowIndex(source: source, directory: directory, ignoreRules: rules)
         trigger = AXRefreshTrigger()

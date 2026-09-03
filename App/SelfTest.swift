@@ -34,6 +34,10 @@ enum SelfTest {
             let apps = directory.runningApps()
             let report = await source.measure(apps: apps)
             lines.append(report.text)
+            lines.append(contentsOf: await perAppSummary(apps: apps, source: source, directory: directory))
+            if let bundleID = argument("--activate") {
+                lines.append(contentsOf: await activationCheck(bundleID: bundleID, apps: apps, source: source))
+            }
         } else {
             lines.append("enumeration skipped: Accessibility not granted (grant ~/Applications/OpenTab.app and rerun)")
         }
@@ -85,6 +89,45 @@ enum SelfTest {
         let error = AXUIElementCopyAttributeValue(element, kAXFrontmostAttribute as CFString, &value)
         lines.append("previousAppAXFrontmost=\(String(describing: value as? Bool)) error=\(error.rawValue)")
         return lines
+    }
+
+    private static func argument(_ name: String) -> String? {
+        let arguments = CommandLine.arguments
+        guard let i = arguments.firstIndex(of: name), i + 1 < arguments.count else { return nil }
+        return arguments[i + 1]
+    }
+
+    /// One line per app: counts and flags only, never titles (L16).
+    private static func perAppSummary(apps: [AppInfo], source: AXWindowSource,
+                                      directory: WorkspaceAppDirectory) async -> [String] {
+        var lines = ["per app (bundle windows minimized hidden):"]
+        for app in apps.sorted(by: { $0.bundleID < $1.bundleID }) {
+            let deadline = ContinuousClock.now + .seconds(1)
+            guard let windows = try? await source.snapshot(of: app, deadline: deadline), !windows.isEmpty else { continue }
+            let minimized = windows.filter(\.isMinimized).count
+            lines.append("  \(app.bundleID.isEmpty ? "pid\(app.pid)" : app.bundleID) \(windows.count) \(minimized) \(directory.isHidden(app))")
+        }
+        return lines
+    }
+
+    /// `--activate <bundle id>`: raise that app's first listed window through
+    /// the production activator and report the read-back verdict (L2).
+    private static func activationCheck(bundleID: String, apps: [AppInfo], source: AXWindowSource) async -> [String] {
+        guard let app = apps.first(where: { $0.bundleID == bundleID }) else {
+            return ["activate \(bundleID): app not in candidate list"]
+        }
+        let deadline = ContinuousClock.now + .seconds(1)
+        guard let windows = try? await source.snapshot(of: app, deadline: deadline), let target = windows.first else {
+            return ["activate \(bundleID): no windows listed"]
+        }
+        let activator = AXWindowActivator(source: source)
+        let started = ContinuousClock.now
+        do {
+            try await activator.activate(target.key, deadline: ContinuousClock.now + .milliseconds(800))
+            return ["activate \(bundleID): confirmed in \(format(ContinuousClock.now - started)) key=\(target.key) wasMinimized=\(target.isMinimized)"]
+        } catch {
+            return ["activate \(bundleID): FAILED \(String(describing: error)) after \(format(ContinuousClock.now - started))"]
+        }
     }
 
     private static func format(_ duration: Duration?) -> String {

@@ -54,7 +54,13 @@ public final class WindowIndex {
             latestGeneration = max(latestGeneration, generation)
             await refresh(app: app, bumpFocused: true, generation: generation)
         case .appLaunched(let app):
+            // Launch is reported before the app has windows; without the
+            // second read the first window only shows up on the periodic tick.
             await refresh(app: app)
+            Task { [weak self] in
+                try? await Task.sleep(for: .seconds(1))
+                await self?.refresh(app: app)
+            }
         case .appTerminated(let app):
             if store.removeApp(app.key) { notify() }
         case .appHidden(let app):
@@ -122,6 +128,7 @@ public final class WindowIndex {
     }
 
     private func notify() {
+        log.info("index changed entries=\(self.store.entries.count, privacy: .public)")
         onChange?()
     }
 }

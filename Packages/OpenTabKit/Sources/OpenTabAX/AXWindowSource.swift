@@ -121,7 +121,6 @@ public final class AXWindowSource: WindowSource, @unchecked Sendable {
         try Self.checkDeadline(deadline)
         let pid = app.pid
         let appElement = AXElement.application(pid: pid)
-        logPreferredLanguageOnce(of: app, element: appElement)
 
         let windows = AXRead.value(appElement, kAXWindowsAttribute)
         let elements: [AXUIElement]
@@ -132,6 +131,13 @@ public final class AXWindowSource: WindowSource, @unchecked Sendable {
             elements = []
         default:
             throw appFailure(windows.error, pid: pid)
+        }
+        // Deferred behind this read on the same serial queue: several apps
+        // answer AXPreferredLanguage only after a full messaging timeout on
+        // first contact, and a process that does not answer AX at all would
+        // cost a second timeout. Neither belongs on the snapshot's critical path.
+        if state.withLock({ $0.contactedPIDs.insert(pid).inserted }) {
+            queues.queue(for: pid).async { self.logPreferredLanguage(of: app, element: appElement) }
         }
         let focused = AXRead.element(AXRead.value(appElement, kAXFocusedWindowAttribute).value)
 
@@ -221,9 +227,7 @@ public final class AXWindowSource: WindowSource, @unchecked Sendable {
 
     /// Records the target app's UI language once per pid, so localisation
     /// bugs can be traced to the language the app was actually running in.
-    private func logPreferredLanguageOnce(of app: AppInfo, element: AXElement) {
-        let isFirstContact = state.withLock { $0.contactedPIDs.insert(app.pid).inserted }
-        guard isFirstContact else { return }
+    private func logPreferredLanguage(of app: AppInfo, element: AXElement) {
         let language = (AXRead.value(element, "AXPreferredLanguage").value as? String) ?? "?"
         log.debug("""
             first contact pid=\(app.pid, privacy: .public) \

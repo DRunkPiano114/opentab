@@ -13,6 +13,7 @@ import os
 final class CGWindowTable: Sendable {
     private struct State {
         var layers: [CGWindowID: Int32] = [:]
+        var layerZeroOwners: Set<pid_t> = []
         var fetchedAt: ContinuousClock.Instant?
     }
 
@@ -28,22 +29,42 @@ final class CGWindowTable: Sendable {
                 if let layer = state.layers[id] { return layer }
                 if now - fetchedAt <= Self.missRefreshAge { return nil }
             }
-            state.layers = Self.copy()
-            state.fetchedAt = now
+            Self.refresh(&state, now: now)
             return state.layers[id]
         }
     }
 
-    private static func copy() -> [CGWindowID: Int32] {
+    /// Processes that own at least one layer-0 window. Asking a process with
+    /// none costs a full messaging timeout per attribute and yields nothing
+    /// (WebKit content processes and other helpers answer `cannotComplete`),
+    /// so the directory uses this as a candidate pre-filter. `.optionAll`
+    /// keeps apps whose windows are all minimized or on another Space.
+    func layerZeroOwnerPIDs() -> Set<pid_t> {
+        state.withLock { state in
+            let now = ContinuousClock.now
+            if state.fetchedAt.map({ now - $0 > Self.maxAge }) ?? true {
+                Self.refresh(&state, now: now)
+            }
+            return state.layerZeroOwners
+        }
+    }
+
+    private static func refresh(_ state: inout State, now: ContinuousClock.Instant) {
         let info = (CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID)
                     as? [[String: Any]]) ?? []
         var layers: [CGWindowID: Int32] = [:]
+        var owners: Set<pid_t> = []
         layers.reserveCapacity(info.count)
         for row in info {
             guard let number = row[kCGWindowNumber as String] as? Int,
                   let layer = row[kCGWindowLayer as String] as? Int else { continue }
             layers[CGWindowID(number)] = Int32(layer)
+            if layer == 0, let owner = row[kCGWindowOwnerPID as String] as? Int {
+                owners.insert(pid_t(owner))
+            }
         }
-        return layers
+        state.layers = layers
+        state.layerZeroOwners = owners
+        state.fetchedAt = now
     }
 }
