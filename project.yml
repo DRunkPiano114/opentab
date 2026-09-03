@@ -39,6 +39,8 @@ targets:
         product: OpenTabCore
       - package: OpenTabKit
         product: OpenTabAX
+      - package: OpenTabKit
+        product: OpenTabWS
     info:
       path: Support/Info.plist
       properties:
@@ -108,13 +110,42 @@ targets:
         OTHER_CODE_SIGN_FLAGS: "--timestamp=none"
         DEVELOPMENT_TEAM: ""
 
+  # Off-space (P2) tests that need the real app bundle: cross-process remote
+  # token scans, CGS Space queries and the Cmd+Tab takeover all run under the
+  # host app's Accessibility grant.
+  OpenTabWSAppTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources: [Tests/OpenTabWSAppTests]
+    dependencies:
+      - target: OpenTab
+      - package: OpenTabKit
+        product: OpenTabCore
+        link: false
+      - package: OpenTabKit
+        product: OpenTabAX
+        link: false
+      - package: OpenTabKit
+        product: OpenTabWS
+        link: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: im.opentab.app.tests.ws
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/OpenTab.app/Contents/MacOS/OpenTab"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "OpenTab Dev Signing"
+        OTHER_CODE_SIGN_FLAGS: "--timestamp=none"
+        DEVELOPMENT_TEAM: ""
+
 schemes:
   OpenTab:
     build:
-      targets: { OpenTab: all, OpenTabAppTests: [test] }
+      targets: { OpenTab: all, OpenTabAppTests: [test], OpenTabWSAppTests: [test] }
     test:
       config: Debug
-      targets: [OpenTabAppTests]
+      targets: [OpenTabAppTests, OpenTabWSAppTests]
     run:
       config: Debug
     archive:

@@ -31,6 +31,8 @@ final class SwitcherSession {
     private let log = Log.make("session")
 
     private var state: State = .idle
+    /// The modifier that opened the panel; its release commits.
+    private var holdModifier: HoldModifier = .option
     /// The entries on screen, in presentation order; parallel to the rows.
     private var presented: [Entry] = []
     private var rows: [PanelViewModel.Row] = []
@@ -54,8 +56,8 @@ final class SwitcherSession {
     }
 
     func start() {
-        hotKeys.onNavigationKey = { [weak self] key, phase in self?.handle(key, phase) }
-        hotKeys.onModifierReleased = { [weak self] in self?.modifierReleased() }
+        hotKeys.onNavigationKey = { [weak self] key, phase, hold in self?.handle(key, phase, hold: hold) }
+        hotKeys.onModifierReleased = { [weak self] modifier in self?.modifierReleased(modifier) }
         model.onHover = { [weak self] row in self?.hover(row) }
         model.onActivate = { [weak self] row in self?.activate(rowAt: row) }
         index.onChange = { [weak self] in self?.indexChanged() }
@@ -83,17 +85,17 @@ final class SwitcherSession {
     /// panel instead: degraded, but never stuck.
     private var modifierReleaseObservable: Bool { hotKeys.modifierMonitorsInstalled }
 
-    private func handle(_ key: NavigationKey, _ phase: KeyPhase) {
+    private func handle(_ key: NavigationKey, _ phase: KeyPhase, hold: HoldModifier?) {
         let entered = ContinuousClock.now
         switch state {
         case .idle:
             // Only the persistent hotkeys are registered while idle.
             guard phase == .pressed else { return }
             switch key {
-            case .next: open(startAtEnd: false, since: entered)
-            case .previous: open(startAtEnd: true, since: entered)
+            case .next: open(startAtEnd: false, since: entered, hold: hold ?? .option)
+            case .previous: open(startAtEnd: true, since: entered, hold: hold ?? .option)
             case .search:
-                open(startAtEnd: false, since: entered, commitOnReleasedModifier: false)
+                open(startAtEnd: false, since: entered, hold: hold ?? .option, commitOnReleasedModifier: false)
                 enterSearch()
                 return
             default: return
@@ -160,8 +162,8 @@ final class SwitcherSession {
         repeatTask = nil
     }
 
-    private func modifierReleased() {
-        guard state == .engaged else { return }
+    private func modifierReleased(_ modifier: HoldModifier) {
+        guard state == .engaged, modifier == holdModifier else { return }
         commit()
     }
 
@@ -182,7 +184,7 @@ final class SwitcherSession {
         guard panel.enterSearch() else {
             log.error("search field did not become first responder; staying in navigation")
             state = .engaged
-            hotKeys.registerNavigationKeys()
+            hotKeys.registerNavigationKeys(for: holdModifier)
             return
         }
         log.notice("search entered previous=\(self.previousApp?.processIdentifier ?? 0, privacy: .public)")
@@ -233,8 +235,9 @@ final class SwitcherSession {
 
     // MARK: - Panel
 
-    private func open(startAtEnd: Bool, since entered: ContinuousClock.Instant,
+    private func open(startAtEnd: Bool, since entered: ContinuousClock.Instant, hold: HoldModifier,
                       commitOnReleasedModifier: Bool = true) {
+        holdModifier = hold
         presented = index.entries
         searchIndex.update(with: presented)
         rows = PanelController.rows(for: presented, counts: index.groupCounts)
@@ -245,19 +248,19 @@ final class SwitcherSession {
         state = .engaged
         pointerLocation = NSEvent.mouseLocation
         panel.show(rows: rows, selectedIndex: selection.index, since: entered)
-        hotKeys.registerNavigationKeys()
-        log.notice("open rows=\(self.rows.count, privacy: .public) selected=\(self.selection.index, privacy: .public) order=\(Self.describe(self.presented), privacy: .public)")
+        hotKeys.registerNavigationKeys(for: hold)
+        log.notice("open rows=\(self.rows.count, privacy: .public) selected=\(self.selection.index, privacy: .public) hold=\(String(describing: hold), privacy: .public) held=\(self.hotKeys.isHeld(hold), privacy: .public) order=\(Self.describe(self.presented), privacy: .public)")
 
         if let app = frontmostApp() {
             Task { await index.refresh(app: app) }
         }
-        // A quick tap can release Option before the hotkey event reaches us;
-        // the monitor's edge then arrives in idle and is ignored, so the
+        // A quick tap can release the modifier before the hotkey event reaches
+        // us; the monitor's edge then arrives in idle and is ignored, so the
         // session's current key state settles it here. `NSEvent.modifierFlags`
         // is not usable for this: it reflects the last event this (inactive)
         // app processed, which once reported Option up while it was held and
         // committed the panel the instant it opened.
-        if commitOnReleasedModifier, modifierReleaseObservable, !HotKeyCenter.optionCurrentlyHeld {
+        if commitOnReleasedModifier, modifierReleaseObservable, !hotKeys.isHeld(hold) {
             commit()
         }
     }

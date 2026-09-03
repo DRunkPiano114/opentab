@@ -1,6 +1,7 @@
 import AppKit
 import OpenTabAX
 import OpenTabCore
+import OpenTabWS
 
 @main
 enum Main {
@@ -27,12 +28,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var directory: WorkspaceAppDirectory!
     private var index: WindowIndex!
     private var trigger: AXRefreshTrigger!
+    private var offSpace: OffSpaceSupport!
     private var trustPoll: Task<Void, Never>?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // The app-hosted test bundle loads this binary as its host; the tests
         // drive the pieces they need themselves.
         if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil { return }
+        if OffSpaceSupport.handleRestoreCommand(arguments: CommandLine.arguments) {
+            NSApp.terminate(nil)
+            return
+        }
 
         AXConfiguration.configureGlobalTimeout()
         log.notice("""
@@ -42,7 +48,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             """)
 
         if let outDir = SelfTest.outputDirectory(from: CommandLine.arguments) {
-            Task { await SelfTest.run(outputDirectory: outDir) }
+            Task {
+                await OffSpaceSupport.writeDiagnostics(to: outDir)
+                await SelfTest.run(outputDirectory: outDir)
+            }
             return
         }
 
@@ -50,14 +59,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // `open` cannot pass environment variables, so the L10 degradation
         // path is reachable from the command line as well.
         source = AXWindowSource(windowIDBridgeEnabled: !CommandLine.arguments.contains("--disable-window-id-bridge"))
+        // Off-space windows (remote tokens + CGS Space queries) and the
+        // Cmd+Tab takeover sit on top of the pure-AX source; every missing
+        // private symbol degrades back to it.
+        offSpace = OffSpaceSupport(base: source)
         directory = WorkspaceAppDirectory(ignoreRules: rules)
-        index = WindowIndex(source: source, directory: directory, ignoreRules: rules)
+        index = WindowIndex(source: offSpace.windowSource, directory: directory, ignoreRules: rules)
         trigger = AXRefreshTrigger()
 
         model = PanelViewModel()
         panel = PanelController(model: model)
         hotKeys = HotKeyCenter()
-        session = SwitcherSession(index: index, activator: AXWindowActivator(source: source),
+        session = SwitcherSession(index: index, activator: offSpace.activator,
                                   panel: panel, hotKeys: hotKeys, model: model)
         session.frontmostApp = { Self.frontmostAppInfo() }
 
@@ -80,6 +93,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         panel.prewarm()
         session.start()
+        offSpace.presentDegradationIfNeeded()
+        // The system chords must be off before the app's own are bound (E2).
+        if offSpace.enableCmdTabIfConfigured() {
+            hotKeys.registerCommandTab()
+        }
 
         if AXTrust.isTrusted {
             accessibilityGranted()
