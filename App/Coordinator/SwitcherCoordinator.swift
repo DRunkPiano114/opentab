@@ -87,7 +87,8 @@ final class SwitcherCoordinator {
 
     func rowStatus(for entry: Entry) -> PanelViewModel.Row.Status {
         if unresponsiveApps.contains(entry.app.key) { return .unresponsive }
-        if gate.deniedBundleIDs.contains(entry.app.bundleID) || tabsUnavailable.contains(entry.app.key) {
+        if gate.deniedBundleIDs.contains(entry.app.bundleID) || gate.unavailableBundleIDs.contains(entry.app.bundleID)
+            || tabsUnavailable.contains(entry.app.key) {
             return .tabsUnavailable
         }
         return .normal

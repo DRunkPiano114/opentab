@@ -139,6 +139,7 @@ final class FakeProviderLookup: TabProviderLookup {
 final class FakeAutomationGate: AutomationGate {
     var allowed = true
     private(set) var deniedBundleIDs: Set<String> = []
+    var unavailableBundleIDs: Set<String> = []
     private(set) var checks = 0
     var onChange: (@MainActor () -> Void)?
 

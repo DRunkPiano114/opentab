@@ -13,6 +13,10 @@ protocol AutomationGate: AnyObject {
     func noteRefusal(of app: AppInfo)
     /// Browsers listed as windows only because Apple Events were refused.
     var deniedBundleIDs: Set<String> { get }
+    /// Browsers listed as windows only because the permission check itself
+    /// did not answer - a wedged target times it out. Not a refusal, and kept
+    /// apart from one so a diagnostic can tell them apart.
+    var unavailableBundleIDs: Set<String> { get }
     var onChange: (@MainActor () -> Void)? { get set }
 }
 
@@ -38,6 +42,10 @@ final class AutomationGateKeeper: AutomationGate {
 
     private(set) var deniedBundleIDs: Set<String> = [] {
         didSet { if deniedBundleIDs != oldValue { onChange?() } }
+    }
+
+    private(set) var unavailableBundleIDs: Set<String> = [] {
+        didSet { if unavailableBundleIDs != oldValue { onChange?() } }
     }
 
     private struct Verdict {
@@ -88,7 +96,10 @@ final class AutomationGateKeeper: AutomationGate {
         case .targetNotRunning:
             return false
         case .timedOut, .failed:
-            log.error("automation status bundle=\(bundleID, privacy: .public) \(String(describing: status), privacy: .public)")
+            // The check did not answer, which says nothing about consent: a
+            // wedged browser times it out. Its tabs stay unread until the
+            // recheck, and the browser is reported as unavailable, not denied.
+            log.notice("automation status bundle=\(bundleID, privacy: .public) \(String(describing: status), privacy: .public)")
             record(status, for: bundleID)
             return false
         }
@@ -139,9 +150,15 @@ final class AutomationGateKeeper: AutomationGate {
 
     private func record(_ status: AutomationStatus, for bundleID: String) {
         verdicts[bundleID] = Verdict(status: status, at: .now)
-        if status == .authorized {
+        switch status {
+        case .authorized, .targetNotRunning:
             deniedBundleIDs.remove(bundleID)
-        } else {
+            unavailableBundleIDs.remove(bundleID)
+        case .timedOut, .failed:
+            deniedBundleIDs.remove(bundleID)
+            unavailableBundleIDs.insert(bundleID)
+        case .denied, .undetermined:
+            unavailableBundleIDs.remove(bundleID)
             deniedBundleIDs.insert(bundleID)
         }
     }

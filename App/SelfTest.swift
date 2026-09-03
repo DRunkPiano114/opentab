@@ -190,7 +190,8 @@ enum SelfTest {
                      "privateWindows=\(coordinator.store.privateWindowCount) " +
                      "privateUnplaced=\(coordinator.store.unattributedPrivateWindowCount) " +
                      "privateMisses=\(coordinator.store.privateAttributionMissCount) " +
-                     "automationDenied=\(gate.deniedBundleIDs.sorted())"]
+                     "automationDenied=\(gate.deniedBundleIDs.sorted()) " +
+                     "automationUnavailable=\(gate.unavailableBundleIDs.sorted())"]
         let byApp = Dictionary(grouping: entries, by: \.app.key)
         for (key, rows) in byApp.sorted(by: { String(describing: $0.key) < String(describing: $1.key) }) {
             if let only, key != only { continue }
