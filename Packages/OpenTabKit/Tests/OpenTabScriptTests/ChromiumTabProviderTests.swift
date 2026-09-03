@@ -32,10 +32,35 @@ final class ChromiumTabProviderTests: XCTestCase {
     }
 
     /// L16: incognito is a dictionary value, so this exclusion is reliable.
-    func testIncognitoWindowsAreExcludedByDefault() async throws {
+    /// The window itself is still reported, with nothing of its tabs but the
+    /// title it is displayed under: Accessibility lists that window whatever
+    /// this provider does, so the reconciler needs it to suppress that row.
+    func testIncognitoTabsAreWithheldAndTheWindowAloneIsReported() async throws {
         let tabs = try await provider(recorder()).readTabs(for: chrome, deadline: deadline)
-        XCTAssertEqual(tabs.map(\.token), ["t1", "t2"])
-        XCTAssertFalse(tabs.contains { $0.isPrivate })
+        XCTAssertEqual(tabs.filter { !$0.withholdsTabs }.map(\.token), ["t1", "t2"])
+
+        let withheld = tabs.filter(\.withholdsTabs)
+        XCTAssertEqual(withheld.map(\.windowKey),
+                       [.scripted(bundleID: "com.google.Chrome", token: "1391121538")])
+        XCTAssertEqual(withheld.first?.token, "", "it names no tab")
+        XCTAssertNil(withheld.first?.url)
+        XCTAssertEqual(withheld.first?.isPrivate, true)
+        XCTAssertEqual(withheld.first?.title, "Secret",
+                       "a Chromium window is titled after its active tab")
+    }
+
+    /// A tab closed between the window's `active tab index` and the tab list
+    /// being read leaves the index past the end.
+    func testAWindowWhoseActiveIndexIsOutOfRangeStillReportsATitle() async throws {
+        let recorder = ScriptRecorder { _ in
+            .success(.list([
+                .list([.text("1391121538"), .text("incognito"), .text("4"),
+                       .list([.text("t9")]), .list([.text("Secret")]),
+                       .list([.text("https://private.example/")])]),
+            ]))
+        }
+        let tabs = try await provider(recorder).readTabs(for: chrome, deadline: deadline)
+        XCTAssertEqual(tabs.map(\.title), ["Secret"])
     }
 
     func testOptingInMarksIncognitoTabsPrivate() async throws {
@@ -43,13 +68,14 @@ final class ChromiumTabProviderTests: XCTestCase {
             .readTabs(for: chrome, deadline: deadline)
         XCTAssertEqual(tabs.map(\.token), ["t1", "t2", "t9"])
         XCTAssertEqual(tabs.map(\.isPrivate), [false, false, true])
+        XCTAssertFalse(tabs.contains(where: \.withholdsTabs), "nothing is withheld once the user opted in")
     }
 
     func testTabsCarryStableIDsAndTheActiveFlag() async throws {
         let provider = provider(recorder())
         XCTAssertEqual(provider.tokenStability, .stable)
         let tabs = try await provider.readTabs(for: chrome, deadline: deadline)
-        XCTAssertEqual(tabs.map(\.isActive), [false, true])
+        XCTAssertEqual(tabs.filter { !$0.withholdsTabs }.map(\.isActive), [false, true])
         XCTAssertEqual(tabs.first?.windowKey,
                        .scripted(bundleID: "com.google.Chrome", token: "1391121581"))
         XCTAssertEqual(tabs.first?.url, URL(string: "https://docs.example/"))

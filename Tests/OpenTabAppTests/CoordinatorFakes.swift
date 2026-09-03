@@ -169,6 +169,20 @@ func window(_ id: UInt32, _ app: AppInfo, title: String, focused: Bool = false) 
                    isMinimized: false, isFocused: focused)
 }
 
+/// Chrome titles an incognito window `<page> - Google Chrome (Incognito)`
+/// (measured 2026-09-03); the window `name` the provider reports is `<page>`.
+func incognitoChromeWindow(_ id: UInt32, _ page: String) -> WindowSnapshot {
+    WindowSnapshot(key: .cg(id), app: chrome, title: "\(page) - Google Chrome (Incognito)",
+                   subrole: "AXStandardWindow", isMinimized: false)
+}
+
+/// What the provider hands over for an incognito window by default: the
+/// window and the title it is shown under, none of its tabs (L16).
+func withheldChromeWindow(_ window: String, _ title: String) -> TabSnapshot {
+    TabSnapshot(windowKey: .scripted(bundleID: chrome.bundleID, token: window), token: "",
+                title: title, url: nil, isActive: false, isPrivate: true, withholdsTabs: true)
+}
+
 func chromeTab(_ window: String, _ token: String, _ title: String, active: Bool = false) -> TabSnapshot {
     TabSnapshot(windowKey: .scripted(bundleID: chrome.bundleID, token: window), token: token,
                 title: title, url: URL(string: "https://example.test/\(token)"), isActive: active, isPrivate: false)
@@ -191,13 +205,15 @@ struct CoordinatorHarness {
     let coordinator: SwitcherCoordinator
     let windowServer: OSAllocatedUnfairLock<Set<UInt32>?>
 
-    init(providers: [any TabProvider] = [], live: Set<UInt32>? = []) {
+    init(providers: [any TabProvider] = [], live: Set<UInt32>? = [],
+         storeConfiguration: TabStore.Configuration = TabStore.Configuration()) {
         self.providers = FakeProviderLookup(providers)
         let box = OSAllocatedUnfairLock<Set<UInt32>?>(initialState: live)
         windowServer = box
         coordinator = SwitcherCoordinator(source: source, activator: activator, directory: directory,
                                           providers: self.providers, gate: gate, resolver: nil,
-                                          windowServer: { box.withLock { $0 } })
+                                          windowServer: { box.withLock { $0 } },
+                                          storeConfiguration: storeConfiguration)
     }
 
     func setLive(_ ids: Set<UInt32>?) { windowServer.withLock { $0 = ids } }

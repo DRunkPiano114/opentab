@@ -566,6 +566,123 @@ final class TabStoreTests: XCTestCase {
         XCTAssertTrue(h.store.isEmpty)
     }
 
+    // MARK: Private windows (L16)
+
+    func testPrivateWindowHidesTheWindowRowItStandsFor() {
+        var h = StoreHarness()
+        let incognito = scripted(chrome, "w9")
+        h.windows([chromeWindow(1, "GitHub"), incognitoWindow(2, "Long Secret Page")], for: chrome)
+        h.tabs([tab(github, "t1", "GitHub", active: true),
+                withheldWindow(incognito, "Long Secret Page")], for: chrome)
+
+        XCTAssertEqual(h.shownKeys, [github], "the incognito window contributes no row of either kind")
+        let entry = h.store.entries[EntryID.window(.cg(2))]
+        XCTAssertEqual(entry?.isPrivate, true)
+        XCTAssertEqual(entry?.title, "", "a window proven private gives its title up")
+        XCTAssertEqual(h.store.privateWindowCount, 1)
+        XCTAssertEqual(h.store.unattributedPrivateWindowCount, 0)
+        XCTAssertEqual(h.store.privateAttributionMissCount, 0)
+        XCTAssertEqual(h.store.groupCounts().byAppKey[chrome.key], 1)
+    }
+
+    func testAWindowReadDoesNotGiveAPrivateWindowItsTitleBack() {
+        var h = StoreHarness()
+        h.windows([incognitoWindow(2, "Long Secret Page")], for: chrome)
+        h.tabs([withheldWindow(scripted(chrome, "w9"), "Long Secret Page")], for: chrome)
+        h.windows([incognitoWindow(2, "Long Secret Page")], for: chrome)
+
+        XCTAssertEqual(h.store.entries[EntryID.window(.cg(2))]?.title, "")
+        XCTAssertTrue(h.shownKeys.isEmpty)
+    }
+
+    func testOptedInPrivateWindowIsListedAsPrivate() {
+        var configuration = TabStore.Configuration()
+        configuration.includesPrivateTabs = true
+        var h = StoreHarness(configuration: configuration)
+        let incognito = scripted(chrome, "w9")
+        h.windows([incognitoWindow(2, "Long Secret Page")], for: chrome)
+        h.tabs([tab(incognito, "t9", "Long Secret Page", active: true, isPrivate: true)], for: chrome)
+
+        XCTAssertEqual(h.shownKeys, [incognito])
+        XCTAssertEqual(h.store.sorted().map(\.isPrivate), [true])
+        XCTAssertEqual(h.store.privateWindowCount, 0, "opting in makes it an ordinary script window")
+    }
+
+    func testUnplacedPrivateWindowSuppressesEveryWindowRowOfThatBrowser() {
+        var h = StoreHarness()
+        let incognito = scripted(chrome, "w9")
+        // The incognito window is on another Space, so Accessibility has not
+        // listed it and nothing here can say which row it would be.
+        h.windows([chromeWindow(1, "GitHub")], for: chrome)
+        h.tabs([withheldWindow(incognito, "Long Secret Page")], for: chrome)
+
+        XCTAssertTrue(h.shownKeys.isEmpty, "any of this browser's rows could be the private one")
+        XCTAssertEqual(h.store.unattributedPrivateWindowCount, 1)
+        XCTAssertEqual(h.store.privateAttributionMissCount, 1)
+        XCTAssertEqual(h.store.entries[EntryID.window(.cg(1))]?.title, "GitHub - Google Chrome",
+                       "a row suppressed only for want of evidence is not marked private")
+
+        h.windows([chromeWindow(1, "GitHub"), incognitoWindow(2, "Long Secret Page")], for: chrome)
+        h.tabs([withheldWindow(incognito, "Long Secret Page")], for: chrome)
+        XCTAssertEqual(h.shownKeys, [.cg(1)], "placing it releases the rest of the browser")
+        XCTAssertEqual(h.store.unattributedPrivateWindowCount, 0)
+    }
+
+    func testAnAmbiguousPrivateWindowMarksNothingAndExposesNothing() {
+        var h = StoreHarness()
+        let incognito = scripted(chrome, "w9")
+        // The same page is open in a normal and an incognito window, so both
+        // titles corroborate both windows.
+        h.windows([chromeWindow(1, "Long Secret Page"), incognitoWindow(2, "Long Secret Page")], for: chrome)
+        h.tabs([tab(github, "t1", "Long Secret Page", active: true),
+                withheldWindow(incognito, "Long Secret Page")], for: chrome)
+
+        XCTAssertEqual(h.shownKeys, [github], "only the script window's own row survives")
+        XCTAssertEqual(h.store.entries[EntryID.window(.cg(1))]?.isPrivate, false)
+        XCTAssertEqual(h.store.entries[EntryID.window(.cg(2))]?.isPrivate, false)
+        XCTAssertEqual(h.store.unattributedPrivateWindowCount, 1)
+    }
+
+    func testAPlacedPrivateWindowStaysHiddenWhenTheProviderGoesAway() {
+        var h = StoreHarness()
+        h.windows([chromeWindow(1, "GitHub"), incognitoWindow(2, "Long Secret Page")], for: chrome)
+        h.tabs([tab(github, "t1", "GitHub", active: true),
+                withheldWindow(scripted(chrome, "w9"), "Long Secret Page")], for: chrome)
+
+        _ = h.store.removeTabs(for: chrome)
+        h.windows([chromeWindow(1, "GitHub"), incognitoWindow(2, "Long Secret Page")], for: chrome)
+
+        XCTAssertEqual(h.shownKeys, [.cg(1)], "the browser falls back to windows, minus the private one")
+    }
+
+    func testClosingThePrivateWindowLeavesTheBrowserListedNormally() {
+        var h = StoreHarness()
+        h.windows([chromeWindow(1, "GitHub"), incognitoWindow(2, "Long Secret Page")], for: chrome)
+        h.tabs([tab(github, "t1", "GitHub", active: true),
+                withheldWindow(scripted(chrome, "w9"), "Long Secret Page")], for: chrome)
+
+        h.windows([chromeWindow(1, "GitHub")], for: chrome)
+        h.tabs([tab(github, "t1", "GitHub", active: true)], for: chrome)
+
+        XCTAssertEqual(h.shownKeys, [github])
+        XCTAssertEqual(h.store.privateWindowCount, 0)
+        XCTAssertEqual(h.store.unattributedPrivateWindowCount, 0)
+    }
+
+    func testThreeChromeWindowsAndAnIncognitoOneGiveThreeRows() {
+        var h = StoreHarness()
+        let mail = scripted(chrome, "w3")
+        h.windows([chromeWindow(1, "GitHub"), chromeWindow(2, "Documents"), chromeWindow(3, "Mailbox"),
+                   incognitoWindow(4, "Long Secret Page")], for: chrome)
+        h.tabs([tab(github, "t1", "GitHub", active: true), tab(docs, "t2", "Documents", active: true),
+                tab(mail, "t3", "Mailbox", active: true),
+                withheldWindow(scripted(chrome, "w9"), "Long Secret Page")], for: chrome)
+
+        XCTAssertEqual(h.shownKeys, [github, docs, mail])
+        XCTAssertEqual(h.store.flapCount, 0)
+        XCTAssertEqual(h.store.claimConflictCount, 0)
+    }
+
     func testRemoveAllForgetsEverything() {
         var h = StoreHarness()
         h.windows([chromeWindow(1, "GitHub")], for: chrome)

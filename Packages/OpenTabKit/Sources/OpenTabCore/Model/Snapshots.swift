@@ -42,14 +42,21 @@ public struct TabSnapshot: Sendable, Hashable {
     public let url: URL?
     public let isActive: Bool
     public let isPrivate: Bool
+    /// The provider identified a private window and withheld its tabs (L16).
+    /// One such snapshot stands for the whole window: it names no tab, and its
+    /// `title` is the window's own, carried only so the reconciler can find the
+    /// Accessibility row that shows the same window and suppress it. The
+    /// reconciler never turns it into an entry and never stores its title.
+    public let withholdsTabs: Bool
 
     public init(windowKey: WindowKey, token: String, title: String, url: URL?,
-                isActive: Bool, isPrivate: Bool) {
+                isActive: Bool, isPrivate: Bool, withholdsTabs: Bool = false) {
         self.windowKey = windowKey
         self.token = token
         self.title = title
         self.url = url
         self.isActive = isActive
         self.isPrivate = isPrivate
+        self.withholdsTabs = withholdsTabs
     }
 }

@@ -16,7 +16,9 @@ public struct Entry: Sendable, Identifiable, Hashable {
     public var isMinimized: Bool
     public var isOnActiveSpace: Bool
     public var isHidden: Bool
-    /// Always `false` for window entries; P3b writes `TabSnapshot.isPrivate`.
+    /// A tab in a private window, or the window entry the store proved stands
+    /// for one. A private window entry carries no title and is never listed
+    /// unless the user opted in (L16).
     public var isPrivate: Bool
 
     /// Monotonic recency counter; primary sort key. Zero means never focused.

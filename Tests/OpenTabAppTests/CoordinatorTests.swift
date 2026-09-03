@@ -37,6 +37,72 @@ final class CoordinatorTests: XCTestCase {
         harness.rows.filter { $0.appName == chrome.localizedName }
     }
 
+    // MARK: Incognito windows (L16, gate G-3)
+
+    /// The provider withholding the tabs is not enough on its own: the window
+    /// still reaches the list through Accessibility, under its own title.
+    func testIncognitoWindowIsNeitherAWindowRowNorATabRow() async {
+        harness.setLive([1, 2, 3, 4])
+        harness.source.set([chromeWindow(1, "GitHub", focused: true), chromeWindow(2, "Docs"),
+                            chromeWindow(3, "Mail"), incognitoChromeWindow(4, "Long Secret Page")], for: chrome)
+        provider.set(tabs: [
+            chromeTab("w1", "t1", "GitHub", active: true), chromeTab("w2", "t4", "Docs", active: true),
+            chromeTab("w3", "t6", "Mail", active: true),
+            withheldChromeWindow("w9", "Long Secret Page"),
+        ])
+        await activateChrome()
+
+        XCTAssertEqual(chromeRows.map(\.title), ["GitHub", "Docs", "Mail"])
+        XCTAssertFalse(harness.entries.contains { $0.title.contains("Secret") },
+                       "no entry keeps the title of a private window")
+        XCTAssertEqual(harness.coordinator.store.privateWindowCount, 1)
+        XCTAssertEqual(harness.coordinator.store.unattributedPrivateWindowCount, 0)
+        XCTAssertEqual(harness.coordinator.store.privateAttributionMissCount, 0)
+
+        await harness.coordinator.handle(.periodic)
+        XCTAssertEqual(chromeRows.count, 3, "and it stays out over the sweep")
+    }
+
+    /// The incognito window has not been enumerated yet, so nothing says which
+    /// row it is. Over-suppressing beats showing it.
+    func testAnIncognitoWindowThatMatchesNoRowSuppressesTheBrowsersWindowRows() async {
+        harness.setLive([1, 2, 3, 5])
+        harness.source.set([chromeWindow(1, "GitHub", focused: true), chromeWindow(2, "Docs"),
+                            chromeWindow(3, "Mail"), window(5, chrome, title: "Task Manager")], for: chrome)
+        provider.set(tabs: [
+            chromeTab("w1", "t1", "GitHub", active: true), chromeTab("w2", "t4", "Docs", active: true),
+            chromeTab("w3", "t6", "Mail", active: true),
+            withheldChromeWindow("w9", "Long Secret Page"),
+        ])
+        await activateChrome()
+
+        XCTAssertEqual(chromeRows.map(\.title), ["GitHub", "Docs", "Mail"],
+                       "the window that could be the private one is held back too")
+        XCTAssertEqual(harness.coordinator.store.unattributedPrivateWindowCount, 1)
+        XCTAssertGreaterThan(harness.coordinator.store.privateAttributionMissCount, 0)
+    }
+
+    func testOptedInIncognitoWindowIsListedAndMarkedPrivate() async {
+        var configuration = TabStore.Configuration()
+        configuration.includesPrivateTabs = true
+        let provider = FakeTabProvider(bundleIDs: [chrome.bundleID])
+        let opted = CoordinatorHarness(providers: [provider], live: [1, 4], storeConfiguration: configuration)
+        opted.directory.set(apps: [chrome])
+        opted.directory.setFrontmost(chrome)
+        opted.source.set([chromeWindow(1, "GitHub", focused: true),
+                          incognitoChromeWindow(4, "Long Secret Page")], for: chrome)
+        provider.set(tabs: [
+            chromeTab("w1", "t1", "GitHub", active: true),
+            TabSnapshot(windowKey: .scripted(bundleID: chrome.bundleID, token: "w9"), token: "t9",
+                        title: "Long Secret Page", url: nil, isActive: true, isPrivate: true),
+        ])
+        await opted.coordinator.handle(.appActivated(chrome, FocusGeneration(raw: 1)))
+
+        XCTAssertEqual(opted.entries.count, 2)
+        XCTAssertEqual(opted.entries.filter(\.isPrivate).map(\.title), ["Long Secret Page"])
+        XCTAssertEqual(opted.coordinator.store.privateWindowCount, 0)
+    }
+
     // MARK: Three Chrome windows (packet §3, the reason this packet exists)
 
     func testThreeChromeWindowsGiveExactlyThreeRowsWithTabCounts() async {

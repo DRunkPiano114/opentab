@@ -60,6 +60,9 @@ public struct TabStore: Sendable {
     public private(set) var isPanelVisible = false
     /// Windows re-added within `flapWindow` of a claim-based removal.
     public private(set) var flapCount = 0
+    /// Tab reads that ended with a private window no window entry could be
+    /// attributed to. Cumulative; a title never accompanies it (L16).
+    public private(set) var privateAttributionMissCount = 0
     /// Title claims that disagreed with a caller-supplied resolution; neither
     /// was applied.
     public private(set) var claimConflictCount = 0
@@ -83,6 +86,10 @@ public struct TabStore: Sendable {
     private var released: [EntryID: ClaimRecord] = [:]
     /// Window key -> script window, supplied by the caller's resolution cascade.
     private var resolutions: [WindowKey: WindowKey] = [:]
+    /// Script windows the provider reported as private with their tabs
+    /// withheld. Their titles are never kept: attribution runs inside the read
+    /// that carried them and marks the window entry instead (L16).
+    private var privateScriptWindows: Set<WindowKey> = []
     private var pending: [EntryID: PendingRemoval] = [:]
     private struct ReadLane: Hashable { let app: AppKey; let kind: ReadKind }
     private var latestSequence: [ReadLane: UInt64] = [:]
@@ -217,13 +224,14 @@ public struct TabStore: Sendable {
             return .dropped(.rejectedEmpty)
         }
 
+        let listed = snapshots.filter { !$0.withholdsTabs }
         var windowsInRead: [WindowKey] = []
         var grouped: [WindowKey: [TabSnapshot]] = [:]
-        for snapshot in snapshots where grouped[snapshot.windowKey] == nil {
+        for snapshot in listed where grouped[snapshot.windowKey] == nil {
             windowsInRead.append(snapshot.windowKey)
             grouped[snapshot.windowKey] = []
         }
-        for snapshot in snapshots where configuration.includesPrivateTabs || !snapshot.isPrivate {
+        for snapshot in listed where configuration.includesPrivateTabs || !snapshot.isPrivate {
             grouped[snapshot.windowKey, default: []].append(snapshot)
         }
 
@@ -241,9 +249,111 @@ public struct TabStore: Sendable {
             }
         }
 
+        if notePrivateWindows(snapshots.filter(\.withholdsTabs), for: app) { changed = true }
         let claims = runClaims(for: app, now: now)
         return ApplyResult(disposition: .applied, changed: changed || !claims.isEmpty, claims: claims,
                            releasedWindows: releasedNow)
+    }
+
+    // MARK: - Private windows (L16)
+
+    /// Takes in the read's private windows, whose tabs the provider withheld,
+    /// and attributes each to the window entry Accessibility built for the
+    /// same window, which is then marked and never listed again.
+    ///
+    /// The marker's title lives no longer than this call: it is compared
+    /// against the window entries here and dropped, and the entry it matches
+    /// gives its own title up. A private window that matched nothing leaves
+    /// the browser's window rows suppressed wholesale until a later read
+    /// places it - any of those rows could be the one that must not be seen.
+    private mutating func notePrivateWindows(_ markers: [TabSnapshot], for app: AppInfo) -> Bool {
+        let bundleID = app.bundleID
+        guard !bundleID.isEmpty else { return false }
+        var titles: [WindowKey: String] = [:]
+        for marker in markers where titles[marker.windowKey] == nil {
+            titles[marker.windowKey] = marker.title
+        }
+        let before = privateScriptWindows
+        privateScriptWindows = privateScriptWindows.filter { Self.bundleID(of: $0) != bundleID }
+        privateScriptWindows.formUnion(titles.keys)
+        var changed = before != privateScriptWindows
+        guard !titles.isEmpty, !configuration.includesPrivateTabs else { return changed }
+
+        if unplacedPrivateWindows(of: bundleID) > 0, attributePrivateWindows(titles, for: app) { changed = true }
+        let missing = unplacedPrivateWindows(of: bundleID)
+        if missing > 0 {
+            privateAttributionMissCount += 1
+            Self.log.notice("""
+                \(missing, privacy: .public) private window(s) not placed pid=\(app.pid, privacy: .public); \
+                suppressing this browser's window rows
+                """)
+        }
+        return changed
+    }
+
+    /// Marks the window entry each private window stands for.
+    ///
+    /// A window entry is marked only when it corroborates exactly one private
+    /// window and that private window corroborates only it - and only when no
+    /// script window with listable tabs corroborates it too, which would make
+    /// the entry that window's row rather than a private one (D, E-1).
+    private mutating func attributePrivateWindows(_ titles: [WindowKey: String], for app: AppInfo) -> Bool {
+        let candidates = entries.values
+            .filter { $0.kind == .window && $0.app.key == app.key && !$0.isPrivate }
+            .sorted { $0.discoveryRank < $1.discoveryRank }
+        guard !candidates.isEmpty else { return false }
+        var titled = titles.map { (key: $0.key, title: $0.value) }
+        for scriptWindow in scriptWindows(of: app) {
+            guard let promotedID = promoted[scriptWindow], let tab = entries[promotedID] else { continue }
+            titled.append((key: scriptWindow, title: tab.title))
+        }
+        let matrix = Self.matchMatrix(candidates: candidates, titled: titled)
+
+        var changed = false
+        for window in candidates {
+            guard let matches = matrix.byWindow[window.id], matches.count == 1,
+                  titles[matches[0]] != nil, matrix.byScript[matches[0]] == 1 else { continue }
+            markPrivate(window.id)
+            changed = true
+        }
+        return changed
+    }
+
+    /// Drops the title of a window proven private: nothing downstream - a row,
+    /// a search index, a diagnostic dump - can leak what it cannot read (L16).
+    private mutating func markPrivate(_ id: EntryID) {
+        guard var entry = entries[id] else { return }
+        entry.isPrivate = true
+        entry.title = ""
+        entries[id] = entry
+        Self.log.notice("private window placed pid=\(entry.app.pid, privacy: .public); its row is suppressed")
+    }
+
+    /// Private windows this browser has that no window entry carries yet.
+    private func unplacedPrivateWindows(of bundleID: String) -> Int {
+        let known = privateScriptWindows.filter { Self.bundleID(of: $0) == bundleID }.count
+        guard known > 0 else { return 0 }
+        let placed = entries.values.filter {
+            $0.kind == .window && $0.isPrivate && $0.app.bundleID == bundleID
+        }.count
+        return known - placed
+    }
+
+    /// Browsers whose window rows are all suppressed because one of their
+    /// private windows is unplaced: any row could be the one to hide.
+    private func suppressedBundleIDs() -> Set<String> {
+        guard !configuration.includesPrivateTabs, !privateScriptWindows.isEmpty else { return [] }
+        return Set(privateScriptWindows.compactMap(Self.bundleID(of:)))
+            .filter { unplacedPrivateWindows(of: $0) > 0 }
+    }
+
+    /// Private windows currently known, and how many of them have no window
+    /// entry to hide. Counts only, never titles (L16).
+    public var privateWindowCount: Int { privateScriptWindows.count }
+    public var unattributedPrivateWindowCount: Int {
+        guard !configuration.includesPrivateTabs else { return 0 }
+        return Set(privateScriptWindows.compactMap(Self.bundleID(of:)))
+            .reduce(0) { $0 + max(0, unplacedPrivateWindows(of: $1)) }
     }
 
     private mutating func applyScriptWindow(_ scriptWindow: WindowKey, tabs: [TabSnapshot], app: AppInfo,
@@ -412,24 +522,17 @@ public struct TabStore: Sendable {
     private mutating func runClaims(for app: AppInfo, now: ContinuousClock.Instant) -> [Claim] {
         guard !isPanelVisible else { return [] }
         let candidates = entries.values
-            .filter { $0.kind == .window && $0.app.key == app.key && pending[$0.id] == nil }
+            .filter { $0.kind == .window && $0.app.key == app.key && pending[$0.id] == nil && !$0.isPrivate }
             .sorted { $0.discoveryRank < $1.discoveryRank }
         var unowned = scriptWindows(of: app).filter { owner[$0] == nil && promoted[$0] != nil }
         guard !candidates.isEmpty, !unowned.isEmpty else { return [] }
         unowned.sort { slotRank[$0] ?? 0 < slotRank[$1] ?? 0 }
 
-        var matchesByWindow: [EntryID: [WindowKey]] = [:]
-        var matchesByScript: [WindowKey: Int] = [:]
-        for window in candidates {
-            for scriptWindow in unowned {
-                guard let promotedID = promoted[scriptWindow], let tab = entries[promotedID],
-                      TitleCorroboration.corroborates(windowTitle: window.title, tabTitle: tab.title,
-                                                      appName: window.app.localizedName)
-                else { continue }
-                matchesByWindow[window.id, default: []].append(scriptWindow)
-                matchesByScript[scriptWindow, default: 0] += 1
-            }
-        }
+        let (matchesByWindow, matchesByScript) = Self.matchMatrix(candidates: candidates,
+                                                                  titled: unowned.compactMap { scriptWindow in
+            guard let promotedID = promoted[scriptWindow], let tab = entries[promotedID] else { return nil }
+            return (key: scriptWindow, title: tab.title)
+        })
         let blankWindows = candidates.filter {
             TitleCorroboration.normalize($0.title, appName: $0.app.localizedName).isEmpty
         }
@@ -469,6 +572,23 @@ public struct TabStore: Sendable {
             }
         }
         return claims
+    }
+
+    /// Which titled script windows corroborate each window entry (D), counted
+    /// from both sides so an ambiguous pair can be left alone.
+    private static func matchMatrix(candidates: [Entry], titled: [(key: WindowKey, title: String)])
+        -> (byWindow: [EntryID: [WindowKey]], byScript: [WindowKey: Int]) {
+        var byWindow: [EntryID: [WindowKey]] = [:]
+        var byScript: [WindowKey: Int] = [:]
+        for window in candidates {
+            for candidate in titled
+            where TitleCorroboration.corroborates(windowTitle: window.title, tabTitle: candidate.title,
+                                                  appName: window.app.localizedName) {
+                byWindow[window.id, default: []].append(candidate.key)
+                byScript[candidate.key, default: 0] += 1
+            }
+        }
+        return (byWindow, byScript)
     }
 
     /// The row keeps the earlier of the two discovery ranks: whichever side
@@ -568,6 +688,7 @@ public struct TabStore: Sendable {
                 owner[scriptWindow] = nil
             }
             resolutions = resolutions.filter { Self.bundleID(of: $0.value) != bundleID }
+            privateScriptWindows = privateScriptWindows.filter { Self.bundleID(of: $0) != bundleID }
         }
         return changed
     }
@@ -575,6 +696,10 @@ public struct TabStore: Sendable {
     /// Drops the app's tab entries only, releasing the windows they claimed.
     /// For a provider that became unavailable (permission revoked, browser
     /// not scriptable): the window entries return on the next window read.
+    ///
+    /// What the provider said about private windows is kept. Losing the
+    /// provider is losing the ability to tell, and a window already proven
+    /// private does not become listable because nothing can ask again (L16).
     public mutating func removeTabs(for app: AppInfo) -> ApplyResult {
         var changed = false
         var releasedNow: [EntryID] = []
@@ -626,6 +751,7 @@ public struct TabStore: Sendable {
         claimed.removeAll()
         released.removeAll()
         resolutions.removeAll()
+        privateScriptWindows.removeAll()
         pending.removeAll()
     }
 
@@ -672,7 +798,7 @@ public struct TabStore: Sendable {
                 existing.reason = reason
                 pending[id] = existing
             } else {
-                pending[id] = PendingRemoval(reason: reason, wasShown: isShown(entry))
+                pending[id] = PendingRemoval(reason: reason, wasShown: isShown(entry, suppressed: suppressedBundleIDs()))
                 Self.log.debug("deferred removal while switcher is visible reason=\(String(describing: reason), privacy: .public)")
             }
             return false
@@ -785,7 +911,8 @@ public struct TabStore: Sendable {
 
     /// The main list: window entries plus one promoted tab per script window.
     public func sorted(mode: SortMode = .recency) -> [Entry] {
-        EntrySort.sorted(entries.values.filter(isShown), mode: mode)
+        let suppressed = suppressedBundleIDs()
+        return EntrySort.sorted(entries.values.filter { isShown($0, suppressed: suppressed) }, mode: mode)
     }
 
     /// The tabs of a script window in provider order, for the detail pane.
@@ -818,17 +945,19 @@ public struct TabStore: Sendable {
     public func groupCounts() -> GroupCounts {
         var byWindow: [WindowKey: Int] = [:]
         var byApp: [AppKey: Int] = [:]
+        let suppressed = suppressedBundleIDs()
         for entry in entries.values {
-            let shown = isShown(entry)
+            let shown = isShown(entry, suppressed: suppressed)
             if entry.kind == .tab || shown { byWindow[entry.key, default: 0] += 1 }
             if shown { byApp[entry.app.key, default: 0] += 1 }
         }
         return GroupCounts(byWindowKey: byWindow, byAppKey: byApp)
     }
 
-    private func isShown(_ entry: Entry) -> Bool {
+    private func isShown(_ entry: Entry, suppressed: Set<String>) -> Bool {
         if let pending = pending[entry.id] { return pending.wasShown }
-        return entry.kind == .window || promoted[entry.key] == entry.id
+        guard entry.kind == .window else { return promoted[entry.key] == entry.id }
+        return !entry.isPrivate && !suppressed.contains(entry.app.bundleID)
     }
 
     private func scriptWindows(of app: AppInfo) -> [WindowKey] {
@@ -844,7 +973,9 @@ public struct TabStore: Sendable {
     /// Returns `true` when a display-relevant field changed.
     private static func merge(_ snapshot: WindowSnapshot, into entry: inout Entry, isHidden: Bool) -> Bool {
         var changed = false
-        if entry.title != snapshot.title { entry.title = snapshot.title; changed = true }
+        // A window proven private gave its title up for good (L16); a later
+        // read must not put it back.
+        if !entry.isPrivate, entry.title != snapshot.title { entry.title = snapshot.title; changed = true }
         if entry.app != snapshot.app { entry.app = snapshot.app; changed = true }
         if entry.isMinimized != snapshot.isMinimized { entry.isMinimized = snapshot.isMinimized; changed = true }
         if entry.isOnActiveSpace != snapshot.isOnActiveSpace { entry.isOnActiveSpace = snapshot.isOnActiveSpace; changed = true }

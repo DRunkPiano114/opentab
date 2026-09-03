@@ -57,3 +57,17 @@ struct StoreHarness {
     var shownKeys: [WindowKey] { store.sorted().map(\.key) }
     var shownIDs: [EntryID] { store.sorted().map(\.id) }
 }
+
+/// Chrome titles an incognito window `<page> - Google Chrome (Incognito)`
+/// while its window `name` is just `<page>` (measured 2026-09-03).
+func incognitoWindow(_ id: UInt32, _ page: String) -> WindowSnapshot {
+    WindowSnapshot(key: .cg(id), app: chrome, title: "\(page) - Google Chrome (Incognito)",
+                   subrole: "AXStandardWindow", isMinimized: false)
+}
+
+/// What a provider hands over for a private window under the default policy:
+/// the window, its title, and none of its tabs (L16).
+func withheldWindow(_ window: WindowKey, _ title: String) -> TabSnapshot {
+    TabSnapshot(windowKey: window, token: "", title: title, url: nil, isActive: true,
+                isPrivate: true, withholdsTabs: true)
+}

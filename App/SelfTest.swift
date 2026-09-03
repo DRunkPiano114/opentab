@@ -186,7 +186,11 @@ enum SelfTest {
         let counts = coordinator.groupCounts
         var lines = ["  rows=\(entries.count) store=\(coordinator.store.entries.count) " +
                      "flaps=\(coordinator.store.flapCount) claimConflicts=\(coordinator.store.claimConflictCount) " +
-                     "droppedReads=\(coordinator.store.droppedReadCount) automationDenied=\(gate.deniedBundleIDs.sorted())"]
+                     "droppedReads=\(coordinator.store.droppedReadCount) " +
+                     "privateWindows=\(coordinator.store.privateWindowCount) " +
+                     "privateUnplaced=\(coordinator.store.unattributedPrivateWindowCount) " +
+                     "privateMisses=\(coordinator.store.privateAttributionMissCount) " +
+                     "automationDenied=\(gate.deniedBundleIDs.sorted())"]
         let byApp = Dictionary(grouping: entries, by: \.app.key)
         for (key, rows) in byApp.sorted(by: { String(describing: $0.key) < String(describing: $1.key) }) {
             if let only, key != only { continue }

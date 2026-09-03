@@ -17,8 +17,9 @@ public final class ChromiumTabProvider: TabProvider, TabCloser {
     private let includesPrivateWindows: Bool
     private let log = Log.make("script.chromium")
 
-    /// `includesPrivateWindows` is the user's explicit opt-in; the default drops
-    /// incognito windows entirely (L16).
+    /// `includesPrivateWindows` is the user's explicit opt-in; the default
+    /// withholds every incognito window's tabs and reports the window alone
+    /// (L16).
     public init(bundleIDs: [String],
                 engine: AppleScriptEngine,
                 includesPrivateWindows: Bool = false,
@@ -37,14 +38,20 @@ public final class ChromiumTabProvider: TabProvider, TabCloser {
 
         let windows = BrowserScriptParser.chromiumWindows(value)
         var snapshots: [TabSnapshot] = []
-        var droppedPrivate = 0
+        var withheld = 0
         for window in windows {
             let isPrivate = window.mode == Self.incognitoMode
+            let key = WindowKey.scripted(bundleID: app.bundleID, token: window.windowID)
             if isPrivate && !includesPrivateWindows {
-                droppedPrivate += 1
+                withheld += 1
+                // Dropping the tabs is not enough on its own: Accessibility
+                // enumerates the window anyway, so the window would still be
+                // listed under its own title. The window is reported with its
+                // tabs withheld so the reconciler can suppress that row.
+                snapshots.append(TabSnapshot(windowKey: key, token: "", title: Self.windowTitle(of: window),
+                                             url: nil, isActive: false, isPrivate: true, withholdsTabs: true))
                 continue
             }
-            let key = WindowKey.scripted(bundleID: app.bundleID, token: window.windowID)
             for (offset, id) in window.tabIDs.enumerated() {
                 snapshots.append(TabSnapshot(windowKey: key,
                                              token: id,
@@ -56,10 +63,19 @@ public final class ChromiumTabProvider: TabProvider, TabCloser {
         }
         log.debug("""
             chromium tabs read: windows=\(windows.count, privacy: .public) \
-            tabs=\(snapshots.count, privacy: .public) \
-            privateWindowsDropped=\(droppedPrivate, privacy: .public)
+            tabs=\(snapshots.count - withheld, privacy: .public) \
+            privateWindowsWithheld=\(withheld, privacy: .public)
             """)
         return snapshots
+    }
+
+    /// A Chromium window is titled after its active tab, so the row already
+    /// read holds the window's own title; `name of window` would be a second
+    /// Apple Event for the same string.
+    private static func windowTitle(of window: ChromiumWindowRow) -> String {
+        let index = window.activeTabIndex - 1
+        guard window.titles.indices.contains(index) else { return window.titles.first ?? "" }
+        return window.titles[index]
     }
 
     public func activate(_ tab: TabSnapshot, deadline: ContinuousClock.Instant) async throws {
