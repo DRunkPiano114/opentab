@@ -7,6 +7,3 @@ public protocol TabProvider: Sendable {
     func readTabs(for app: AppInfo, deadline: ContinuousClock.Instant) async throws -> [TabSnapshot]
     func activate(_ tab: TabSnapshot, deadline: ContinuousClock.Instant) async throws
 }
-
-/// Empty shell; P1 fills it in.
-public protocol SearchIndex: Sendable {}
