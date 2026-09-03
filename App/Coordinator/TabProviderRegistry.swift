@@ -63,31 +63,45 @@ final class TabProviderRegistry: TabProviderLookup {
             return ChromiumTabProvider(bundleIDs: [app.bundleID], engine: engine,
                                        includesPrivateWindows: includesPrivate)
         }
-        // Everything else falls to the Accessibility scan, which covers Finder
-        // and other native tab groups. A browser no scripting dictionary
-        // covers is the exception: Accessibility shows a private window's tab
-        // titles and offers no reliable way to tell one apart, so such a
-        // browser lists windows only unless the user opted in (L16) - the same
-        // rule Safari already lives under.
-        guard accessibility.isAvailable, includesPrivate || !Self.isBrowser(app) else { return nil }
+        // Everything else falls to the Accessibility scan, which covers Finder,
+        // terminals and other native tab groups. A browser no scripting
+        // dictionary covers is the exception: Accessibility shows a private
+        // window's tab titles and offers no reliable way to tell one apart, so
+        // such a browser lists windows only unless the user opted in (L16) -
+        // the same rule Safari already lives under. The Chromium half of that
+        // question was settled by the probe above.
+        guard accessibility.isAvailable,
+              includesPrivate || !Self.namedBrowserBundleIDs.contains(app.bundleID) else { return nil }
         return accessibility
     }
 
-    /// An app registered with Launch Services as an `https` handler. A system
-    /// fact, not a display string (L3).
+    /// Whether this app can show private windows the Accessibility tree gives
+    /// no way to tell apart, and so must not have its tabs read that way (L16).
     ///
-    /// It over-reaches: a terminal that can open a link (iTerm2 registers the
-    /// scheme) is caught too and lists windows only. That is the safe side of
-    /// the trade - the alternative is guessing wrong about a browser that has
-    /// private windows, and L16 says not to gamble on that.
-    private static func isBrowser(_ app: AppInfo) -> Bool {
-        guard !app.bundleID.isEmpty else { return false }
-        return browserBundleIDs.contains(app.bundleID)
+    /// Decided by bundle id and by the Chromium scripting-suite probe, which
+    /// also catches forks nobody enumerated. Deliberately *not* decided by a
+    /// Launch Services URL-scheme registration: every app that can open a link
+    /// claims `https`, so iTerm2 and other native tab apps would be silently
+    /// demoted to windows only.
+    static func isBrowser(_ app: AppInfo, appURL: URL?) -> Bool {
+        if namedBrowserBundleIDs.contains(app.bundleID) { return true }
+        guard let appURL else { return false }
+        return ChromiumFamily.isChromium(appURL: appURL)
     }
 
-    private static let browserBundleIDs: Set<String> = {
-        guard let probe = URL(string: "https://example.invalid") else { return [] }
-        return Set(NSWorkspace.shared.urlsForApplications(toOpen: probe)
-            .compactMap { Bundle(url: $0)?.bundleIdentifier })
-    }()
+    /// Safari, plus the browsers whose engine offers no probe of its own. The
+    /// Chromium family is not listed: `ChromiumFamily.isChromium` decides it.
+    static let namedBrowserBundleIDs: Set<String> = [
+        SafariTabProvider.safariBundleID,
+        "com.apple.SafariTechnologyPreview",
+        "org.mozilla.firefox",
+        "org.mozilla.firefoxdeveloperedition",
+        "org.mozilla.nightly",
+        "org.torproject.torbrowser",
+        "net.waterfox.waterfox",
+        "io.gitlab.librewolf-community.librewolf.macos",
+        "app.zen-browser.zen",
+        "company.thebrowser.Browser",
+        "com.kagi.kagimacOS",
+    ]
 }

@@ -204,10 +204,24 @@ enum SelfTest {
             lines.append(panelTiming(controller, coordinator, label: "panelShowWhileStalled"))
         }
 
+        lines.append(contentsOf: providerVerdicts(providers))
         lines.append(contentsOf: await faviconReport(coordinator))
 
         if let bundleID = argument("--activate-tab") {
             lines.append(contentsOf: await tabActivationCheck(bundleID: bundleID, coordinator: coordinator, providers: providers))
+        }
+        return lines
+    }
+
+    /// Which provider each running app gets, and whether it was judged a
+    /// browser. Bundle ids and verdicts only, never a title (L16).
+    private static func providerVerdicts(_ providers: TabProviderRegistry) -> [String] {
+        var lines = ["tab providers (bundle isBrowser provider):"]
+        for app in WorkspaceAppDirectory().runningApps().sorted(by: { $0.bundleID < $1.bundleID }) {
+            let url = NSRunningApplication(processIdentifier: app.pid)?.bundleURL
+            let kind = providers.provider(for: app).map { String(describing: type(of: $0)) } ?? "none"
+            let name = app.bundleID.isEmpty ? "pid\(app.pid)" : app.bundleID
+            lines.append("  \(name) \(TabProviderRegistry.isBrowser(app, appURL: url)) \(kind)")
         }
         return lines
     }
