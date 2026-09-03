@@ -20,6 +20,7 @@ let package = Package(
         .target(name: "OpenTabScript", dependencies: ["OpenTabCore"]),
         .target(name: "OpenTabWS", dependencies: ["OpenTabCore", "OpenTabAX"]),
         .testTarget(name: "OpenTabCoreTests", dependencies: ["OpenTabCore"]),
+        .testTarget(name: "OpenTabScriptTests", dependencies: ["OpenTabScript"]),
         .testTarget(name: "OpenTabWSTests", dependencies: ["OpenTabWS"]),
     ],
     swiftLanguageModes: [.v6]
