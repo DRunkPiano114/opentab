@@ -5,7 +5,7 @@ import XCTest
 /// place for anything that needs a live NSApplication event loop (L12).
 final class BundleConfigTests: XCTestCase {
     private var appInfo: [String: Any] {
-        let host = Bundle(identifier: "com.paulwu.opentab") ?? Bundle.main
+        let host = Bundle(identifier: "im.opentab.app") ?? Bundle.main
         return host.infoDictionary ?? [:]
     }
 
@@ -18,6 +18,6 @@ final class BundleConfigTests: XCTestCase {
     }
 
     func testHostIsTheRealApp() {
-        XCTAssertEqual(Bundle.main.bundleIdentifier, "com.paulwu.opentab")
+        XCTAssertEqual(Bundle.main.bundleIdentifier, "im.opentab.app")
     }
 }

@@ -11,7 +11,7 @@ final class PIDQueues: Sendable {
         if pid == getpid() { return .main }
         return queues.withLock { table in
             if let queue = table[pid] { return queue }
-            let queue = DispatchQueue(label: "com.paulwu.opentab.ax.\(pid)", qos: .userInitiated,
+            let queue = DispatchQueue(label: "im.opentab.app.ax.\(pid)", qos: .userInitiated,
                                       autoreleaseFrequency: .workItem)
             table[pid] = queue
             return queue

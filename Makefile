@@ -13,8 +13,8 @@ SHELL       := /bin/bash
 
 HERE        := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 APP_NAME    := OpenTab
-BUNDLE_ID   := com.paulwu.opentab
-SUBSYSTEM   := com.paulwu.opentab
+BUNDLE_ID   := im.opentab.app
+SUBSYSTEM   := im.opentab.app
 SIGN_CN     := OpenTab Dev Signing
 CONFIG      ?= Debug
 DERIVED     := $(HERE)/build/DerivedData

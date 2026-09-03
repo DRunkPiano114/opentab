@@ -1,6 +1,6 @@
 name: OpenTab
 options:
-  bundleIdPrefix: com.paulwu
+  bundleIdPrefix: im.opentab
   deploymentTarget: { macOS: "26.0" }
   createIntermediateGroups: true
   groupSortPosition: top
@@ -67,7 +67,7 @@ targets:
         com.apple.security.get-task-allow: true
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.paulwu.opentab
+        PRODUCT_BUNDLE_IDENTIFIER: im.opentab.app
         PRODUCT_NAME: OpenTab
         INFOPLIST_FILE: Support/Info.plist
         CODE_SIGN_ENTITLEMENTS: Support/OpenTab.entitlements
@@ -99,7 +99,7 @@ targets:
         link: false
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.paulwu.opentab.apptests
+        PRODUCT_BUNDLE_IDENTIFIER: im.opentab.app.tests
         GENERATE_INFOPLIST_FILE: YES
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/OpenTab.app/Contents/MacOS/OpenTab"
         BUNDLE_LOADER: "$(TEST_HOST)"
