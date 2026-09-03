@@ -47,6 +47,9 @@ public final class AXTabProvider: TabProvider, TabCloser, AccessibilityTabReads,
         /// Windows whose tab strip did not report exactly one selected tab.
         public var windowsWithoutOneActiveTab: Int
         public var nodesVisited: Int
+        /// Windows whose tabs came from a tab group's `AXTabs` rather than
+        /// from the walk.
+        public var windowsUsingDeclaredTabs: Int
         public var stops: [String]
         public var duration: Duration
     }
@@ -112,6 +115,7 @@ public final class AXTabProvider: TabProvider, TabCloser, AccessibilityTabReads,
                           titlesNonEmpty: read.snapshots.count(where: { !$0.title.isEmpty }),
                           windowsWithoutOneActiveTab: read.windowsWithoutOneActiveTab,
                           nodesVisited: read.nodesVisited,
+                          windowsUsingDeclaredTabs: read.windowsUsingDeclaredTabs,
                           stops: read.stops.sorted().map(\.rawValue),
                           duration: clock.now - started)
     }
@@ -122,6 +126,7 @@ public final class AXTabProvider: TabProvider, TabCloser, AccessibilityTabReads,
         var snapshots: [TabSnapshot] = []
         var windowsScanned = 0
         var windowsWithoutOneActiveTab = 0
+        var windowsUsingDeclaredTabs = 0
         var nodesVisited = 0
         var stops: Set<TabScanStop> = []
         var incomplete = false
@@ -162,6 +167,7 @@ public final class AXTabProvider: TabProvider, TabCloser, AccessibilityTabReads,
                 scan.incomplete = true
             }
             guard !result.tabs.isEmpty else { continue }
+            if result.usedDeclaredTabs { scan.windowsUsingDeclaredTabs += 1 }
 
             // Exactly one tab per window carries `AXValue == true`. More than
             // one, or none, means the read caught the strip mid-change; the
@@ -306,8 +312,16 @@ struct AXTabTreeSource: TabTreeSource {
     /// allows, so a container with thousands of children costs the limit
     /// rather than the container.
     func children(of node: AXElement, limit: Int) -> [AXElement] {
+        elements(of: node, attribute: kAXChildrenAttribute, limit: limit)
+    }
+
+    func declaredTabs(of node: AXElement, limit: Int) -> [AXElement] {
+        elements(of: node, attribute: "AXTabs", limit: limit)
+    }
+
+    private func elements(of node: AXElement, attribute: String, limit: Int) -> [AXElement] {
         var out: CFArray?
-        let error = AXUIElementCopyAttributeValues(node.raw, kAXChildrenAttribute as CFString,
+        let error = AXUIElementCopyAttributeValues(node.raw, attribute as CFString,
                                                    0, CFIndex(limit), &out)
         guard error == .success || error == .noValue,
               let values = out as? [AXUIElement] else { return [] }

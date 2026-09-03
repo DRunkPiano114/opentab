@@ -125,7 +125,7 @@ enum SelfTest {
     private static func accessibilityTabScan(apps: [AppInfo]) async -> [String] {
         let provider = AXTabProvider()
         guard provider.isAvailable else { return ["axTabs: unavailable, _AXUIElementGetWindow did not resolve"] }
-        var lines = ["axTabs (bundle windows tabs titlesNonEmpty windowsNotExactlyOneActive nodes stops took):"]
+        var lines = ["axTabs (bundle windows tabs titlesNonEmpty windowsNotExactlyOneActive declaredTabs nodes stops took):"]
         var totalNodes = 0
         var totalTabs = 0
         let started = ContinuousClock.now
@@ -136,7 +136,8 @@ enum SelfTest {
             totalTabs += report.tabsFound
             let name = report.bundleID.isEmpty ? "pid\(app.pid)" : report.bundleID
             lines.append("  \(name) \(report.windowsScanned) \(report.tabsFound) \(report.titlesNonEmpty) " +
-                         "\(report.windowsWithoutOneActiveTab) \(report.nodesVisited) " +
+                         "\(report.windowsWithoutOneActiveTab) \(report.windowsUsingDeclaredTabs) " +
+                         "\(report.nodesVisited) " +
                          "\(report.stops.isEmpty ? "-" : report.stops.joined(separator: ",")) \(format(report.duration))")
         }
         lines.append("  axTabs total tabs=\(totalTabs) nodes=\(totalNodes) serialWall=\(format(ContinuousClock.now - started))")

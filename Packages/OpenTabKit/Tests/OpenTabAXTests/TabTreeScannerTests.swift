@@ -252,3 +252,71 @@ final class TabTreeScannerTests: XCTestCase {
         XCTAssertEqual(result.tabs.map { $0.attributes.displayTitle }, ["t0", "t1", "t2", "t3"])
     }
 }
+
+/// A tab group whose tabs are reachable only through `AXTabs`: they are not
+/// among its children, and they carry no subrole. Measured on iTerm2.
+private struct DeclaredTabsTree: TabTreeSource {
+    typealias Node = Int
+
+    let roles: [Int: String]
+    let declared: [Int: [Int]]
+
+    func attributes(of node: Int) -> TabNodeAttributes? {
+        guard let role = roles[node] else { return nil }
+        return TabNodeAttributes(role: role, subrole: "", title: "tab \(node)", description: "",
+                                 isSelected: node == 11)
+    }
+
+    func children(of node: Int, limit: Int) -> [Int] {
+        node == 0 ? [1] : []
+    }
+
+    func declaredTabs(of node: Int, limit: Int) -> [Int] {
+        Array((declared[node] ?? []).prefix(limit))
+    }
+}
+
+final class DeclaredTabsScannerTests: XCTestCase {
+    private let never = ContinuousClock.now + .seconds(3_600)
+
+    private var tree: DeclaredTabsTree {
+        DeclaredTabsTree(roles: [0: "AXWindow", 1: "AXTabGroup", 10: "AXRadioButton", 11: "AXRadioButton"],
+                         declared: [1: [10, 11]])
+    }
+
+    func testTabGroupTabsAreReadWhenTheWalkFindsNone() {
+        let result = TabTreeScanner.scan(window: 0, source: tree, deadline: never)
+        XCTAssertEqual(result.tabs.map { $0.attributes.displayTitle }, ["tab 10", "tab 11"])
+        XCTAssertEqual(result.tabs.map { $0.attributes.isSelected }, [false, true])
+        XCTAssertTrue(result.usedDeclaredTabs)
+    }
+
+    /// The fallback costs nothing when the walk succeeds, which is what keeps
+    /// it off the Chromium path.
+    func testDeclaredTabsAreNotConsultedWhenTheWalkFoundTabs() {
+        let tree = SyntheticTree([
+            0: .init(role: "AXWindow", children: [1]),
+            1: .init(role: "AXTabGroup", children: [2]),
+            2: .init(role: "AXRadioButton", subrole: "AXTabButton", title: "walked"),
+        ])
+        let result = TabTreeScanner.scan(window: 0, source: tree, deadline: never)
+        XCTAssertEqual(result.tabs.map { $0.attributes.displayTitle }, ["walked"])
+        XCTAssertFalse(result.usedDeclaredTabs)
+    }
+
+    /// A group that names something that is not a tab element is ignored
+    /// rather than turned into a row.
+    func testDeclaredElementsThatAreNotTabsAreIgnored() {
+        let tree = DeclaredTabsTree(roles: [0: "AXWindow", 1: "AXTabGroup", 10: "AXGroup"],
+                                    declared: [1: [10]])
+        let result = TabTreeScanner.scan(window: 0, source: tree, deadline: never)
+        XCTAssertTrue(result.tabs.isEmpty)
+        XCTAssertFalse(result.usedDeclaredTabs)
+    }
+
+    func testAWindowWithNoTabGroupAsksNothing() {
+        let tree = DeclaredTabsTree(roles: [0: "AXWindow", 1: "AXGroup"], declared: [1: [10, 11]])
+        let result = TabTreeScanner.scan(window: 0, source: tree, deadline: never)
+        XCTAssertTrue(result.tabs.isEmpty)
+    }
+}

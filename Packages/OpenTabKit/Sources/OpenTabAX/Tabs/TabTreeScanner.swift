@@ -6,6 +6,14 @@ import Foundation
 /// role triples (appendix h §3).
 let axTabButtonSubrole = "AXTabButton"
 
+/// The container role a native tab strip reports. Some apps expose their tabs
+/// only as this element's `AXTabs`, never as its children.
+let axTabGroupRole = "AXTabGroup"
+
+/// The role every tab element measured so far reports, whether or not it also
+/// carries the tab-button subrole.
+let axTabElementRole = "AXRadioButton"
+
 /// What one node contributes to the tab search.
 ///
 /// Only `role`, `subrole` and `isSelected` are branched on: E1 clears
@@ -35,6 +43,14 @@ protocol TabTreeSource {
     /// `nil` when the node could not be read at all.
     func attributes(of node: Node) -> TabNodeAttributes?
     func children(of node: Node, limit: Int) -> [Node]
+    /// The elements a tab group names as its tabs. Only consulted when the
+    /// walk itself found none, so an app that puts its tabs in the tree pays
+    /// nothing for it.
+    func declaredTabs(of node: Node, limit: Int) -> [Node]
+}
+
+extension TabTreeSource {
+    func declaredTabs(of node: Node, limit: Int) -> [Node] { [] }
 }
 
 /// Why a scan stopped short. Recorded for diagnostics; a scan that hit a
@@ -66,6 +82,8 @@ struct TabScanResult<Node> {
     var tabs: [(node: Node, attributes: TabNodeAttributes)] = []
     var nodesVisited = 0
     var stops: Set<TabScanStop> = []
+    /// The tabs came from a tab group's `AXTabs` rather than from the walk.
+    var usedDeclaredTabs = false
 }
 
 enum TabTreeScanner {
@@ -93,6 +111,7 @@ enum TabTreeScanner {
         var result = TabScanResult<Source.Node>()
         var visited: Set<Source.Node> = [window]
         var stack: [(node: Source.Node, depth: Int)] = [(window, 0)]
+        var tabGroups: [Source.Node] = []
 
         while let frame = stack.popLast() {
             guard now() < deadline else {
@@ -114,6 +133,7 @@ enum TabTreeScanner {
                 // A tab button's only child is its close button.
                 continue
             }
+            if attributes.role == axTabGroupRole { tabGroups.append(frame.node) }
             guard frame.depth < limits.maxDepth else {
                 result.stops.insert(.depth)
                 continue
@@ -131,6 +151,44 @@ enum TabTreeScanner {
                 stack.append((child, frame.depth + 1))
             }
         }
+        if result.tabs.isEmpty, !tabGroups.isEmpty {
+            declaredTabs(of: tabGroups, source: source, limits: limits,
+                         deadline: deadline, now: now, into: &result)
+        }
         return result
+    }
+
+    /// The fallback for a tab strip whose buttons are not in the tree at all.
+    ///
+    /// iTerm2 is the case that needs it: its `AXTabGroup` answers `AXTabs`
+    /// with two `AXRadioButton`s that carry no subrole and appear nowhere
+    /// among the group's children, so the tab-button predicate alone finds
+    /// nothing. Chromium is unaffected: its walk succeeds, and its windows
+    /// answer `AXTabs` with `attributeUnsupported` anyway.
+    private static func declaredTabs<Source: TabTreeSource>(
+        of groups: [Source.Node], source: Source, limits: TabScanLimits,
+        deadline: ContinuousClock.Instant, now: () -> ContinuousClock.Instant,
+        into result: inout TabScanResult<Source.Node>
+    ) {
+        for group in groups {
+            guard now() < deadline else {
+                result.stops.insert(.deadline)
+                return
+            }
+            for node in source.declaredTabs(of: group, limit: limits.maxChildren) {
+                guard let attributes = source.attributes(of: node) else {
+                    result.stops.insert(.unreadable)
+                    continue
+                }
+                guard attributes.role == axTabElementRole
+                    || attributes.subrole == axTabButtonSubrole else { continue }
+                result.nodesVisited += 1
+                result.tabs.append((node, attributes))
+            }
+            if !result.tabs.isEmpty {
+                result.usedDeclaredTabs = true
+                return
+            }
+        }
     }
 }
