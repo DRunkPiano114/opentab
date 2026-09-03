@@ -21,9 +21,22 @@ final class PanelViewModel {
         /// Group count in the fixed right column; `nil` omits the column.
         var count: Int?
         var isMinimized: Bool
+        var status: Status = .normal
         /// Character offsets to emphasise when the row is a search result.
         var appNameMatches: [Int] = []
         var titleMatches: [Int] = []
+
+        /// A degraded state the row must show (L10): the count column
+        /// carries a marker instead of a number.
+        enum Status: Equatable {
+            case normal
+            /// The app's last read did not complete; the row is its last
+            /// known state.
+            case unresponsive
+            /// A browser listed as windows only because Apple Events were
+            /// refused.
+            case tabsUnavailable
+        }
 
         static func placeholders(count: Int) -> [Row] {
             (0..<count).map { index in

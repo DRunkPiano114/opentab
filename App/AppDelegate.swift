@@ -1,6 +1,7 @@
 import AppKit
 import OpenTabAX
 import OpenTabCore
+import OpenTabScript
 import OpenTabWS
 
 @main
@@ -26,10 +27,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var secureInput: SecureInputMonitor!
     private var source: AXWindowSource!
     private var directory: WorkspaceAppDirectory!
-    private var index: WindowIndex!
+    private var coordinator: SwitcherCoordinator!
     private var trigger: AXRefreshTrigger!
     private var offSpace: OffSpaceSupport!
-    private var trustPoll: Task<Void, Never>?
+    private var engine: AppleScriptEngine!
+    private var providers: TabProviderRegistry!
+    private var automation: AutomationGateKeeper!
+    private var systemEvents: SystemEventMonitor!
+    private var accessibility: AccessibilityWatch!
+    /// Whether the refresh machinery is running; it stops while the grant is
+    /// missing and while another user's session is active.
+    private var running = false
+    /// The coordinator consumes the trigger's stream once for the process
+    /// lifetime: cancelling that iteration would finish the stream, so a
+    /// suspension only stops the trigger from producing.
+    private var coordinatorStarted = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // The app-hosted test bundle loads this binary as its host; the tests
@@ -55,7 +67,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        let rules = IgnoreRules(titlePatterns: UserDefaults.standard.stringArray(forKey: "ignoreTitlePatterns") ?? [])
+        let defaults = UserDefaults.standard
+        let rules = IgnoreRules(titlePatterns: defaults.stringArray(forKey: "ignoreTitlePatterns") ?? [])
         // `open` cannot pass environment variables, so the L10 degradation
         // path is reachable from the command line as well.
         source = AXWindowSource(windowIDBridgeEnabled: !CommandLine.arguments.contains("--disable-window-id-bridge"))
@@ -64,22 +77,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // private symbol degrades back to it.
         offSpace = OffSpaceSupport(base: source)
         directory = WorkspaceAppDirectory(ignoreRules: rules)
-        index = WindowIndex(source: offSpace.windowSource, directory: directory, ignoreRules: rules)
         trigger = AXRefreshTrigger()
+
+        // Private and incognito tabs stay out unless the user opts in (L16).
+        let includesPrivate = defaults.bool(forKey: "tabs.includePrivate")
+        var storeConfiguration = TabStore.Configuration()
+        storeConfiguration.includesPrivateTabs = includesPrivate
+        engine = AppleScriptEngine()
+        providers = TabProviderRegistry(engine: engine, includesPrivate: includesPrivate)
+        automation = AutomationGateKeeper()
+        coordinator = SwitcherCoordinator(source: offSpace.windowSource, activator: offSpace.activator,
+                                          directory: directory, providers: providers, gate: automation,
+                                          resolver: WindowResolver(directBridge: source.isWindowIDBridgeAvailable),
+                                          windowServer: WindowServerIDs.current, ignoreRules: rules,
+                                          storeConfiguration: storeConfiguration)
+        reportAutomationDefects()
 
         model = PanelViewModel()
         panel = PanelController(model: model)
         hotKeys = HotKeyCenter()
-        session = SwitcherSession(index: index, activator: offSpace.activator,
-                                  panel: panel, hotKeys: hotKeys, model: model)
+        session = SwitcherSession(coordinator: coordinator, panel: panel, hotKeys: hotKeys, model: model)
         session.frontmostApp = { Self.frontmostAppInfo() }
+        automation.promptsAllowed = { [weak self] in self?.session.isIdle ?? false }
+        automation.onChange = { [weak self] in self?.automationChanged() }
+        automation.onAuthorized = { [weak self] app in
+            guard let self else { return }
+            Task { await self.coordinator.refresh(app: app) }
+        }
 
         statusMenu = StatusMenuController()
         statusMenu.windowIDBridgeAvailable = source.isWindowIDBridgeAvailable
         statusMenu.onRebuildIndex = { [weak self] in
             guard let self else { return }
-            Task { await self.index.rebuild() }
+            Task { await self.coordinator.rebuild() }
         }
+        statusMenu.onOpenAutomationSettings = { [weak self] in self?.automation.openSettings() }
         if !source.isWindowIDBridgeAvailable {
             log.error("_AXUIElementGetWindow unavailable: windows keyed by AX element only")
         }
@@ -91,6 +123,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         secureInput.start()
 
+        systemEvents = SystemEventMonitor()
+        systemEvents.onWake = { [weak self] in self?.reconcile(reason: "wake") }
+        systemEvents.onActiveSpaceChanged = { [weak self] in self?.reconcile(reason: "space") }
+        systemEvents.onScreensChanged = { [weak self] in self?.session.screensChanged() }
+        systemEvents.onSessionResigned = { [weak self] in self?.suspend(reason: "session resigned") }
+        systemEvents.onSessionResumed = { [weak self] in self?.resume(reason: "session resumed") }
+        systemEvents.start()
+
         panel.prewarm()
         session.start()
         offSpace.presentDegradationIfNeeded()
@@ -99,43 +139,86 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             hotKeys.registerCommandTab()
         }
 
-        if AXTrust.isTrusted {
-            accessibilityGranted()
-        } else {
-            statusMenu.accessibilityGranted = false
-            AXTrust.prompt()
-            startTrustPolling()
-        }
-    }
-
-    /// Accessibility grants take effect without a relaunch; a 1s poll is
-    /// enough to notice and bring the rest of the app up.
-    private func startTrustPolling() {
-        trustPoll?.cancel()
-        trustPoll = Task { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(1))
-                if AXTrust.isTrusted {
-                    self?.accessibilityGranted()
-                    return
-                }
+        accessibility = AccessibilityWatch()
+        accessibility.onChange = { [weak self] trusted in
+            if trusted {
+                self?.accessibilityGranted()
+            } else {
+                self?.accessibilityRevoked()
             }
         }
+        if !AXTrust.isTrusted {
+            statusMenu.accessibilityGranted = false
+            AXTrust.prompt()
+        }
+        accessibility.start()
     }
 
+    /// A grant lands without a relaunch, and this also runs after one was
+    /// revoked and restored: everything below is safe to start again.
     private func accessibilityGranted() {
-        trustPoll?.cancel()
-        trustPoll = nil
         log.notice("accessibility granted")
         statusMenu.accessibilityGranted = true
-        trigger.start()
-        index.start(trigger: trigger)
         session.accessibilityGranted()
-        Task {
-            await index.refreshAll(seedFocus: true)
-            IconCache.shared.prewarm(apps: directory.runningApps())
-            log.notice("initial index: \(self.index.entries.count, privacy: .public) windows")
+        resume(reason: "accessibility")
+        IconCache.shared.prewarm(apps: directory.runningApps())
+    }
+
+    /// Packet §4: the list must not decay silently. The panel shows the
+    /// onboarding message, the menu shows the marker, and refreshing stops
+    /// until the grant is back.
+    private func accessibilityRevoked() {
+        log.error("accessibility not granted")
+        statusMenu.accessibilityGranted = false
+        session.accessibilityRevoked()
+        suspend(reason: "accessibility")
+    }
+
+    private func resume(reason: String) {
+        guard AXTrust.isTrusted, !running else { return }
+        running = true
+        log.notice("refresh started reason=\(reason, privacy: .public)")
+        trigger.start()
+        if !coordinatorStarted {
+            coordinator.start(trigger: trigger)
+            coordinatorStarted = true
         }
+        let coordinator = coordinator!
+        Task {
+            await coordinator.reconcile(seedFocus: true)
+            self.log.notice("initial index: \(coordinator.entries.count, privacy: .public) rows")
+        }
+    }
+
+    private func suspend(reason: String) {
+        guard running else { return }
+        running = false
+        log.notice("refresh stopped reason=\(reason, privacy: .public)")
+        trigger.stop()
+    }
+
+    /// Sleep/wake and Space changes invalidate the cache wholesale.
+    private func reconcile(reason: String) {
+        guard running else { return }
+        log.notice("full reconcile reason=\(reason, privacy: .public)")
+        let coordinator = coordinator!
+        Task { await coordinator.reconcile() }
+    }
+
+    private func automationChanged() {
+        let names = automation.deniedBundleIDs.sorted().map { bundleID in
+            NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first?.localizedName ?? bundleID
+        }
+        statusMenu.tabsUnavailable = names
+    }
+
+    /// A `-1743` can be our own bundle's fault; that is a ship-blocking bug,
+    /// not a user decision, and it is logged as such at launch.
+    private func reportAutomationDefects() {
+        let defects = AutomationSelfCheck.defects(in: AutomationSelfCheck.currentBundleConfig())
+        guard !defects.isEmpty else { return }
+        let names = defects.map(\.rawValue).joined(separator: ",")
+        log.fault("bundle cannot send Apple Events: \(names, privacy: .public)")
     }
 
     static func frontmostAppInfo() -> AppInfo? {

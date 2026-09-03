@@ -86,15 +86,43 @@ struct SwitcherRowView: View {
     /// The count is centred in a fixed-width column, not trailing-aligned: a
     /// right-aligned digit drifts by half an ink width between one- and
     /// two-digit counts, which is visible against the column of rows above it.
+    ///
+    /// A degraded row shows a marker in the column instead of its count: an
+    /// ellipsis while the app's read is outstanding, a warning sign when its
+    /// tabs cannot be read.
     @ViewBuilder
     private var count: some View {
-        if let value = row.count {
+        if let marker = Self.marker(for: row.status) {
+            Text(marker)
+                .font(Theme.rowCountFont)
+                .foregroundStyle(Theme.textPlaceholder)
+                .lineLimit(1)
+                .frame(width: Theme.countColumnWidth, alignment: .center)
+                .padding(.leading, Theme.titleCountGap)
+                .accessibilityLabel(Self.markerLabel(for: row.status))
+        } else if let value = row.count {
             Text(String(value))
                 .font(Theme.rowCountFont)
                 .foregroundStyle(Theme.textPrimary)
                 .lineLimit(1)
                 .frame(width: Theme.countColumnWidth, alignment: .center)
                 .padding(.leading, Theme.titleCountGap)
+        }
+    }
+
+    private static func marker(for status: PanelViewModel.Row.Status) -> String? {
+        switch status {
+        case .normal: nil
+        case .unresponsive: "\u{2026}"
+        case .tabsUnavailable: "\u{26A0}\u{FE0E}"
+        }
+    }
+
+    private static func markerLabel(for status: PanelViewModel.Row.Status) -> String {
+        switch status {
+        case .normal: ""
+        case .unresponsive: "Not responding"
+        case .tabsUnavailable: "Tabs unavailable"
         }
     }
 }

@@ -41,6 +41,8 @@ targets:
         product: OpenTabAX
       - package: OpenTabKit
         product: OpenTabWS
+      - package: OpenTabKit
+        product: OpenTabScript
     info:
       path: Support/Info.plist
       properties:
@@ -99,6 +101,12 @@ targets:
       - package: OpenTabKit
         product: OpenTabAX
         link: false
+      - package: OpenTabKit
+        product: OpenTabWS
+        link: false
+      - package: OpenTabKit
+        product: OpenTabScript
+        link: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: im.opentab.app.tests
@@ -127,6 +135,9 @@ targets:
         link: false
       - package: OpenTabKit
         product: OpenTabWS
+        link: false
+      - package: OpenTabKit
+        product: OpenTabScript
         link: false
     settings:
       base:

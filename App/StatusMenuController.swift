@@ -7,7 +7,11 @@ final class StatusMenuController: NSObject {
     var accessibilityGranted = false { didSet { rebuild() } }
     var windowIDBridgeAvailable = true { didSet { rebuild() } }
     var secureInputActive = false { didSet { rebuild() } }
+    /// Display names of browsers listed as windows only because Apple
+    /// Events were refused.
+    var tabsUnavailable: [String] = [] { didSet { rebuild() } }
     var onRebuildIndex: (() -> Void)?
+    var onOpenAutomationSettings: (() -> Void)?
 
     private static let accessibilitySettingsURL =
         URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
@@ -23,7 +27,7 @@ final class StatusMenuController: NSObject {
     }
 
     private func rebuild() {
-        let degraded = !accessibilityGranted || !windowIDBridgeAvailable || secureInputActive
+        let degraded = !accessibilityGranted || !windowIDBridgeAvailable || secureInputActive || !tabsUnavailable.isEmpty
         item.button?.title = degraded ? "⚠︎" : ""
 
         let menu = NSMenu()
@@ -42,6 +46,15 @@ final class StatusMenuController: NSObject {
         }
         if secureInputActive {
             menu.addItem(disabled("Secure Input active: hotkeys may not work"))
+        }
+        if !tabsUnavailable.isEmpty {
+            for name in tabsUnavailable {
+                menu.addItem(disabled("\(name): tabs unavailable (Automation not allowed)"))
+            }
+            let open = NSMenuItem(title: "Open Automation Settings…",
+                                  action: #selector(openAutomationSettings), keyEquivalent: "")
+            open.target = self
+            menu.addItem(open)
         }
         menu.addItem(.separator())
 
@@ -70,5 +83,9 @@ final class StatusMenuController: NSObject {
 
     @objc private func rebuildIndex() {
         onRebuildIndex?()
+    }
+
+    @objc private func openAutomationSettings() {
+        onOpenAutomationSettings?()
     }
 }

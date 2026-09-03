@@ -13,7 +13,6 @@ final class SwitcherSession {
     /// in the background while the cached list is already on screen.
     var frontmostApp: () -> AppInfo? = { nil }
 
-    static let activationDeadline: Duration = .milliseconds(800)
     static let repeatInitialDelay: Duration = .milliseconds(500)
     static let repeatInterval: Duration = .milliseconds(60)
 
@@ -23,8 +22,7 @@ final class SwitcherSession {
         case searching
     }
 
-    private let index: WindowIndex
-    private let activator: any WindowActivator
+    private let coordinator: SwitcherCoordinator
     private let panel: PanelController
     private let hotKeys: HotKeyCenter
     private let model: PanelViewModel
@@ -46,10 +44,9 @@ final class SwitcherSession {
     /// focus back when the search is cancelled.
     private var previousApp: NSRunningApplication?
 
-    init(index: WindowIndex, activator: any WindowActivator, panel: PanelController,
+    init(coordinator: SwitcherCoordinator, panel: PanelController,
          hotKeys: HotKeyCenter, model: PanelViewModel) {
-        self.index = index
-        self.activator = activator
+        self.coordinator = coordinator
         self.panel = panel
         self.hotKeys = hotKeys
         self.model = model
@@ -60,7 +57,7 @@ final class SwitcherSession {
         hotKeys.onModifierReleased = { [weak self] modifier in self?.modifierReleased(modifier) }
         model.onHover = { [weak self] row in self?.hover(row) }
         model.onActivate = { [weak self] row in self?.activate(rowAt: row) }
-        index.onChange = { [weak self] in self?.indexChanged() }
+        coordinator.onChange = { [weak self] in self?.indexChanged() }
         panel.searchField.onTextChange = { [weak self] text in self?.queryChanged(text) }
         panel.searchField.onCommand = { [weak self] command in self?.searchCommand(command) }
 
@@ -76,6 +73,23 @@ final class SwitcherSession {
     func accessibilityGranted() {
         model.accessibilityGranted = true
         hotKeys.installModifierMonitors()
+    }
+
+    /// The grant went away while running (packet §4): the panel says so
+    /// instead of showing a list that only decays.
+    func accessibilityRevoked() {
+        model.accessibilityGranted = false
+        if state != .idle { close(restoreFocus: true) }
+    }
+
+    /// Nothing is on screen and no modal of ours should be blocked.
+    var isIdle: Bool { state == .idle }
+
+    /// The display topology changed: a visible panel is closed and reopened
+    /// on the new layout (packet §4).
+    func screensChanged() {
+        guard state != .idle else { return }
+        panel.reposition(rowCount: rows.count)
     }
 
     // MARK: - Keys
@@ -204,7 +218,7 @@ final class SwitcherSession {
     private func present(hits: [SearchHit]) {
         let filtered = !query.allSatisfy(\.isWhitespace)
         presented = hits.map(\.entry)
-        rows = filtered ? PanelController.rows(for: hits) : PanelController.rows(for: presented, counts: index.groupCounts)
+        rows = filtered ? PanelController.rows(for: hits) : makeRows(presented)
         selection = Selection(count: rows.count)
         if filtered { selection.select(0) }
         model.isFiltered = filtered
@@ -238,21 +252,22 @@ final class SwitcherSession {
     private func open(startAtEnd: Bool, since entered: ContinuousClock.Instant, hold: HoldModifier,
                       commitOnReleasedModifier: Bool = true) {
         holdModifier = hold
-        presented = index.entries
+        presented = coordinator.entries
         searchIndex.update(with: presented)
-        rows = PanelController.rows(for: presented, counts: index.groupCounts)
+        rows = makeRows(presented)
         selection = Selection(count: rows.count)
         if startAtEnd {
             selection.select(rows.count - 1)
         }
         state = .engaged
+        coordinator.setPanelVisible(true)
         pointerLocation = NSEvent.mouseLocation
         panel.show(rows: rows, selectedIndex: selection.index, since: entered)
         hotKeys.registerNavigationKeys(for: hold)
         log.notice("open rows=\(self.rows.count, privacy: .public) selected=\(self.selection.index, privacy: .public) hold=\(String(describing: hold), privacy: .public) held=\(self.hotKeys.isHeld(hold), privacy: .public) order=\(Self.describe(self.presented), privacy: .public)")
 
         if let app = frontmostApp() {
-            Task { await index.refresh(app: app) }
+            Task { await coordinator.refresh(app: app) }
         }
         // A quick tap can release the modifier before the hotkey event reaches
         // us; the monitor's edge then arrives in idle and is ignored, so the
@@ -270,7 +285,7 @@ final class SwitcherSession {
     /// updates and additions, so rows never jump under the highlight.
     private func indexChanged() {
         guard state != .idle else { return }
-        let fresh = index.entries
+        let fresh = coordinator.entries
         searchIndex.update(with: fresh)
         let selectedID = presented.indices.contains(selection.index) ? presented[selection.index].id : nil
 
@@ -301,13 +316,17 @@ final class SwitcherSession {
         }
 
         presented = kept
-        rows = PanelController.rows(for: kept, counts: index.groupCounts)
+        rows = makeRows(kept)
         let newIndex = selectedID.flatMap { id in kept.firstIndex { $0.id == id } }
         selection.listChanged(count: kept.count, previousRowNowAt: newIndex)
         panel.update(rows: rows, selectedIndex: selection.index)
         if state == .searching {
             panel.refit(rowCount: rows.count)
         }
+    }
+
+    private func makeRows(_ entries: [Entry]) -> [PanelViewModel.Row] {
+        PanelController.rows(for: entries, counts: coordinator.groupCounts, status: coordinator.rowStatus)
     }
 
     private func move(by delta: Int) {
@@ -353,18 +372,9 @@ final class SwitcherSession {
         // With nothing to activate, focus must still go back where it was.
         close(restoreFocus: target == nil)
         guard let target else { return }
-        let key = target.key
-        let pid = target.app.pid
-        let activator = activator
-        let log = log
-        log.notice("commit pid=\(pid, privacy: .public) key=\(String(describing: key), privacy: .public)")
-        Task {
-            do {
-                try await activator.activate(key, deadline: .now + Self.activationDeadline)
-            } catch {
-                log.error("activate failed pid=\(pid, privacy: .public) error=\(String(describing: error), privacy: .private)")
-            }
-        }
+        log.notice("commit pid=\(target.app.pid, privacy: .public) kind=\(String(describing: target.kind), privacy: .public) key=\(String(describing: target.key), privacy: .public)")
+        let coordinator = coordinator
+        Task { await coordinator.activate(target) }
     }
 
     /// `restoreFocus` hands activation back to the app that had it before
@@ -375,6 +385,7 @@ final class SwitcherSession {
         let wasSearching = state == .searching
         state = .idle
         panel.hide()
+        coordinator.setPanelVisible(false)
         hotKeys.unregisterNavigationKeys()
         presented = []
         rows = []

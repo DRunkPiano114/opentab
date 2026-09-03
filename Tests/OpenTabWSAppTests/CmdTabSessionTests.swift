@@ -3,6 +3,7 @@ import ApplicationServices
 import Carbon
 import OpenTabAX
 import OpenTabCore
+import OpenTabScript
 import OpenTabWS
 import XCTest
 import os
@@ -32,7 +33,7 @@ final class CmdTabSessionTests: XCTestCase {
     private var model: PanelViewModel!
     private var panel: PanelController!
     private var hotKeys: HotKeyCenter!
-    private var index: WindowIndex!
+    private var coordinator: SwitcherCoordinator!
     private var session: SwitcherSession!
     private let log = Log.make("cmdtab-test")
 
@@ -50,18 +51,23 @@ final class CmdTabSessionTests: XCTestCase {
 
         let source = AXWindowSource()
         let offSpace = OffSpaceWindowSource(base: source)
-        index = WindowIndex(source: offSpace, directory: WorkspaceAppDirectory())
+        // Calculator has no tab provider, so the real registry and gate are
+        // inert here.
+        coordinator = SwitcherCoordinator(source: offSpace, activator: OffSpaceWindowActivator(source: offSpace),
+                                          directory: WorkspaceAppDirectory(),
+                                          providers: TabProviderRegistry(engine: AppleScriptEngine(), includesPrivate: false),
+                                          gate: AutomationGateKeeper(), resolver: nil,
+                                          windowServer: WindowServerIDs.current)
         model = PanelViewModel()
         panel = PanelController(model: model)
         hotKeys = HotKeyCenter()
-        session = SwitcherSession(index: index, activator: OffSpaceWindowActivator(source: offSpace),
-                                  panel: panel, hotKeys: hotKeys, model: model)
+        session = SwitcherSession(coordinator: coordinator, panel: panel, hotKeys: hotKeys, model: model)
         session.frontmostApp = { AppDelegate.frontmostAppInfo() }
         panel.prewarm()
         session.start()
         try await poll("calculator indexed", timeout: .seconds(5)) {
-            await self.index.refreshAll(seedFocus: true)
-            return self.index.entries.contains { $0.app.pid == self.calculator.processIdentifier }
+            await self.coordinator.refreshAll(seedFocus: true)
+            return self.coordinator.entries.contains { $0.app.pid == self.calculator.processIdentifier }
         }
 
         takeover = CmdTabTakeover(defaults: defaults)

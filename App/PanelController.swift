@@ -175,6 +175,22 @@ final class PanelController {
         panel.setFrame(frame, display: true)
     }
 
+    /// The display topology changed under a visible panel: it is taken down
+    /// and put back on the screen under the cursor, sized for that screen.
+    func reposition(rowCount: Int) {
+        guard panel.isVisible else { return }
+        panel.orderOut(nil)
+        let count = model.accessibilityGranted ? rowCount : max(rowCount, Metrics.onboardingRowCount)
+        if let screen = ScreenPlacement.screenUnderMouse() {
+            let size = Metrics.size(rowCount: count, visibleHeight: screen.visibleFrame.height)
+            panel.setFrame(ScreenPlacement.frame(for: size, on: screen), display: false)
+        } else {
+            panel.setContentSize(Metrics.size(rowCount: count, visibleHeight: nil))
+        }
+        panel.orderFrontRegardless()
+        log.notice("panel repositioned after a display change")
+    }
+
     func hide() {
         hoverGuard?.cancel()
         hoverGuard = nil
@@ -183,14 +199,28 @@ final class PanelController {
         panel.orderOut(nil)
     }
 
-    static func rows(for entries: [Entry], counts: GroupCounts) -> [PanelViewModel.Row] {
+    /// A window row counts its app's windows; a tab row counts the tabs of
+    /// its window. Either count is omitted for a group of one.
+    static func rows(for entries: [Entry], counts: GroupCounts,
+                     status: (Entry) -> PanelViewModel.Row.Status = { _ in .normal }) -> [PanelViewModel.Row] {
         entries.map { entry in
             PanelViewModel.Row(id: entry.id,
                                appName: entry.app.localizedName,
                                title: entry.title,
                                icon: IconCache.shared.icon(for: entry.app),
-                               count: counts.displayCount(forApp: entry.app.key),
-                               isMinimized: entry.isMinimized)
+                               count: count(for: entry, counts: counts),
+                               isMinimized: entry.isMinimized,
+                               status: status(entry))
+        }
+    }
+
+    private static func count(for entry: Entry, counts: GroupCounts) -> Int? {
+        switch entry.kind {
+        case .window:
+            return counts.displayCount(forApp: entry.app.key)
+        case .tab:
+            guard let tabs = counts.byWindowKey[entry.key], tabs > 1 else { return nil }
+            return tabs
         }
     }
 

@@ -35,7 +35,7 @@ final class SearchSessionTests: XCTestCase {
     private var model: PanelViewModel!
     private var panel: PanelController!
     private var hotKeys: HotKeyCenter!
-    private var index: WindowIndex!
+    private var coordinator: SwitcherCoordinator!
     private var session: SwitcherSession!
     private let log = Log.make("session-test")
 
@@ -56,19 +56,21 @@ final class SearchSessionTests: XCTestCase {
 
         let source = AXWindowSource()
         let directory = WorkspaceAppDirectory()
-        index = WindowIndex(source: source, directory: directory)
+        coordinator = SwitcherCoordinator(source: source, activator: AXWindowActivator(source: source),
+                                          directory: directory, providers: FakeProviderLookup(),
+                                          gate: FakeAutomationGate(), resolver: nil,
+                                          windowServer: WindowServerIDs.current)
         model = PanelViewModel()
         panel = PanelController(model: model)
         hotKeys = HotKeyCenter()
-        session = SwitcherSession(index: index, activator: AXWindowActivator(source: source),
-                                  panel: panel, hotKeys: hotKeys, model: model)
+        session = SwitcherSession(coordinator: coordinator, panel: panel, hotKeys: hotKeys, model: model)
         session.frontmostApp = { AppDelegate.frontmostAppInfo() }
         panel.prewarm()
         session.start()
 
         try await poll("calculator indexed", timeout: .seconds(5)) {
-            await self.index.refreshAll(seedFocus: true)
-            return self.index.entries.contains { $0.app.pid == self.calculator.processIdentifier }
+            await self.coordinator.refreshAll(seedFocus: true)
+            return self.coordinator.entries.contains { $0.app.pid == self.calculator.processIdentifier }
         }
     }
 
