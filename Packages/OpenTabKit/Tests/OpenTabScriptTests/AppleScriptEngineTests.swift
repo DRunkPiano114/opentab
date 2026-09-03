@@ -25,13 +25,14 @@ final class AppleScriptEngineTests: XCTestCase {
 
     /// The SIGSTOP case: a target that never answers must not outlive the
     /// budget, and the worker holding it is written off.
-    func testWedgedTargetTimesOutWithinBudgetAndReplacesWorker() async {
+    func testWedgedTargetTimesOutWithinBudgetAndReplacesWorker() async throws {
         let gate = DispatchSemaphore(value: 0)
-        let recorder = ScriptRecorder { _ in
-            gate.wait()
-            return .success(.text("late"))
+        let recorder = ScriptRecorder { source in
+            if source == "hang" { gate.wait() }
+            return .success(.text(source))
         }
         let engine = makeEngine(recorder)
+        _ = try await engine.run("warm up", lane: "wedged", deadline: deadline(1000))
         let before = engine.workerIdentity(lane: "wedged")
 
         let started = ContinuousClock.now
@@ -45,8 +46,44 @@ final class AppleScriptEngineTests: XCTestCase {
         }
         let elapsed = started.duration(to: .now)
         XCTAssertLessThan(elapsed, .milliseconds(600), "budget overrun: \(elapsed)")
-        XCTAssertNil(before)
-        XCTAssertNotNil(engine.workerIdentity(lane: "wedged"))
+        XCTAssertNotNil(before)
+        XCTAssertNotEqual(engine.workerIdentity(lane: "wedged"), before,
+                          "a budget overrun must write the worker off")
+        gate.signal()
+    }
+
+    /// A job queued behind a wedged one is re-homed, so its own timeout has to
+    /// act on the worker that ended up with it rather than the one it was
+    /// submitted to.
+    func testRehomedJobTimesOutAgainstItsNewWorker() async {
+        let gate = DispatchSemaphore(value: 0)
+        let entered = DispatchSemaphore(value: 0)
+        let recorder = ScriptRecorder { source in
+            if source.hasPrefix("hang") {
+                entered.signal()
+                gate.wait()
+            }
+            return .success(.text(source))
+        }
+        let engine = makeEngine(recorder)
+
+        async let first: Void = {
+            _ = try? await engine.run("hang first", lane: "chrome", deadline: deadline(200))
+        }()
+        blockUntilSignalled(entered)
+        async let second: Void = {
+            _ = try? await engine.run("hang second", lane: "chrome", deadline: deadline(700))
+        }()
+
+        await first
+        blockUntilSignalled(entered)
+        await second
+
+        let third = engine.workerIdentity(lane: "chrome")
+        XCTAssertEqual(recorder.executorsCreated, 3,
+                       "the re-homed job's timeout must retire its new worker too")
+        XCTAssertNotNil(third)
+        gate.signal()
         gate.signal()
     }
 

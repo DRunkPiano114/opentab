@@ -1,9 +1,30 @@
 import Foundation
 
+/// The result of one job, plus who produced it. `abandoned` marks the outcomes
+/// we imposed from outside - a budget overrun or task cancellation - which are
+/// the only ones that leave a job stranded on its worker.
+struct ScriptOutcome: Sendable {
+    let result: Result<ScriptValue, ScriptError>
+    let abandoned: Bool
+
+    static func delivered(_ result: Result<ScriptValue, ScriptError>) -> ScriptOutcome {
+        ScriptOutcome(result: result, abandoned: false)
+    }
+
+    static func abandoned(_ error: ScriptError) -> ScriptOutcome {
+        ScriptOutcome(result: .failure(error), abandoned: true)
+    }
+}
+
+typealias ScriptResultBox = OneShot<ScriptOutcome>
+
 final class ScriptJob {
     let source: String
     let cacheable: Bool
     let box: ScriptResultBox
+    /// The worker currently responsible for the job. Guarded by the engine's
+    /// lock, and reassigned when a job outlives the worker it was queued on.
+    var owner: ScriptWorker?
 
     init(source: String, cacheable: Bool, box: ScriptResultBox) {
         self.source = source
@@ -11,8 +32,6 @@ final class ScriptJob {
         self.box = box
     }
 }
-
-typealias ScriptResultBox = OneShot<Result<ScriptValue, ScriptError>>
 
 /// One dedicated thread that owns one AppleScript executor.
 ///
@@ -25,6 +44,7 @@ typealias ScriptResultBox = OneShot<Result<ScriptValue, ScriptError>>
 final class ScriptWorker: @unchecked Sendable {
     private let condition = NSCondition()
     private var pending: [ScriptJob] = []
+    private var running: ScriptJob?
     private var stopped = false
 
     init(label: String, executorFactory: @escaping @Sendable () -> any ScriptExecuting) {
@@ -38,11 +58,13 @@ final class ScriptWorker: @unchecked Sendable {
                     return
                 }
                 let job = pending.removeFirst()
+                running = job
                 condition.unlock()
 
-                job.box.settle(executor.execute(job.source, cacheable: job.cacheable))
+                job.box.settle(.delivered(executor.execute(job.source, cacheable: job.cacheable)))
 
                 condition.lock()
+                running = nil
                 let done = stopped
                 condition.unlock()
                 if done { return }
@@ -64,18 +86,24 @@ final class ScriptWorker: @unchecked Sendable {
         return true
     }
 
-    /// Removes a job that has not started yet. False means it is already running
-    /// on the thread and can no longer be recalled.
+    /// True when the worker is no longer going to execute the job, either
+    /// because it was still queued and has now been removed, or because it has
+    /// already finished. False means the thread is inside the job right now and
+    /// cannot be recalled.
     func withdraw(_ job: ScriptJob) -> Bool {
         condition.lock()
         defer { condition.unlock() }
-        guard let index = pending.firstIndex(where: { $0 === job }) else { return false }
-        pending.remove(at: index)
-        return true
+        if let index = pending.firstIndex(where: { $0 === job }) {
+            pending.remove(at: index)
+            return true
+        }
+        return running !== job
     }
 
     /// Stops the worker and hands back the jobs that never started. A thread
-    /// blocked inside a wedged script exits once that script finally drains.
+    /// blocked inside a wedged script exits once that script finally drains,
+    /// which the script's own `with timeout` bounds for anything sent to an
+    /// application.
     func retire() -> [ScriptJob] {
         condition.lock()
         stopped = true
