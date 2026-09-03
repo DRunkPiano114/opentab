@@ -71,6 +71,7 @@ struct SwitcherRootView: View {
                     }
                 }
                 .padding(.horizontal, Theme.contentInsetH)
+                .id(model.styleGeneration)
             }
             .onChange(of: model.scrollRequest) { _, request in
                 // Unanimated on purpose: held arrow keys fire faster than the

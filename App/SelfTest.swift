@@ -26,6 +26,7 @@ enum SelfTest {
 
         let source = AXWindowSource()
         lines.append("windowIDBridgeAvailable=\(source.isWindowIDBridgeAvailable)")
+        lines.append("footprintBytes=\(HealthMonitor.footprintBytes())")
 
         let frontmostBefore = NSWorkspace.shared.frontmostApplication
         lines.append(contentsOf: measurePanel())

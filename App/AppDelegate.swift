@@ -35,6 +35,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var automation: AutomationGateKeeper!
     private var systemEvents: SystemEventMonitor!
     private var accessibility: AccessibilityWatch!
+    private var settings: SettingsStore!
+    private var settingsModel: SettingsModel!
+    private var settingsWindow: SettingsWindowController!
+    private var onboarding: OnboardingWindowController?
+    private var health: HealthMonitor!
     /// Whether the refresh machinery is running; it stops while the grant is
     /// missing and while another user's session is active.
     private var running = false
@@ -67,8 +72,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        let defaults = UserDefaults.standard
-        let rules = IgnoreRules(titlePatterns: defaults.stringArray(forKey: "ignoreTitlePatterns") ?? [])
+        settings = SettingsStore()
+        settingsModel = SettingsModel()
+        health = HealthMonitor()
+        Theme.apply(Theme.Style(textScale: settings.textSize.scale, isWide: settings.widePanel))
+        let rules = IgnoreRules(titlePatterns: settings.ignoreTitlePatterns)
         // `open` cannot pass environment variables, so the L10 degradation
         // path is reachable from the command line as well.
         source = AXWindowSource(windowIDBridgeEnabled: !CommandLine.arguments.contains("--disable-window-id-bridge"))
@@ -80,7 +88,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         trigger = AXRefreshTrigger()
 
         // Private and incognito tabs stay out unless the user opts in (L16).
-        let includesPrivate = defaults.bool(forKey: "tabs.includePrivate")
+        let includesPrivate = settings.includesPrivateTabs
         var storeConfiguration = TabStore.Configuration()
         storeConfiguration.includesPrivateTabs = includesPrivate
         engine = AppleScriptEngine()
@@ -93,9 +101,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                           storeConfiguration: storeConfiguration)
         reportAutomationDefects()
 
+        coordinator.sortMode = settings.sortMode
+
         model = PanelViewModel()
         panel = PanelController(model: model)
+        panel.screenPosition = settings.panelPosition
         hotKeys = HotKeyCenter()
+        hotKeys.configure(main: settings.mainHotKey, reverse: settings.reverseHotKey,
+                          search: settings.searchHotKey)
         session = SwitcherSession(coordinator: coordinator, panel: panel, hotKeys: hotKeys, model: model)
         session.frontmostApp = { Self.frontmostAppInfo() }
         automation.onChange = { [weak self] in self?.automationChanged() }
@@ -105,7 +118,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         statusMenu = StatusMenuController()
+        statusMenu.isIconVisible = settings.showMenuBarIcon
         statusMenu.windowIDBridgeAvailable = source.isWindowIDBridgeAvailable
+        statusMenu.onOpenSettings = { [weak self] in self?.showSettings() }
         statusMenu.onRebuildIndex = { [weak self] in
             guard let self else { return }
             Task { await self.coordinator.rebuild() }
@@ -115,10 +130,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusMenu.faviconRemoteDisclosure = FaviconStore.remoteDisclosureText
         statusMenu.faviconRemoteEnabled = FaviconStore.shared.isRemoteLookupEnabled
         statusMenu.safariCacheGranted = FaviconStore.shared.hasSafariCacheAccess
+        // Through the store, so the menu item and the settings window cannot
+        // end up showing different answers.
         statusMenu.onToggleFaviconRemote = { [weak self] enabled in
-            FaviconStore.shared.isRemoteLookupEnabled = enabled
-            self?.statusMenu.faviconRemoteEnabled = enabled
-            self?.log.notice("favicon remote lookup enabled=\(enabled, privacy: .public)")
+            self?.settings.remoteFavicons = enabled
         }
         statusMenu.onGrantSafariCache = { [weak self] in
             // The open panel is modal and an accessory app is not active when
@@ -126,6 +141,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.activate()
             let granted = FaviconStore.shared.requestSafariCacheAccess()
             self?.statusMenu.safariCacheGranted = granted
+            self?.settingsModel.safariCacheGranted = granted
         }
         if !source.isWindowIDBridgeAvailable {
             log.error("_AXUIElementGetWindow unavailable: windows keyed by AX element only")
@@ -134,6 +150,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         secureInput = SecureInputMonitor()
         secureInput.onChange = { [weak self] active in
             self?.statusMenu.secureInputActive = active
+            self?.settingsModel.secureInputActive = active
             self?.log.notice("secure input active=\(active, privacy: .public)")
         }
         secureInput.start()
@@ -154,6 +171,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             hotKeys.registerCommandTab()
         }
 
+        settingsModel.windowIDBridgeAvailable = source.isWindowIDBridgeAvailable
+        settingsModel.cmdTabTakeoverAvailable = CmdTabTakeover.isAvailable
+        settingsModel.safariCacheGranted = FaviconStore.shared.hasSafariCacheAccess
+        settingsWindow = SettingsWindowController(store: settings, model: settingsModel, actions: settingsActions())
+        settings.onChange = { [weak self] setting in self?.apply(setting) }
+        let coordinatorForHealth = coordinator!
+        health.entryCount = { coordinatorForHealth.entries.count }
+        health.start()
+
         accessibility = AccessibilityWatch()
         accessibility.onChange = { [weak self] trusted in
             if trusted {
@@ -164,9 +190,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if !AXTrust.isTrusted {
             statusMenu.accessibilityGranted = false
-            AXTrust.prompt()
+            settingsModel.accessibilityGranted = false
+            // The first-run flow owns the prompt when it is going to run, so
+            // the system dialog never lands before the explanation.
+            if settings.hasCompletedOnboarding { AXTrust.prompt() }
         }
         accessibility.start()
+        startOnboardingIfNeeded()
+    }
+
+    /// The status item is the only way in, so hiding it has to leave one:
+    /// launching OpenTab again reopens the settings window.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        // The first-run window is already the thing in front; it must not get
+        // the settings window stacked on top of it.
+        if onboarding == nil { showSettings() }
+        return true
     }
 
     /// A grant lands without a relaunch, and this also runs after one was
@@ -174,6 +213,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func accessibilityGranted() {
         log.notice("accessibility granted")
         statusMenu.accessibilityGranted = true
+        settingsModel.accessibilityGranted = true
+        onboarding?.accessibilityChanged(true)
         session.accessibilityGranted()
         resume(reason: "accessibility")
         IconCache.shared.prewarm(apps: directory.runningApps())
@@ -185,6 +226,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func accessibilityRevoked() {
         log.error("accessibility not granted")
         statusMenu.accessibilityGranted = false
+        settingsModel.accessibilityGranted = false
+        onboarding?.accessibilityChanged(false)
         session.accessibilityRevoked()
         suspend(reason: "accessibility")
     }
@@ -212,7 +255,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// later is offered from the status menu.
     private var onboarded = false
     private func onboardAutomation() async {
-        guard !onboarded else { return }
+        guard !onboarded, onboarding == nil else { return }
         onboarded = true
         for app in directory.runningApps() where providers.usesAppleEvents(for: app) {
             guard automation.awaitingRequest.contains(app.bundleID) || !automation.deniedBundleIDs.contains(app.bundleID) else { continue }
@@ -248,6 +291,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         statusMenu.tabsUnavailable = automation.deniedBundleIDs.subtracting(awaiting).sorted().map(name)
         statusMenu.tabsAwaitingRequest = awaiting.sorted().map { (bundleID: $0, name: name($0)) }
+        settingsModel.tabsUnavailable = statusMenu.tabsUnavailable
+        settingsModel.tabsAwaitingRequest = statusMenu.tabsAwaitingRequest
     }
 
     /// A `-1743` can be our own bundle's fault; that is a ship-blocking bug,
@@ -257,6 +302,125 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard !defects.isEmpty else { return }
         let names = defects.map(\.rawValue).joined(separator: ",")
         log.fault("bundle cannot send Apple Events: \(names, privacy: .public)")
+    }
+
+    // MARK: - Settings
+
+    private func showSettings() {
+        // Nil in the diagnostic and test-host runs, which never build the UI.
+        settingsWindow?.show()
+    }
+
+    private func settingsActions() -> SettingsActions {
+        var actions = SettingsActions()
+        actions.rebuildIndex = { [weak self] in
+            guard let self else { return }
+            let coordinator = self.coordinator!
+            Task {
+                await coordinator.rebuild()
+                self.settingsModel.health = self.health.snapshot()
+            }
+        }
+        actions.openAccessibilitySettings = { NSWorkspace.shared.open(SystemSettingsLinks.accessibility) }
+        actions.openAutomationSettings = { [weak self] in self?.automation.openSettings() }
+        actions.requestAutomation = { [weak self] bundleID in self?.offerTabs(for: bundleID) }
+        actions.grantSafariCacheAccess = { [weak self] in
+            guard let self else { return }
+            NSApp.activate()
+            let granted = FaviconStore.shared.requestSafariCacheAccess()
+            self.statusMenu.safariCacheGranted = granted
+            self.settingsModel.safariCacheGranted = granted
+        }
+        actions.refreshHealth = { [weak self] in
+            guard let self else { return }
+            self.settingsModel.health = self.health.snapshot()
+        }
+        // A Carbon hotkey is consumed before any window sees it, so the
+        // shortcut field could never be shown the chord it is replacing.
+        actions.setRecording = { [weak self] recording in
+            guard let self else { return }
+            if recording {
+                self.hotKeys.unregisterPersistent()
+            } else {
+                self.hotKeys.registerPersistent()
+            }
+        }
+        actions.automationPaneExists = { [weak self] in self?.settings.hasRequestedAutomation ?? false }
+        return actions
+    }
+
+    /// One setting changed; only that one is applied, and it takes effect
+    /// now rather than at the next launch.
+    private func apply(_ setting: Setting) {
+        switch setting {
+        case .launchAtLogin:
+            log.notice("launch at login=\(self.settings.launchesAtLogin, privacy: .public)")
+        case .showMenuBarIcon:
+            statusMenu.isIconVisible = settings.showMenuBarIcon
+        case .appearance:
+            Theme.apply(Theme.Style(textScale: settings.textSize.scale, isWide: settings.widePanel))
+            panel.screenPosition = settings.panelPosition
+            // SwiftUI reuses a row whose contents did not change, which would
+            // otherwise leave it drawn at the old size.
+            model.styleGeneration += 1
+        case .sortMode:
+            coordinator.sortMode = settings.sortMode
+        case .includesPrivateTabs:
+            let includes = settings.includesPrivateTabs
+            providers.includesPrivate = includes
+            coordinator.setIncludesPrivateTabs(includes)
+            rebuildIndex()
+        case .remoteFavicons:
+            FaviconStore.shared.isRemoteLookupEnabled = settings.remoteFavicons
+            statusMenu.faviconRemoteEnabled = settings.remoteFavicons
+            log.notice("favicon remote lookup enabled=\(self.settings.remoteFavicons, privacy: .public)")
+        case .cmdTabTakeover:
+            applyCmdTabTakeover()
+        case .hotKeys:
+            hotKeys.configure(main: settings.mainHotKey, reverse: settings.reverseHotKey,
+                              search: settings.searchHotKey)
+        case .ignoreTitlePatterns:
+            coordinator.setIgnoreTitlePatterns(settings.ignoreTitlePatterns)
+            rebuildIndex()
+        }
+    }
+
+    private func rebuildIndex() {
+        let coordinator = coordinator!
+        Task { await coordinator.rebuild() }
+    }
+
+    /// The app's own chords must be bound only while the system ones are off,
+    /// and released before they go back (E2).
+    private func applyCmdTabTakeover() {
+        if settings.cmdTabTakeover {
+            guard offSpace.cmdTab.enable() else {
+                log.error("Cmd+Tab takeover unavailable")
+                settingsModel.cmdTabTakeoverAvailable = false
+                return
+            }
+            hotKeys.registerCommandTab()
+        } else {
+            hotKeys.unregisterCommandTab()
+            offSpace.cmdTab.disable()
+        }
+    }
+
+    // MARK: - First run
+
+    private func startOnboardingIfNeeded() {
+        guard !settings.hasCompletedOnboarding else { return }
+        let controller = OnboardingWindowController()
+        onboarding = controller
+        controller.onFinish = { [weak self] in
+            guard let self else { return }
+            self.settings.hasCompletedOnboarding = true
+            self.onboarding = nil
+            // The browser consent prompts were held back so they could not
+            // land in front of the first-run window.
+            Task { await self.onboardAutomation() }
+        }
+        controller.show(hotKeys: (settings.mainHotKey, settings.reverseHotKey, settings.searchHotKey))
     }
 
     static func frontmostAppInfo() -> AppInfo? {

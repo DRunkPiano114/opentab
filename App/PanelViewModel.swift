@@ -78,6 +78,10 @@ final class PanelViewModel {
     var hoverEnabled = false
     /// False shows the onboarding message instead of the list.
     var accessibilityGranted = true
+    /// Bumped when a settings change alters the design tokens. The list is
+    /// rebuilt on it: SwiftUI skips a row whose `Row` value did not change,
+    /// which would leave that row on the old font.
+    var styleGeneration = 0
     /// Non-nil while the second-level pane is up; the main list is then
     /// frozen behind it and comes back unchanged when the pane closes.
     var detail: DetailPane?

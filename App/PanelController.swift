@@ -10,7 +10,9 @@ import os
 final class PanelController {
     /// Layout tokens from reference/ui-spec.md §2.
     enum Metrics {
-        static let width: CGFloat = 260
+        /// Settings-driven; read through `Theme` so the panel frame and the
+        /// SwiftUI layer can never disagree about the width.
+        static var width: CGFloat { Theme.panelWidth }
         static let topPad: CGFloat = 12
         static let fieldHeight: CGFloat = 36
         static let fieldListGap: CGFloat = 12
@@ -43,6 +45,8 @@ final class PanelController {
     let searchField = SearchFieldController()
     /// Hotkey handler entry to `orderFrontRegardless()` returning.
     private(set) var lastShowDuration: Duration?
+    /// Which edge of the screen the panel opens against.
+    var screenPosition: PanelPosition = .left
 
     private let model: PanelViewModel
     private let hosting: NSHostingView<SwitcherRootView>
@@ -151,7 +155,7 @@ final class PanelController {
         let rowCount = model.accessibilityGranted ? rows.count : max(rows.count, Metrics.onboardingRowCount)
         if let screen = ScreenPlacement.screenUnderMouse() {
             let size = Metrics.size(rowCount: rowCount, visibleHeight: screen.visibleFrame.height)
-            panel.setFrame(ScreenPlacement.frame(for: size, on: screen), display: false)
+            panel.setFrame(ScreenPlacement.frame(for: size, on: screen, position: screenPosition), display: false)
         } else {
             panel.setContentSize(Metrics.size(rowCount: rowCount, visibleHeight: nil))
         }
@@ -225,7 +229,7 @@ final class PanelController {
         let count = model.accessibilityGranted ? rowCount : max(rowCount, Metrics.onboardingRowCount)
         if let screen = ScreenPlacement.screenUnderMouse() {
             let size = Metrics.size(rowCount: count, visibleHeight: screen.visibleFrame.height)
-            panel.setFrame(ScreenPlacement.frame(for: size, on: screen), display: false)
+            panel.setFrame(ScreenPlacement.frame(for: size, on: screen, position: screenPosition), display: false)
         } else {
             panel.setContentSize(Metrics.size(rowCount: count, visibleHeight: nil))
         }

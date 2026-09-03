@@ -1,7 +1,9 @@
 import AppKit
 
 enum ScreenPlacement {
-    static let leftMargin: CGFloat = 24
+    /// Distance from the usable edge of the screen for the left and right
+    /// positions.
+    static let edgeMargin: CGFloat = 24
 
     /// `NSScreen.main` follows the key window, which an agent app rarely has,
     /// so the screen under the cursor is the one the user is looking at.
@@ -11,14 +13,18 @@ enum ScreenPlacement {
         return screens.first { $0.frame.contains(point) } ?? screens.first
     }
 
-    /// Anchored to the left edge of the usable area and centred on
-    /// `visibleFrame`: the menu bar and Dock strips are asymmetric, so a panel
-    /// centred on `frame` sits visibly low.
-    static func frame(for size: NSSize, on screen: NSScreen) -> NSRect {
+    /// Vertically centred on `visibleFrame`: the menu bar and Dock strips are
+    /// asymmetric, so a panel centred on `frame` sits visibly low. The
+    /// horizontal edge is the user's choice.
+    static func frame(for size: NSSize, on screen: NSScreen, position: PanelPosition = .left) -> NSRect {
         let bounds = screen.visibleFrame
-        var frame = NSRect(x: bounds.minX + leftMargin,
-                           y: bounds.midY - size.height / 2,
-                           width: size.width, height: size.height)
+        let x: CGFloat
+        switch position {
+        case .left: x = bounds.minX + edgeMargin
+        case .centre: x = bounds.midX - size.width / 2
+        case .right: x = bounds.maxX - edgeMargin - size.width
+        }
+        var frame = NSRect(x: x, y: bounds.midY - size.height / 2, width: size.width, height: size.height)
         frame.origin.x = min(max(frame.origin.x, bounds.minX), max(bounds.minX, bounds.maxX - size.width))
         frame.origin.y = min(max(frame.origin.y, bounds.minY), max(bounds.minY, bounds.maxY - size.height))
         return frame

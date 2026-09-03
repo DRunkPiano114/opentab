@@ -1,12 +1,31 @@
 import SwiftUI
+import os
 
 /// Design tokens measured from the reference switcher. Every value is fixed:
 /// the panel is always dark, so nothing here resolves against the system
 /// appearance.
 enum Theme {
+    // MARK: Settings-driven
+
+    /// The two tokens the settings window controls. Written from the main
+    /// actor and read from wherever SwiftUI evaluates a body, so the pair is
+    /// held under a lock rather than as loose mutable globals.
+    struct Style: Sendable, Equatable {
+        /// Multiplies every font in the main list.
+        var textScale: CGFloat = 1
+        var isWide = false
+    }
+
+    private static let style = OSAllocatedUnfairLock(initialState: Style())
+
+    static func apply(_ new: Style) { style.withLock { $0 = new } }
+
+    static var textScale: CGFloat { style.withLock(\.textScale) }
+    static var isWide: Bool { style.withLock(\.isWide) }
+
     // MARK: Panel
 
-    static let panelWidth: CGFloat = 260
+    static var panelWidth: CGFloat { isWide ? 300 : 260 }
     static let panelRadius: CGFloat = 20
     static let panelBorderWidth: CGFloat = 1
     static let panelPadTop: CGFloat = 12
@@ -67,11 +86,11 @@ enum Theme {
 
     // MARK: Fonts
 
-    static let rowTitleFont = Font.system(size: 13.5, weight: .semibold)
-    static let rowSubtitleFont = Font.system(size: 12, weight: .regular)
-    static let rowTitleMatchFont = Font.system(size: 13.5, weight: .heavy)
-    static let rowSubtitleMatchFont = Font.system(size: 12, weight: .bold)
-    static let rowCountFont = Font.system(size: 13, weight: .bold)
+    static var rowTitleFont: Font { .system(size: 13.5 * textScale, weight: .semibold) }
+    static var rowSubtitleFont: Font { .system(size: 12 * textScale, weight: .regular) }
+    static var rowTitleMatchFont: Font { .system(size: 13.5 * textScale, weight: .heavy) }
+    static var rowSubtitleMatchFont: Font { .system(size: 12 * textScale, weight: .bold) }
+    static var rowCountFont: Font { .system(size: 13 * textScale, weight: .bold) }
     static let placeholderFont = Font.system(size: 15, weight: .regular)
     static let messageFont = Font.system(size: 12, weight: .regular)
     static let messageHintFont = Font.system(size: 11, weight: .regular)

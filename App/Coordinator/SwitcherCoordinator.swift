@@ -207,6 +207,20 @@ final class SwitcherCoordinator {
         return apps
     }
 
+    /// The private-tab opt-in (L16), which the settings window can change
+    /// while the app runs. The caller rebuilds afterwards so the rows already
+    /// in the store are re-derived under the new rule.
+    func setIncludesPrivateTabs(_ includes: Bool) {
+        store.configuration.includesPrivateTabs = includes
+    }
+
+    /// The user's own title regexes, which L3 admits as the one sanctioned
+    /// string match. The caller rebuilds afterwards: rows already in the
+    /// store were admitted under the previous patterns.
+    func setIgnoreTitlePatterns(_ patterns: [String]) {
+        store.ignoreRules = IgnoreRules(bundleIDs: store.ignoreRules.bundleIDs, titlePatterns: patterns)
+    }
+
     /// Drops everything and re-reads. The user-visible escape hatch for the
     /// zombie rows L5 guarantees (H7).
     func rebuild() async {

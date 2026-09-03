@@ -20,14 +20,15 @@ final class StatusMenuController: NSObject {
     /// Whether the user has picked ~/Library/Safari, which is the only way to
     /// read Safari's favicon cache without Full Disk Access.
     var safariCacheGranted = false { didSet { rebuild() } }
+    /// Hiding the icon is a setting; the settings window stays reachable by
+    /// launching the app again, which reopens it.
+    var isIconVisible = true { didSet { item.isVisible = isIconVisible } }
+    var onOpenSettings: (() -> Void)?
     var onToggleFaviconRemote: ((Bool) -> Void)?
     var onGrantSafariCache: (() -> Void)?
     var onRebuildIndex: (() -> Void)?
     var onOpenAutomationSettings: (() -> Void)?
     var onEnableTabs: ((String) -> Void)?
-
-    private static let accessibilitySettingsURL =
-        URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
 
     private let item: NSStatusItem
 
@@ -82,8 +83,11 @@ final class StatusMenuController: NSObject {
 
         let rebuildItem = NSMenuItem(title: "Rebuild Index", action: #selector(rebuildIndex), keyEquivalent: "")
         rebuildItem.target = self
+        rebuildItem.toolTip = "Drop the whole list and read every window again."
         menu.addItem(rebuildItem)
-        menu.addItem(disabled("Settings…"))
+        let settings = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
+        settings.target = self
+        menu.addItem(settings)
         menu.addItem(.separator())
 
         let quit = NSMenuItem(title: "Quit OpenTab", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
@@ -124,7 +128,11 @@ final class StatusMenuController: NSObject {
     }
 
     @objc private func openAccessibilitySettings() {
-        NSWorkspace.shared.open(Self.accessibilitySettingsURL)
+        NSWorkspace.shared.open(SystemSettingsLinks.accessibility)
+    }
+
+    @objc private func openSettings() {
+        onOpenSettings?()
     }
 
     @objc private func rebuildIndex() {

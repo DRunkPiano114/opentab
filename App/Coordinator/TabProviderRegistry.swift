@@ -17,7 +17,16 @@ protocol TabProviderLookup: AnyObject {
 @MainActor
 final class TabProviderRegistry: TabProviderLookup {
     private let engine: AppleScriptEngine
-    private let includesPrivate: Bool
+    /// The user's opt-in, which they can change while the app runs. Every
+    /// cached verdict is discarded on a change: whether a browser gets a
+    /// provider at all depends on it.
+    var includesPrivate: Bool {
+        didSet {
+            guard includesPrivate != oldValue else { return }
+            providers.removeAll()
+            rejected.removeAll()
+        }
+    }
     private let accessibility = AXTabProvider()
     private var providers: [String: any TabProvider] = [:]
     private var rejected: Set<String> = []
