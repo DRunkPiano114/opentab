@@ -44,7 +44,6 @@ struct SwitcherRootView: View {
                 LazyVStack(spacing: Theme.rowGap) {
                     ForEach(Array(model.rows.enumerated()), id: \.element.id) { index, row in
                         SwitcherRowView(model: model, index: index, row: row)
-                            .id(index)
                             .contentShape(Rectangle())
                             .onContinuousHover { phase in
                                 guard model.hoverEnabled, case .active = phase else { return }
@@ -55,10 +54,11 @@ struct SwitcherRootView: View {
                 }
                 .padding(.horizontal, Theme.contentInsetH)
             }
-            .onChange(of: model.selectedIndex) { _, index in
+            .onChange(of: model.scrollRequest) { _, request in
                 // Unanimated on purpose: held arrow keys fire faster than the
                 // animator settles, and the list would trail the highlight.
-                proxy.scrollTo(index, anchor: .center)
+                guard model.rows.indices.contains(request.row) else { return }
+                proxy.scrollTo(model.rows[request.row].id, anchor: request.anchor)
             }
         }
     }

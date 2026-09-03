@@ -76,8 +76,7 @@ final class PanelController {
               since start: ContinuousClock.Instant = .now) {
         hoverGuard?.cancel()
         model.hoverEnabled = false
-        model.rows = rows
-        model.selectedIndex = selectedIndex
+        model.present(rows: rows, selectedIndex: selectedIndex)
 
         let rowCount = model.accessibilityGranted ? rows.count : max(rows.count, Metrics.onboardingRowCount)
         if let screen = ScreenPlacement.screenUnderMouse() {
@@ -106,8 +105,8 @@ final class PanelController {
 
     /// Selection-only change: the rows are untouched, so the list is not
     /// diffed on every auto-repeat tick.
-    func select(_ index: Int) {
-        model.selectedIndex = index
+    func select(_ index: Int, source: PanelViewModel.SelectionSource) {
+        model.select(index, source: source)
     }
 
     func hide() {

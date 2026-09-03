@@ -1,6 +1,7 @@
 import AppKit
 import Observation
 import OpenTabCore
+import SwiftUI
 
 /// What the SwiftUI panel renders. Written by `PanelController`, read by the
 /// views. The row list is frozen while the panel is open: refreshes that land
@@ -30,8 +31,22 @@ final class PanelViewModel {
         }
     }
 
+    enum SelectionSource {
+        case keyboard, pointer
+    }
+
+    /// The view scrolls when this changes. `anchor` follows
+    /// `ScrollViewProxy.scrollTo`: nil moves the list only as far as it takes
+    /// to show the whole row.
+    struct ScrollRequest: Equatable {
+        var serial = 0
+        var row = 0
+        var anchor: UnitPoint?
+    }
+
     var rows: [Row] = []
     var selectedIndex: Int = 0
+    var scrollRequest = ScrollRequest()
     /// False during the hover guard right after the panel appears, so a cursor
     /// that happens to rest on the panel cannot override the keyboard selection.
     var hoverEnabled = false
@@ -39,4 +54,27 @@ final class PanelViewModel {
     var accessibilityGranted = true
     var onHover: (Int) -> Void = { _ in }
     var onActivate: (Int) -> Void = { _ in }
+
+    /// Replaces the list for a fresh open. The scroll view keeps its offset
+    /// across shows, so the list is rewound to the top unless the panel opened
+    /// backwards, in which case the last row is scrolled into view.
+    func present(rows: [Row], selectedIndex: Int) {
+        self.rows = rows
+        self.selectedIndex = selectedIndex
+        if selectedIndex <= 1 {
+            scrollRequest = ScrollRequest(serial: scrollRequest.serial + 1, row: 0, anchor: .top)
+        } else {
+            scrollRequest = ScrollRequest(serial: scrollRequest.serial + 1, row: selectedIndex, anchor: nil)
+        }
+    }
+
+    /// Only keyboard selections scroll. A pointer selection must never move
+    /// the list: the row under the cursor would change, report a new hover,
+    /// and the selection would chase itself down the list.
+    func select(_ index: Int, source: SelectionSource) {
+        selectedIndex = index
+        if source == .keyboard {
+            scrollRequest = ScrollRequest(serial: scrollRequest.serial + 1, row: index, anchor: nil)
+        }
+    }
 }

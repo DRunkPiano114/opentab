@@ -33,6 +33,8 @@ final class SwitcherSession {
     private var rows: [PanelViewModel.Row] = []
     private var selection = Selection(count: 0)
     private var repeatTask: Task<Void, Never>?
+    /// Screen position of the last hover that was allowed to select.
+    private var pointerLocation = NSPoint.zero
 
     init(index: WindowIndex, activator: any WindowActivator, panel: PanelController,
          hotKeys: HotKeyCenter, model: PanelViewModel) {
@@ -151,6 +153,7 @@ final class SwitcherSession {
             selection.select(rows.count - 1)
         }
         state = .engaged
+        pointerLocation = NSEvent.mouseLocation
         panel.show(rows: rows, selectedIndex: selection.index, since: entered)
         hotKeys.registerNavigationKeys()
         log.notice("open rows=\(self.rows.count, privacy: .public) selected=\(self.selection.index, privacy: .public) order=\(Self.describe(self.presented), privacy: .public)")
@@ -199,14 +202,20 @@ final class SwitcherSession {
     private func move(by delta: Int) {
         guard state == .engaged, !selection.isEmpty else { return }
         selection.advance(by: delta)
-        panel.select(selection.index)
+        panel.select(selection.index, source: .keyboard)
         log.notice("select index=\(self.selection.index, privacy: .public) via=key \(self.describeSelected(), privacy: .public)")
     }
 
     private func hover(_ row: Int) {
-        guard state == .engaged, model.hoverEnabled, rows.indices.contains(row), row != selection.index else { return }
+        guard state == .engaged, model.hoverEnabled, rows.indices.contains(row) else { return }
+        // A keyboard scroll slides a different row under a resting cursor and
+        // the view reports that as a hover; only a cursor that moved may select.
+        let location = NSEvent.mouseLocation
+        guard location != pointerLocation else { return }
+        pointerLocation = location
+        guard row != selection.index else { return }
         selection.select(row)
-        panel.select(selection.index)
+        panel.select(selection.index, source: .pointer)
         log.notice("select index=\(self.selection.index, privacy: .public) via=hover \(self.describeSelected(), privacy: .public)")
     }
 

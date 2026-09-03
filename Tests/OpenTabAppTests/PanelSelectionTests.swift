@@ -17,8 +17,7 @@ final class PanelSelectionTests: XCTestCase {
 
     override func setUp() async throws {
         model = PanelViewModel()
-        model.rows = PanelViewModel.Row.placeholders(count: rowCount)
-        model.selectedIndex = 1
+        model.present(rows: PanelViewModel.Row.placeholders(count: rowCount), selectedIndex: 1)
         let size = PanelController.Metrics.size(rowCount: rowCount, visibleHeight: 560)
         hosting = NSHostingView(rootView: SwitcherRootView(model: model))
         hosting.sizingOptions = []
@@ -40,16 +39,16 @@ final class PanelSelectionTests: XCTestCase {
         // The same cadence as the Tab auto-repeat, past the visible rows and back.
         for target in Array(2...20) + [0, rowCount - 1, 7] {
             model.rows = model.rows
-            model.selectedIndex = target
+            model.select(target, source: .keyboard)
             settle()
             XCTAssertEqual(highlightedBands(), 1, "selectedIndex=\(target)")
         }
     }
 
     func testHoverThenKeyKeepsExactlyOneHighlight() {
-        model.selectedIndex = 7
+        model.select(7, source: .pointer)
         settle()
-        model.selectedIndex = 8
+        model.select(8, source: .keyboard)
         settle()
         XCTAssertEqual(highlightedBands(), 1)
     }
