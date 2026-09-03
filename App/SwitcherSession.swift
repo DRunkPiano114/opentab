@@ -160,8 +160,11 @@ final class SwitcherSession {
         }
         // A quick tap can release Option before the hotkey event reaches us;
         // the monitor's edge then arrives in idle and is ignored, so the
-        // hardware state settles it here.
-        if modifierReleaseObservable, !NSEvent.modifierFlags.contains(.option) {
+        // session's current key state settles it here. `NSEvent.modifierFlags`
+        // is not usable for this: it reflects the last event this (inactive)
+        // app processed, which once reported Option up while it was held and
+        // committed the panel the instant it opened.
+        if modifierReleaseObservable, !HotKeyCenter.optionCurrentlyHeld {
             commit()
         }
     }

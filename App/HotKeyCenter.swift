@@ -92,7 +92,7 @@ final class HotKeyCenter {
     /// even after it lands, so this removes and re-adds on every call.
     func installModifierMonitors() {
         removeModifierMonitors()
-        optionHeld = NSEvent.modifierFlags.contains(.option)
+        optionHeld = Self.optionCurrentlyHeld
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
             let flags = event.modifierFlags
             MainActor.assumeIsolated { self?.modifierFlagsChanged(flags) }
@@ -104,6 +104,11 @@ final class HotKeyCenter {
         }
         modifierMonitorsInstalled = globalMonitor != nil
         log.info("modifier monitors installed=\(self.modifierMonitorsInstalled, privacy: .public) trusted=\(AXIsProcessTrusted(), privacy: .public)")
+    }
+
+    /// The session-wide key state, valid whether or not this app is active.
+    static var optionCurrentlyHeld: Bool {
+        CGEventSource.flagsState(.combinedSessionState).contains(.maskAlternate)
     }
 
     // MARK: - Carbon
