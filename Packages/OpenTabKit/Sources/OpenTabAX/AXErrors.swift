@@ -44,7 +44,7 @@ public enum AXSourceError: Error, Sendable, Equatable {
 public enum AXActivationError: Error, Sendable, Equatable {
     /// No snapshot has listed this key, so there is no element to act on.
     case unknownWindow(WindowKey)
-    /// `kAXFocusedWindowAttribute` never became the target before the
-    /// deadline. AppKit return values are not consulted (L2).
+    /// The app never reported `kAXFrontmostAttribute` before the deadline.
+    /// AppKit return values are not consulted (L2).
     case unconfirmed
 }

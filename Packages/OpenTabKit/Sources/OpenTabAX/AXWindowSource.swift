@@ -111,6 +111,12 @@ public final class AXWindowSource: WindowSource, @unchecked Sendable {
         AXRead.element(AXRead.value(.application(pid: pid), kAXFocusedWindowAttribute).value)
     }
 
+    /// The app's own `kAXFrontmostAttribute`: the window server's view of
+    /// which app is active, unlike `NSWorkspace.frontmostApplication` (L2).
+    func isFrontmost(pid: pid_t) -> Bool {
+        (AXRead.value(.application(pid: pid), kAXFrontmostAttribute).value as? Bool) ?? false
+    }
+
     static func checkDeadline(_ deadline: ContinuousClock.Instant) throws {
         if ContinuousClock.now >= deadline { throw AXSourceError.deadlineExceeded }
     }

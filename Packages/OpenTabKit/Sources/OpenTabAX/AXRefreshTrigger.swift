@@ -87,6 +87,7 @@ public final class AXRefreshTrigger: RefreshTrigger {
     }
 
     private func handle(_ lifecycle: Lifecycle, app: AppInfo) {
+        log.notice("workspace \(String(describing: lifecycle), privacy: .public) pid=\(app.pid, privacy: .public)")
         switch lifecycle {
         case .activated:
             generation = generation.next()
@@ -110,6 +111,7 @@ public final class AXRefreshTrigger: RefreshTrigger {
     fileprivate func observerFired(_ notification: String, app: AppInfo) {
         switch notification {
         case kAXFocusedWindowChangedNotification:
+            log.notice("observer focusedWindowChanged pid=\(app.pid, privacy: .public)")
             continuation.yield(.focusedWindowChanged(app))
         case kAXTitleChangedNotification:
             continuation.yield(.titleChanged(app))

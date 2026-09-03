@@ -7,8 +7,8 @@ public protocol WindowSource: Sendable {
 }
 
 public protocol WindowActivator: Sendable {
-    /// Success is judged by reading back `kAXFocusedWindowAttribute`, never by
-    /// an AppKit return value (L2).
+    /// Success is judged by reading the target app's `kAXFrontmostAttribute`
+    /// back, never by an AppKit return value (L2).
     func activate(_ key: WindowKey, deadline: ContinuousClock.Instant) async throws
 }
 
