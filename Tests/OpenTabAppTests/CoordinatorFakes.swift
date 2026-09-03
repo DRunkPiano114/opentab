@@ -123,7 +123,6 @@ final class FakeTabProvider: TabProvider, @unchecked Sendable {
 @MainActor
 final class FakeProviderLookup: TabProviderLookup {
     var providers: [String: any TabProvider] = [:]
-    private(set) var unsupported: Set<String> = []
 
     init(_ providers: [any TabProvider] = []) {
         for provider in providers {
@@ -132,11 +131,7 @@ final class FakeProviderLookup: TabProviderLookup {
     }
 
     func provider(for app: AppInfo) -> (any TabProvider)? {
-        unsupported.contains(app.bundleID) ? nil : providers[app.bundleID]
-    }
-
-    func markUnsupported(_ app: AppInfo) {
-        unsupported.insert(app.bundleID)
+        providers[app.bundleID]
     }
 }
 
@@ -179,9 +174,11 @@ func chromeTab(_ window: String, _ token: String, _ title: String, active: Bool 
                 title: title, url: URL(string: "https://example.test/\(token)"), isActive: active, isPrivate: false)
 }
 
+/// A tab keeps its URL when it moves, so the URL follows the title, not the index.
 func safariTab(_ wid: UInt32, _ index: Int, _ title: String, active: Bool = false) -> TabSnapshot {
-    TabSnapshot(windowKey: .cg(wid), token: String(index), title: title,
-                url: URL(string: "https://example.test/\(index)"), isActive: active, isPrivate: false)
+    let slug = title.lowercased().replacingOccurrences(of: " ", with: "-")
+    return TabSnapshot(windowKey: .cg(wid), token: String(index), title: title,
+                url: URL(string: "https://example.test/\(slug)"), isActive: active, isPrivate: false)
 }
 
 @MainActor
@@ -193,7 +190,6 @@ struct CoordinatorHarness {
     let gate = FakeAutomationGate()
     let coordinator: SwitcherCoordinator
     let windowServer: OSAllocatedUnfairLock<Set<UInt32>?>
-    private(set) var changes = 0
 
     init(providers: [any TabProvider] = [], live: Set<UInt32>? = []) {
         self.providers = FakeProviderLookup(providers)

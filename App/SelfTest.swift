@@ -149,7 +149,6 @@ enum SelfTest {
         let offSpace = OffSpaceWindowSource(base: source)
         let engine = AppleScriptEngine()
         let gate = AutomationGateKeeper()
-        gate.promptsAllowed = { false }
         let providers = TabProviderRegistry(engine: engine, includesPrivate: false)
         let coordinator = SwitcherCoordinator(source: offSpace, activator: OffSpaceWindowActivator(source: offSpace),
                                               directory: WorkspaceAppDirectory(), providers: providers,
@@ -160,7 +159,7 @@ enum SelfTest {
 
         var lines: [String] = []
         let started = ContinuousClock.now
-        await coordinator.reconcile(seedFocus: true)
+        await coordinator.refreshEverything(seedFocus: true)
         lines.append("coordinator: reconcile \(format(ContinuousClock.now - started))")
         lines.append(contentsOf: describe(coordinator, gate: gate))
         lines.append(panelTiming(controller, coordinator, label: "panelShowWithLiveRows"))
@@ -169,7 +168,7 @@ enum SelfTest {
             kill(app.pid, SIGSTOP)
             defer { kill(app.pid, SIGCONT) }
             let stalled = ContinuousClock.now
-            await coordinator.reconcile()
+            await coordinator.refreshEverything()
             lines.append("stalled \(bundleID): reconcile \(format(ContinuousClock.now - stalled))")
             lines.append(contentsOf: describe(coordinator, gate: gate, only: app.key))
             lines.append(panelTiming(controller, coordinator, label: "panelShowWhileStalled"))

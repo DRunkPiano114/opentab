@@ -141,12 +141,36 @@ final class CoordinatorTests: XCTestCase {
         XCTAssertTrue(chromeRows.isEmpty)
     }
 
-    func testUnscriptableForkFallsBackToWindows() async {
+    func testRepeatedInconclusiveFailuresDropTabsAndMarkTheBrowser() async {
         await activateChrome()
-        provider.failReads(with: .compileFailed(code: -2741, message: ""))
+        provider.failReads(with: .failed(code: -1, message: "page content must not reach a log"))
+        await harness.coordinator.handle(.periodic)
+        await harness.coordinator.handle(.periodic)
+        XCTAssertEqual(chromeRows.map(\.count), [3, 2, nil], "two failures keep the cache (L5)")
+        XCTAssertEqual(chromeRows.map(\.status), [.normal, .normal, .normal])
+
         await harness.coordinator.handle(.periodic)
         XCTAssertEqual(harness.entries.filter { $0.app.key == chrome.key }.map(\.kind), [.window, .window, .window])
-        XCTAssertTrue(harness.providers.unsupported.contains(chrome.bundleID))
+        XCTAssertEqual(chromeRows.map(\.status), [.tabsUnavailable, .tabsUnavailable, .tabsUnavailable])
+
+        provider.failReads(with: nil)
+        await harness.coordinator.handle(.periodic)
+        XCTAssertEqual(chromeRows.map(\.count), [3, 2, nil])
+        XCTAssertEqual(chromeRows.map(\.status), [.normal, .normal, .normal])
+    }
+
+    func testFullRefreshNeverSweeps() async {
+        await harness.coordinator.handle(.appActivated(notes, FocusGeneration(raw: 1)))
+        harness.source.set([WindowSnapshot(key: .cg(9), app: notes, title: "Groceries", subrole: "AXStandardWindow",
+                                           isMinimized: false, isOnActiveSpace: false),
+                            window(10, notes, title: "Todo")], for: notes)
+        await harness.coordinator.handle(.periodic)
+        harness.source.set([window(10, notes, title: "Todo")], for: notes)
+        harness.setLive([1, 2, 3, 10])
+        for _ in 0..<6 { await harness.coordinator.refreshEverything() }
+        XCTAssertTrue(harness.entries.contains { $0.key == .cg(9) }, "Space switches must not strike a window out")
+        for _ in 0..<3 { await harness.coordinator.handle(.periodic) }
+        XCTAssertFalse(harness.entries.contains { $0.key == .cg(9) })
     }
 
     // MARK: Activation (rule I and the landing check)
@@ -209,6 +233,27 @@ final class CoordinatorTests: XCTestCase {
         XCTAssertEqual(tabs.map(\.title), ["Apple", "WWDC", "Swift Forums"], "the read taken for the landing check is kept")
     }
 
+    /// A neighbouring tab whose title merely extends the expected one is
+    /// not a landing, and two equally plausible candidates mean no retry.
+    func testPositionalLandingIsExactAndAmbiguityStopsTheRetry() async {
+        let safariProvider = FakeTabProvider(bundleIDs: [safari.bundleID], tokenStability: .positional)
+        harness = CoordinatorHarness(providers: [safariProvider], live: [7])
+        harness.directory.set(apps: [safari])
+        harness.source.set([window(7, safari, title: "Apple", focused: true)], for: safari)
+        func tab(_ index: Int, _ title: String, active: Bool = false) -> TabSnapshot {
+            TabSnapshot(windowKey: .cg(7), token: String(index), title: title, url: nil, isActive: active, isPrivate: false)
+        }
+        safariProvider.set(tabs: [tab(1, "Apple", active: true), tab(2, "Swift Forums"), tab(3, "Swift Forums - Thread")])
+        await harness.coordinator.handle(.appActivated(safari, FocusGeneration(raw: 1)))
+        let key = harness.entries.first!.key
+        let forums = harness.coordinator.store.tabs(in: key).first { $0.title == "Swift Forums" }!
+
+        // Index 2 now lands on the extended title; the exact title exists twice.
+        safariProvider.set(tabs: [tab(1, "Apple"), tab(2, "Swift Forums - Thread", active: true), tab(3, "Swift Forums"), tab(4, "Swift Forums")])
+        await harness.coordinator.activate(forums)
+        XCTAssertEqual(safariProvider.activated.map(\.token), ["2"], "a prefix match is not a landing, and an ambiguous retry is skipped")
+    }
+
     func testSafariWindowsAreClaimedByResolutionNotTitle() async {
         let safariProvider = FakeTabProvider(bundleIDs: [safari.bundleID], tokenStability: .positional)
         harness = CoordinatorHarness(providers: [safariProvider], live: [7, 8])
@@ -225,6 +270,14 @@ final class CoordinatorTests: XCTestCase {
         XCTAssertEqual(harness.coordinator.store.claimedWindow(for: .scripted(bundleID: safari.bundleID, token: "8")), .cg(8))
         XCTAssertEqual(entries.first?.title, "Swift Forums", "the focused window's tab leads")
         XCTAssertEqual(harness.coordinator.store.claimConflictCount, 0)
+    }
+
+    func testTabRowWithoutAProviderActivatesItsClaimedWindow() async {
+        await activateChrome()
+        let entry = tabEntry("Docs")
+        harness.providers.providers.removeAll()
+        await harness.coordinator.activate(entry)
+        XCTAssertEqual(harness.activator.activated, [.cg(2)])
     }
 
     func testWindowWithoutAnElementFallsBackToTheAppAndARead() async {
@@ -301,6 +354,74 @@ final class CoordinatorTests: XCTestCase {
         await harness.coordinator.rebuild()
         XCTAssertEqual(chromeRows.map(\.title), ["GitHub", "Docs", "Mail"])
         XCTAssertEqual(chromeRows.map(\.count), [3, 2, nil])
+    }
+}
+
+@MainActor
+final class AutomationGateKeeperTests: XCTestCase {
+    private final class MemoryRequestLog: AutomationRequestLog, @unchecked Sendable {
+        private let lock = OSAllocatedUnfairLock(initialState: Set<String>())
+        func hasRequested(_ bundleID: String) -> Bool { lock.withLock { $0.contains(bundleID) } }
+        func markRequested(_ bundleID: String) { lock.withLock { _ = $0.insert(bundleID) } }
+    }
+
+    private func keeper(status: AutomationStatus, request: AutomationStatus = .authorized,
+                        log: MemoryRequestLog = MemoryRequestLog(),
+                        guide: @escaping @MainActor (AppInfo) async -> Bool) -> (AutomationGateKeeper, OSAllocatedUnfairLock<Int>) {
+        let requests = OSAllocatedUnfairLock(initialState: 0)
+        let keeper = AutomationGateKeeper(status: { _ in status },
+                                          request: { bundleID in
+                                              requests.withLock { $0 += 1 }
+                                              log.markRequested(bundleID)
+                                              return request
+                                          },
+                                          requestLog: log, guide: guide)
+        return (keeper, requests)
+    }
+
+    /// The consent dialog never comes from a refresh: an undetermined
+    /// browser is listed as windows only and offered for the guided step.
+    func testRefreshPathNeverPromptsAndMarksTheBrowser() async {
+        var guided = 0
+        let (keeper, requests) = keeper(status: .undetermined) { _ in guided += 1; return true }
+        let allowed = await keeper.mayReadTabs(of: chrome)
+        XCTAssertFalse(allowed)
+        XCTAssertEqual(guided, 0)
+        XCTAssertEqual(requests.withLock { $0 }, 0)
+        XCTAssertEqual(keeper.deniedBundleIDs, [chrome.bundleID])
+        XCTAssertEqual(keeper.awaitingRequest, [chrome.bundleID])
+    }
+
+    func testGuidedRequestGrantsAndReportsOnce() async {
+        var guided = 0
+        let log = MemoryRequestLog()
+        let (keeper, requests) = keeper(status: .undetermined, log: log) { _ in guided += 1; return true }
+        var authorized: [String] = []
+        keeper.onAuthorized = { authorized.append($0.bundleID) }
+        _ = await keeper.mayReadTabs(of: chrome)
+        await keeper.requestThroughGuide(chrome)
+        XCTAssertEqual(guided, 1)
+        XCTAssertEqual(authorized, [chrome.bundleID])
+        XCTAssertTrue(keeper.deniedBundleIDs.isEmpty)
+        let allowed = await keeper.mayReadTabs(of: chrome)
+        XCTAssertTrue(allowed)
+
+        await keeper.requestThroughGuide(chrome)
+        XCTAssertEqual(requests.withLock { $0 }, 1, "a browser is asked about once")
+    }
+
+    func testDeclinedGuideAndRefusedRequestStayWindowsOnly() async {
+        let log = MemoryRequestLog()
+        let (declined, requests) = keeper(status: .undetermined, log: log) { _ in false }
+        await declined.requestThroughGuide(chrome)
+        XCTAssertEqual(requests.withLock { $0 }, 0)
+
+        let (refused, _) = keeper(status: .undetermined, request: .denied, log: log) { _ in true }
+        await refused.requestThroughGuide(chrome)
+        XCTAssertEqual(refused.deniedBundleIDs, [chrome.bundleID])
+        XCTAssertTrue(refused.awaitingRequest.isEmpty, "asked and refused: only the settings pane can change it")
+        let allowed = await refused.mayReadTabs(of: chrome)
+        XCTAssertFalse(allowed)
     }
 }
 

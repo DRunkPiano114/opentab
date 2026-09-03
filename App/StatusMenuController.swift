@@ -10,8 +10,12 @@ final class StatusMenuController: NSObject {
     /// Display names of browsers listed as windows only because Apple
     /// Events were refused.
     var tabsUnavailable: [String] = [] { didSet { rebuild() } }
+    /// Browsers never asked for Apple Events consent; the item runs the
+    /// guided request.
+    var tabsAwaitingRequest: [(bundleID: String, name: String)] = [] { didSet { rebuild() } }
     var onRebuildIndex: (() -> Void)?
     var onOpenAutomationSettings: (() -> Void)?
+    var onEnableTabs: ((String) -> Void)?
 
     private static let accessibilitySettingsURL =
         URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
@@ -56,6 +60,13 @@ final class StatusMenuController: NSObject {
             open.target = self
             menu.addItem(open)
         }
+        for browser in tabsAwaitingRequest {
+            let enable = NSMenuItem(title: "Enable tabs for \(browser.name)…",
+                                    action: #selector(enableTabs(_:)), keyEquivalent: "")
+            enable.target = self
+            enable.representedObject = browser.bundleID
+            menu.addItem(enable)
+        }
         menu.addItem(.separator())
 
         let rebuildItem = NSMenuItem(title: "Rebuild Index", action: #selector(rebuildIndex), keyEquivalent: "")
@@ -87,5 +98,10 @@ final class StatusMenuController: NSObject {
 
     @objc private func openAutomationSettings() {
         onOpenAutomationSettings?()
+    }
+
+    @objc private func enableTabs(_ sender: NSMenuItem) {
+        guard let bundleID = sender.representedObject as? String else { return }
+        onEnableTabs?(bundleID)
     }
 }

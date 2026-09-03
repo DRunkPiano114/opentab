@@ -7,9 +7,6 @@ import os
 @MainActor
 protocol TabProviderLookup: AnyObject {
     func provider(for app: AppInfo) -> (any TabProvider)?
-    /// The provider's script does not fit this app after all (a fork with a
-    /// different dictionary): stop asking.
-    func markUnsupported(_ app: AppInfo)
 }
 
 /// Safari by bundle id; the Chromium family by probing the running app's
@@ -42,12 +39,6 @@ final class TabProviderRegistry: TabProviderLookup {
         providers[bundleID] = made
         log.notice("tab provider bundle=\(bundleID, privacy: .public) kind=\(String(describing: type(of: made)), privacy: .public)")
         return made
-    }
-
-    func markUnsupported(_ app: AppInfo) {
-        guard providers.removeValue(forKey: app.bundleID) != nil else { return }
-        rejected.insert(app.bundleID)
-        log.error("tab provider withdrawn bundle=\(app.bundleID, privacy: .public)")
     }
 
     private func make(for app: AppInfo) -> (any TabProvider)? {

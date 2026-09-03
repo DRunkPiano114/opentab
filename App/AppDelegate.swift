@@ -98,7 +98,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotKeys = HotKeyCenter()
         session = SwitcherSession(coordinator: coordinator, panel: panel, hotKeys: hotKeys, model: model)
         session.frontmostApp = { Self.frontmostAppInfo() }
-        automation.promptsAllowed = { [weak self] in self?.session.isIdle ?? false }
         automation.onChange = { [weak self] in self?.automationChanged() }
         automation.onAuthorized = { [weak self] app in
             guard let self else { return }
@@ -112,6 +111,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Task { await self.coordinator.rebuild() }
         }
         statusMenu.onOpenAutomationSettings = { [weak self] in self?.automation.openSettings() }
+        statusMenu.onEnableTabs = { [weak self] bundleID in self?.offerTabs(for: bundleID) }
         if !source.isWindowIDBridgeAvailable {
             log.error("_AXUIElementGetWindow unavailable: windows keyed by AX element only")
         }
@@ -124,8 +124,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         secureInput.start()
 
         systemEvents = SystemEventMonitor()
-        systemEvents.onWake = { [weak self] in self?.reconcile(reason: "wake") }
-        systemEvents.onActiveSpaceChanged = { [weak self] in self?.reconcile(reason: "space") }
+        systemEvents.onWake = { [weak self] in self?.refreshEverything(reason: "wake") }
+        systemEvents.onActiveSpaceChanged = { [weak self] in self?.refreshEverything(reason: "space") }
         systemEvents.onScreensChanged = { [weak self] in self?.session.screensChanged() }
         systemEvents.onSessionResigned = { [weak self] in self?.suspend(reason: "session resigned") }
         systemEvents.onSessionResumed = { [weak self] in self?.resume(reason: "session resumed") }
@@ -185,9 +185,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let coordinator = coordinator!
         Task {
-            await coordinator.reconcile(seedFocus: true)
+            await coordinator.refreshEverything(seedFocus: true)
             self.log.notice("initial index: \(coordinator.entries.count, privacy: .public) rows")
+            await self.onboardAutomation()
         }
+    }
+
+    /// Packet §5: the Automation request is part of onboarding, made once
+    /// for each browser running now that has never been asked about, one
+    /// browser at a time, and never from a refresh. A browser that arrives
+    /// later is offered from the status menu.
+    private var onboarded = false
+    private func onboardAutomation() async {
+        guard !onboarded else { return }
+        onboarded = true
+        for app in directory.runningApps() where providers.provider(for: app) != nil {
+            guard automation.awaitingRequest.contains(app.bundleID) || !automation.deniedBundleIDs.contains(app.bundleID) else { continue }
+            await automation.requestThroughGuide(app)
+        }
+    }
+
+    private func offerTabs(for bundleID: String) {
+        guard let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first else { return }
+        let app = AppInfo(bundleID: bundleID, pid: running.processIdentifier, localizedName: running.localizedName ?? bundleID)
+        Task { await self.automation.requestThroughGuide(app) }
     }
 
     private func suspend(reason: String) {
@@ -198,18 +219,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Sleep/wake and Space changes invalidate the cache wholesale.
-    private func reconcile(reason: String) {
+    private func refreshEverything(reason: String) {
         guard running else { return }
-        log.notice("full reconcile reason=\(reason, privacy: .public)")
+        log.notice("full refresh reason=\(reason, privacy: .public)")
         let coordinator = coordinator!
-        Task { await coordinator.reconcile() }
+        Task { await coordinator.refreshEverything() }
     }
 
     private func automationChanged() {
-        let names = automation.deniedBundleIDs.sorted().map { bundleID in
+        let awaiting = automation.awaitingRequest
+        func name(_ bundleID: String) -> String {
             NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first?.localizedName ?? bundleID
         }
-        statusMenu.tabsUnavailable = names
+        statusMenu.tabsUnavailable = automation.deniedBundleIDs.subtracting(awaiting).sorted().map(name)
+        statusMenu.tabsAwaitingRequest = awaiting.sorted().map { (bundleID: $0, name: name($0)) }
     }
 
     /// A `-1743` can be our own bundle's fault; that is a ship-blocking bug,
