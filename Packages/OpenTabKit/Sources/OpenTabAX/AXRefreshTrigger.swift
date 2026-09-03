@@ -191,11 +191,11 @@ private final class FrontmostObserver {
 
 extension AXRefreshTrigger {
     fileprivate func observerCreateFailed(app: AppInfo, error: AXError) {
-        log.debug("AXObserverCreate failed pid=\(app.pid, privacy: .public) error=\(axErrorName(error), privacy: .public)")
+        log.notice("AXObserverCreate failed pid=\(app.pid, privacy: .public) error=\(axErrorName(error), privacy: .public)")
     }
 
     fileprivate func observerAddFailed(app: AppInfo, error: AXError) {
-        log.debug("AXObserverAddNotification failed pid=\(app.pid, privacy: .public) error=\(axErrorName(error), privacy: .public)")
+        log.notice("AXObserverAddNotification failed pid=\(app.pid, privacy: .public) error=\(axErrorName(error), privacy: .public)")
     }
 }
 

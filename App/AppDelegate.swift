@@ -114,7 +114,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         index.start(trigger: trigger)
         session.accessibilityGranted()
         Task {
-            await index.refreshAll()
+            await index.refreshAll(seedFocus: true)
             IconCache.shared.prewarm(apps: directory.runningApps())
             log.notice("initial index: \(self.index.entries.count, privacy: .public) windows")
         }

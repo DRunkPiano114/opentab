@@ -33,4 +33,11 @@ public final class WorkspaceAppDirectory: AppDirectory, Sendable {
     public func isHidden(_ app: AppInfo) -> Bool {
         NSRunningApplication(processIdentifier: app.pid)?.isHidden ?? false
     }
+
+    @MainActor
+    public func frontmostApp() -> AppInfo? {
+        guard let app = NSWorkspace.shared.frontmostApplication, app.processIdentifier != getpid() else { return nil }
+        return AppInfo(bundleID: app.bundleIdentifier ?? "", pid: app.processIdentifier,
+                       localizedName: app.localizedName ?? "")
+    }
 }

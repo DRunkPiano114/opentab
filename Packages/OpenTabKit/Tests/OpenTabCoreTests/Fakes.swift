@@ -50,15 +50,18 @@ final class FakeWindowSource: WindowSource, @unchecked Sendable {
 }
 
 final class FakeAppDirectory: AppDirectory, @unchecked Sendable {
-    private let lock = OSAllocatedUnfairLock<([AppInfo], Set<AppKey>)>(initialState: ([], []))
+    private struct State { var apps: [AppInfo] = []; var hidden: Set<AppKey> = []; var frontmost: AppInfo? }
+    private let lock = OSAllocatedUnfairLock(initialState: State())
 
-    func set(apps: [AppInfo]) { lock.withLock { $0.0 = apps } }
+    func set(apps: [AppInfo]) { lock.withLock { $0.apps = apps } }
     func setHidden(_ app: AppInfo, _ hidden: Bool) {
-        lock.withLock { if hidden { $0.1.insert(app.key) } else { $0.1.remove(app.key) } }
+        lock.withLock { if hidden { $0.hidden.insert(app.key) } else { $0.hidden.remove(app.key) } }
     }
+    func setFrontmost(_ app: AppInfo?) { lock.withLock { $0.frontmost = app } }
 
-    func runningApps() -> [AppInfo] { lock.withLock { $0.0 } }
-    func isHidden(_ app: AppInfo) -> Bool { lock.withLock { $0.1.contains(app.key) } }
+    func runningApps() -> [AppInfo] { lock.withLock { $0.apps } }
+    func isHidden(_ app: AppInfo) -> Bool { lock.withLock { $0.hidden.contains(app.key) } }
+    func frontmostApp() -> AppInfo? { lock.withLock { $0.frontmost } }
 }
 
 /// Events are pushed by the test and delivered through a real `AsyncStream`.

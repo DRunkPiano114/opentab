@@ -17,7 +17,9 @@ final class WindowIndexTests: XCTestCase {
     }
 
     func makeIndex() -> WindowIndex {
-        WindowIndex(source: source, directory: directory)
+        let index = WindowIndex(source: source, directory: directory)
+        index.launchSettleDelay = .milliseconds(20)
+        return index
     }
 
     func testRefreshAllReadsEveryApp() async {
@@ -40,6 +42,26 @@ final class WindowIndexTests: XCTestCase {
         await index.handle(.appActivated(safari, FocusGeneration(raw: 5)))
         await index.handle(.appActivated(xcode, FocusGeneration(raw: 3)))
         XCTAssertEqual(index.entries.first?.key, .cg(1), "generation 3 arrived after 5 and must not win")
+    }
+
+    func testLaunchedFrontmostAppGetsFocusOnSecondRead() async {
+        let index = makeIndex()
+        await index.refreshAll()
+        let calc = app("Calculator", pid: 300)
+        directory.set(apps: [safari, xcode, calc])
+        directory.setFrontmost(calc)
+        await index.handle(.appLaunched(calc))
+        source.set([window(9, calc, focused: true)], for: calc)
+        try? await Task.sleep(for: .milliseconds(80))
+        XCTAssertEqual(index.entries.first?.key, .cg(9))
+    }
+
+    func testInitialSweepSeedsFrontmostFocus() async {
+        let index = makeIndex()
+        directory.setFrontmost(xcode)
+        await index.refreshAll(seedFocus: true)
+        XCTAssertEqual(index.entries.first?.key, .cg(3))
+        XCTAssertEqual(index.entries.map(\.key), [.cg(3), .cg(1), .cg(2)])
     }
 
     func testTerminatedAppDisappears() async {

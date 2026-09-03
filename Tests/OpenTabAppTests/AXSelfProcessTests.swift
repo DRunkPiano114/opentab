@@ -14,10 +14,14 @@ final class AXSelfProcessTests: XCTestCase {
         AppInfo(bundleID: Bundle.main.bundleIdentifier!, pid: getpid(), localizedName: "OpenTab")
     }
 
+    /// Unique per test: a window closed by the previous test can still be in
+    /// the AX list for a moment, and a shared title would count it.
+    private let run = UUID().uuidString.prefix(8)
+
     override func setUp() async throws {
         AXConfiguration.configureGlobalTimeout()
-        windowA = makeWindow(title: "OpenTab AX Test A", x: 120)
-        windowB = makeWindow(title: "OpenTab AX Test B", x: 520)
+        windowA = makeWindow(title: "OpenTab AX Test A \(run)", x: 120)
+        windowB = makeWindow(title: "OpenTab AX Test B \(run)", x: 520)
     }
 
     override func tearDown() async throws {
@@ -41,8 +45,8 @@ final class AXSelfProcessTests: XCTestCase {
         XCTAssertFalse(a.isMinimized)
         XCTAssertFalse(b.isMinimized)
         XCTAssertEqual(a.level, 0)
-        XCTAssertEqual(a.title, "OpenTab AX Test A")
-        XCTAssertEqual(b.title, "OpenTab AX Test B")
+        XCTAssertEqual(a.title, "OpenTab AX Test A \(run)")
+        XCTAssertEqual(b.title, "OpenTab AX Test B \(run)")
         XCTAssertTrue(a.isOnActiveSpace)
         XCTAssertEqual(a.app, selfApp)
     }
@@ -85,7 +89,7 @@ final class AXSelfProcessTests: XCTestCase {
         XCTAssertFalse(source.isWindowIDBridgeAvailable)
 
         let snapshots = try await source.snapshot(of: selfApp, deadline: .now + .seconds(2))
-        let own = snapshots.filter { $0.title.hasPrefix("OpenTab AX Test") }
+        let own = snapshots.filter { $0.title.hasSuffix(String(run)) }
         XCTAssertEqual(own.count, 2)
         for snapshot in own {
             guard case .ax(let pid, let elementID) = snapshot.key else {

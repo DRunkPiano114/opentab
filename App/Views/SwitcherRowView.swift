@@ -1,8 +1,15 @@
 import SwiftUI
 
+/// Reads `model.selectedIndex` in its own body: a row inside a lazy stack is
+/// built outside the parent's observation scope, so a highlight passed in as a
+/// plain Bool went stale once the parent stopped re-evaluating that row —
+/// leaving the old row lit while a freshly built row lit up as well.
 struct SwitcherRowView: View {
+    let model: PanelViewModel
+    let index: Int
     let row: PanelViewModel.Row
-    let isSelected: Bool
+
+    private var isSelected: Bool { index == model.selectedIndex }
 
     var body: some View {
         HStack(spacing: 0) {

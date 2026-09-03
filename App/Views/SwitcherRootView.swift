@@ -43,7 +43,7 @@ struct SwitcherRootView: View {
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(spacing: Theme.rowGap) {
                     ForEach(Array(model.rows.enumerated()), id: \.element.id) { index, row in
-                        SwitcherRowView(row: row, isSelected: index == model.selectedIndex)
+                        SwitcherRowView(model: model, index: index, row: row)
                             .id(index)
                             .contentShape(Rectangle())
                             .onContinuousHover { phase in

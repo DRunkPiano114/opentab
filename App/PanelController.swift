@@ -104,6 +104,12 @@ final class PanelController {
         model.selectedIndex = selectedIndex
     }
 
+    /// Selection-only change: the rows are untouched, so the list is not
+    /// diffed on every auto-repeat tick.
+    func select(_ index: Int) {
+        model.selectedIndex = index
+    }
+
     func hide() {
         hoverGuard?.cancel()
         hoverGuard = nil

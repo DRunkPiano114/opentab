@@ -153,7 +153,7 @@ final class SwitcherSession {
         state = .engaged
         panel.show(rows: rows, selectedIndex: selection.index, since: entered)
         hotKeys.registerNavigationKeys()
-        log.info("open rows=\(self.rows.count, privacy: .public) selected=\(self.selection.index, privacy: .public)")
+        log.notice("open rows=\(self.rows.count, privacy: .public) selected=\(self.selection.index, privacy: .public) order=\(Self.describe(self.presented), privacy: .public)")
 
         if let app = frontmostApp() {
             Task { await index.refresh(app: app) }
@@ -196,13 +196,26 @@ final class SwitcherSession {
     private func move(by delta: Int) {
         guard state == .engaged, !selection.isEmpty else { return }
         selection.advance(by: delta)
-        panel.update(rows: rows, selectedIndex: selection.index)
+        panel.select(selection.index)
+        log.notice("select index=\(self.selection.index, privacy: .public) via=key \(self.describeSelected(), privacy: .public)")
     }
 
     private func hover(_ row: Int) {
-        guard state == .engaged, model.hoverEnabled, rows.indices.contains(row) else { return }
+        guard state == .engaged, model.hoverEnabled, rows.indices.contains(row), row != selection.index else { return }
         selection.select(row)
-        panel.update(rows: rows, selectedIndex: selection.index)
+        panel.select(selection.index)
+        log.notice("select index=\(self.selection.index, privacy: .public) via=hover \(self.describeSelected(), privacy: .public)")
+    }
+
+    /// "pid:focusTick" per row, first rows only; never titles (L16).
+    private static func describe(_ entries: [Entry]) -> String {
+        entries.prefix(8).map { "\($0.app.pid):\($0.focusTick)" }.joined(separator: ",")
+    }
+
+    private func describeSelected() -> String {
+        guard presented.indices.contains(selection.index) else { return "none" }
+        let entry = presented[selection.index]
+        return "pid=\(entry.app.pid) key=\(entry.key)"
     }
 
     private func activate(rowAt row: Int) {
@@ -220,6 +233,7 @@ final class SwitcherSession {
         let pid = target.app.pid
         let activator = activator
         let log = log
+        log.notice("commit pid=\(pid, privacy: .public) key=\(String(describing: key), privacy: .public)")
         Task {
             do {
                 try await activator.activate(key, deadline: .now + Self.activationDeadline)

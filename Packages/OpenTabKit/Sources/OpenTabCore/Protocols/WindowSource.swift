@@ -19,4 +19,6 @@ public protocol AppDirectory: Sendable {
     /// `NSRunningApplication.isHidden`. Unreliable per L2: a secondary sort
     /// signal and an input to the activation path, never a reason to hide rows.
     @MainActor func isHidden(_ app: AppInfo) -> Bool
+    /// `NSWorkspace.frontmostApplication`, if it is a candidate.
+    @MainActor func frontmostApp() -> AppInfo?
 }

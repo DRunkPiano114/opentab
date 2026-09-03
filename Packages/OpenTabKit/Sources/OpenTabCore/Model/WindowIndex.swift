@@ -13,6 +13,8 @@ public final class WindowIndex {
     /// Per-app read budget. Warm reads take ~2ms; a wedged app costs at most
     /// the AX messaging timeout per attribute read.
     public var snapshotBudget: Duration = .milliseconds(600)
+    /// How long after `didLaunchApplication` the launched app is read again.
+    public var launchSettleDelay: Duration = .seconds(1)
 
     private let source: any WindowSource
     private let directory: any AppDirectory
@@ -54,12 +56,16 @@ public final class WindowIndex {
             latestGeneration = max(latestGeneration, generation)
             await refresh(app: app, bumpFocused: true, generation: generation)
         case .appLaunched(let app):
-            // Launch is reported before the app has windows; without the
-            // second read the first window only shows up on the periodic tick.
+            // Launch is reported before the app has windows, and its activation
+            // usually precedes them too; without the second read the first
+            // window only shows up on the periodic tick, unfocused.
             await refresh(app: app)
+            let delay = launchSettleDelay
             Task { [weak self] in
-                try? await Task.sleep(for: .seconds(1))
-                await self?.refresh(app: app)
+                try? await Task.sleep(for: delay)
+                guard let self else { return }
+                let frontmost = self.directory.frontmostApp()?.key == app.key
+                await self.refresh(app: app, bumpFocused: frontmost, generation: self.latestGeneration)
             }
         case .appTerminated(let app):
             if store.removeApp(app.key) { notify() }
@@ -78,11 +84,16 @@ public final class WindowIndex {
 
     /// Reads every running app in parallel. Cold start on ~30 apps measures
     /// ~60ms this way versus ~550ms serially.
-    public func refreshAll() async {
+    ///
+    /// `seedFocus` marks the frontmost app's focused window as most recent:
+    /// a fresh store has every `focusTick` at zero, so without it the list
+    /// opens in discovery order until the user switches apps.
+    public func refreshAll(seedFocus: Bool = false) async {
         let apps = directory.runningApps().filter { !store.ignoreRules.ignores(app: $0) }
+        let frontmost = seedFocus ? directory.frontmostApp()?.key : nil
         await withTaskGroup(of: Void.self) { group in
             for app in apps {
-                group.addTask { await self.refresh(app: app) }
+                group.addTask { await self.refresh(app: app, bumpFocused: app.key == frontmost, generation: self.latestGeneration) }
             }
         }
         let live = Set(apps.map(\.key))
@@ -98,7 +109,7 @@ public final class WindowIndex {
     public func rebuild() async {
         store.removeAll()
         notify()
-        await refreshAll()
+        await refreshAll(seedFocus: true)
     }
 
     /// Reads one app and applies the result. A result older than a later read
@@ -121,6 +132,10 @@ public final class WindowIndex {
         guard latestSequence[app.key] == sequence else { return }
 
         let bump = bumpFocused && (generation.map { $0 >= latestGeneration } ?? true)
+        if bumpFocused {
+            let focused = snapshots.contains(where: \.isFocused)
+            log.notice("focus pid=\(app.pid, privacy: .public) windows=\(snapshots.count, privacy: .public) focusedFound=\(focused, privacy: .public) applied=\(bump, privacy: .public)")
+        }
         let hidden = directory.isHidden(app)
         if store.applyWindows(snapshots, for: app, isHidden: hidden, bumpFocused: bump) {
             notify()

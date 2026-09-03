@@ -54,10 +54,11 @@ test:
 
 ## Tests that need the real app bundle (Info.plist contract, self-process AX).
 test-app: project
-	cd "$(HERE)" && xcodebuild test -project $(APP_NAME).xcodeproj -scheme $(APP_NAME) \
+	@mkdir -p "$(HERE)/build"
+	@cd "$(HERE)" && xcodebuild test -project $(APP_NAME).xcodeproj -scheme $(APP_NAME) \
 	  -configuration Debug -destination 'platform=macOS' \
-	  -derivedDataPath "$(DERIVED)" 2>&1 | \
-	  grep -E "Test Case|Test Suite|Executed|error:|\*\* TEST" || true
+	  -derivedDataPath "$(DERIVED)" > "$(HERE)/build/xcodebuild-test.log" 2>&1; status=$$?; \
+	  grep -E "Test Case|Executed|error:|\*\* TEST" "$(HERE)/build/xcodebuild-test.log"; exit $$status
 	@codesign -d -r- "$(DERIVED)/Build/Products/Debug/$(APP_NAME).app" 2>&1 | grep designated
 
 ## Create the stable signing identity (idempotent, safe to run every time).
@@ -67,11 +68,15 @@ $(HERE)/.cert-stamp:
 	@bash "$(HERE)/Scripts/make-signing-cert.sh" "$(SIGN_CN)"
 	@touch "$@"
 
+## A failed compile must fail the target: a stale product would otherwise be
+## installed and run, so the full log is kept and only summarised here.
 build: project sign
-	cd "$(HERE)" && xcodebuild -project $(APP_NAME).xcodeproj -scheme $(APP_NAME) \
+	@mkdir -p "$(HERE)/build"
+	@cd "$(HERE)" && if ! xcodebuild -project $(APP_NAME).xcodeproj -scheme $(APP_NAME) \
 	  -configuration $(CONFIG) -derivedDataPath "$(DERIVED)" \
-	  build 2>&1 | grep -E "error:|warning:|\*\* BUILD" || true
-	@test -d "$(PRODUCT)"
+	  build > "$(HERE)/build/xcodebuild.log" 2>&1; then \
+	  grep -E "error:" "$(HERE)/build/xcodebuild.log" || tail -20 "$(HERE)/build/xcodebuild.log"; exit 1; fi
+	@grep -E "warning:|\*\* BUILD" "$(HERE)/build/xcodebuild.log" | grep -v "Metadata extraction skipped" || true
 	@codesign -d -r- "$(PRODUCT)" 2>&1 | grep designated
 
 ## Copy to ~/Applications so the bundle path (and thus the TCC row) is stable.
