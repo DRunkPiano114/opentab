@@ -90,3 +90,34 @@ func blockUntilSignalled(_ semaphore: DispatchSemaphore) {
 func deadline(_ milliseconds: Int) -> ContinuousClock.Instant {
     .now.advanced(by: .milliseconds(milliseconds))
 }
+
+/// Counts how many probes have been deallocated, which happens when the pool
+/// they were autoreleased into drains.
+final class AutoreleaseProbeCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+
+    var released: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return count
+    }
+
+    func recordRelease() {
+        lock.lock()
+        count += 1
+        lock.unlock()
+    }
+}
+
+final class AutoreleaseProbe: NSObject {
+    private let counter: AutoreleaseProbeCounter
+
+    init(counter: AutoreleaseProbeCounter) {
+        self.counter = counter
+    }
+
+    deinit {
+        counter.recordRelease()
+    }
+}

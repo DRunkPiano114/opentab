@@ -41,6 +41,9 @@ final class ScriptJob {
 /// seconds, because AppleScript spins a nested run loop while it waits for a
 /// reply. A Swift `actor` is equally wrong: it would run the blocking call on
 /// the cooperative pool and starve every other async task in the app (L13).
+///
+/// A thread's own autorelease pool is popped only when the thread exits, and
+/// this one is meant never to exit, so each job runs inside a pool of its own.
 final class ScriptWorker: @unchecked Sendable {
     private let condition = NSCondition()
     private var pending: [ScriptJob] = []
@@ -61,7 +64,12 @@ final class ScriptWorker: @unchecked Sendable {
                 running = job
                 condition.unlock()
 
-                job.box.settle(.delivered(executor.execute(job.source, cacheable: job.cacheable)))
+                // Draining before the result is handed back keeps the
+                // descriptors of one job from outliving the job itself.
+                let result = autoreleasepool {
+                    executor.execute(job.source, cacheable: job.cacheable)
+                }
+                job.box.settle(.delivered(result))
 
                 condition.lock()
                 running = nil

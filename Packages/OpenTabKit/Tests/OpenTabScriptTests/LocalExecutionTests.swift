@@ -126,4 +126,51 @@ final class LocalExecutionTests: XCTestCase {
         XCTAssertEqual(status, .targetNotRunning)
         XCTAssertLessThan(elapsed, .milliseconds(800))
     }
+
+    /// The engine's worker thread outlives every job on it, so nothing it
+    /// autoreleases is reclaimed unless each job drains its own pool. A read of
+    /// this shape held around 97KB per call before it did, which at the
+    /// coordinator's poll rate is a little over 1MB a minute, indefinitely.
+    ///
+    /// The bound covers what is legitimately still reachable at the end of the
+    /// loop: `run` arms a `DispatchWorkItem` for the budget and cancelling it
+    /// does not release it before its deadline, so up to one result per call in
+    /// the loop can still be held. That is 200 results, and a result of this
+    /// shape is roughly 20KB.
+    func testRepeatedReadsDoNotAccumulateOnTheWorker() async throws {
+        try requireOptIn()
+        let engine = AppleScriptEngine()
+        let source = """
+        set out to {}
+        repeat with i from 1 to 60
+        \tset end of out to {"1234567890" & i, "a title as long as a real tab title", "https://example.com/some/path/that/is/long"}
+        end repeat
+        return out
+        """
+        // Compiling the script and faulting in the AppleScript machinery are
+        // one-time costs that would otherwise land inside the measurement.
+        for _ in 0..<20 {
+            _ = try await engine.run(source, lane: "local", deadline: .now.advanced(by: ScriptBudget.read))
+        }
+
+        let before = Self.footprintBytes()
+        for _ in 0..<200 {
+            _ = try await engine.run(source, lane: "local", deadline: .now.advanced(by: ScriptBudget.read))
+        }
+        let growth = Int64(Self.footprintBytes()) - Int64(before)
+        print("200 reads grew the footprint by \(growth) bytes")
+        XCTAssertLessThan(growth, 8 * 1_048_576)
+    }
+
+    private static func footprintBytes() -> UInt64 {
+        var info = task_vm_info_data_t()
+        var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<natural_t>.size)
+        let result = withUnsafeMutablePointer(to: &info) { pointer in
+            pointer.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { rebound in
+                task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), rebound, &count)
+            }
+        }
+        guard result == KERN_SUCCESS else { return 0 }
+        return UInt64(info.phys_footprint)
+    }
 }

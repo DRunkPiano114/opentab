@@ -213,4 +213,21 @@ final class AppleScriptEngineTests: XCTestCase {
         XCTAssertEqual(recorder.executorsCreated, 1)
         XCTAssertEqual(recorder.sources, ["a", "b"])
     }
+
+    /// The worker thread never exits, so the pool it was born with never pops.
+    /// Anything a job autoreleases has to be gone by the time that job's result
+    /// is handed back, or a read every few seconds grows the process forever.
+    func testWorkerReleasesWhatAJobAutoreleasesBeforeDeliveringIt() async throws {
+        let probe = AutoreleaseProbeCounter()
+        let recorder = ScriptRecorder { _ in
+            Unmanaged.passRetained(AutoreleaseProbe(counter: probe)).autorelease()
+            return .success(.text("done"))
+        }
+        let engine = makeEngine(recorder)
+
+        _ = try await engine.run("first", lane: "a", deadline: deadline(1000))
+        XCTAssertEqual(probe.released, 1)
+        _ = try await engine.run("second", lane: "a", deadline: deadline(1000))
+        XCTAssertEqual(probe.released, 2)
+    }
 }
