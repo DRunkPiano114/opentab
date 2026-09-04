@@ -91,7 +91,11 @@ final class FuzzyMatchTests: XCTestCase {
         XCTAssertEqual(rankOrder("xc", rows).first, "Xcode — OpenTab.xcodeproj")
     }
 
-    func testPerformance1000Rows() {
+    func testPerformance1000Rows() throws {
+        // A wall-clock budget only means something on a machine whose speed is
+        // known; a shared CI runner is not one, so the budget is a local check.
+        try XCTSkipIf(ProcessInfo.processInfo.environment["CI"] != nil,
+                      "wall-clock budget is not meaningful on a shared runner")
         let rows = (0..<1000).map { "Application \($0) — some window title \($0)" }
         _ = FuzzyMatch.rank(query: "app", candidates: rows)
         let start = ContinuousClock.now
