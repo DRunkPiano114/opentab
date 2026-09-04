@@ -148,9 +148,9 @@ targets:
         OTHER_CODE_SIGN_FLAGS: "--timestamp=none"
         DEVELOPMENT_TEAM: ""
 
-  # Off-space (P2) tests that need the real app bundle: cross-process remote
-  # token scans, CGS Space queries and the Cmd+Tab takeover all run under the
-  # host app's Accessibility grant.
+  # Tests for windows on other Spaces that need the real app bundle:
+  # cross-process remote token scans, CGS Space queries and the Cmd+Tab
+  # takeover all run under the host app's Accessibility grant.
   OpenTabWSAppTests:
     type: bundle.unit-test
     platform: macOS
