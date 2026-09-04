@@ -112,6 +112,11 @@ private struct HotKeySettingsView: View {
                     """)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                if let otherInstance = model.otherInstance {
+                    Text(otherInstance)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
                 Button("Reset to Defaults", action: store.resetHotKeys)
             }
             Section("Replace the system \u{2318}\u{21E5}") {

@@ -12,6 +12,9 @@ final class SettingsModel {
     var secureInputActive = false
     var cmdTabTakeoverAvailable = true
     var safariCacheGranted = false
+    /// Set while another copy of OpenTab is running, which makes every press
+    /// of the shortcut open two panels.
+    var otherInstance: String?
     /// Browsers listed as windows only because Apple Events were refused.
     var tabsUnavailable: [String] = []
     /// Browsers that have never been asked; the row offers the guided request.

@@ -40,6 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindow: SettingsWindowController!
     private var onboarding: OnboardingWindowController?
     private var health: HealthMonitor!
+    private var instances: InstanceWatch!
     /// Whether the refresh machinery is running; it stops while the grant is
     /// missing and while another user's session is active.
     private var running = false
@@ -63,6 +64,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             axTrusted=\(AXTrust.isTrusted, privacy: .public) \
             path=\(Bundle.main.bundlePath, privacy: .public)
             """)
+
+        instances = InstanceWatch()
+        instances.onChange = { [weak self] others in self?.otherInstancesChanged(others) }
+        instances.start()
 
         if let outDir = SelfTest.outputDirectory(from: CommandLine.arguments) {
             Task {
@@ -182,6 +187,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settingsModel.windowIDBridgeAvailable = source.isWindowIDBridgeAvailable
         settingsModel.cmdTabTakeoverAvailable = CmdTabTakeover.isAvailable
         settingsModel.safariCacheGranted = FaviconStore.shared.hasSafariCacheAccess
+        // The scan at the top ran before there was a settings window to show
+        // its verdict in, and before the copy running now was the one staying.
+        announcesOtherInstances = true
+        otherInstancesChanged(instances.others)
         settingsWindow = SettingsWindowController(store: settings, model: settingsModel, actions: settingsActions())
         settings.onChange = { [weak self] setting in self?.apply(setting) }
         let coordinatorForHealth = coordinator!
@@ -301,6 +310,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusMenu.tabsAwaitingRequest = awaiting.sorted().map { (bundleID: $0, name: name($0)) }
         settingsModel.tabsUnavailable = statusMenu.tabsUnavailable
         settingsModel.tabsAwaitingRequest = statusMenu.tabsAwaitingRequest
+    }
+
+    private var otherInstances: [InstanceWatch.OtherInstance] = []
+    /// Nothing is said about another copy until launch has committed to this
+    /// process. The diagnostic run and the install-location flow both stop
+    /// short of that point, and the latter starts the very copy that would
+    /// otherwise be reported.
+    private var announcesOtherInstances = false
+    private var warnedAboutOtherInstance = false
+
+    /// Both copies register the shortcut successfully and both receive every
+    /// press of it, so two panels open at once. Which copy should go is the
+    /// user's call — running two of them on purpose is a legitimate thing to
+    /// be doing — so this only says what is happening.
+    private func otherInstancesChanged(_ others: [InstanceWatch.OtherInstance]) {
+        otherInstances = others
+        guard announcesOtherInstances else { return }
+        guard let other = others.first else {
+            settingsModel.otherInstance = nil
+            return
+        }
+        let location = other.path ?? "an unknown location"
+        let headline = "Another copy of OpenTab is running from \(location)."
+        let detail = """
+            Both copies answer \(settings.mainHotKey.displayString), so every press opens two \
+            switchers. Quit one of them.
+            """
+        settingsModel.otherInstance = "\(headline) \(detail)"
+        guard !warnedAboutOtherInstance else { return }
+        warnedAboutOtherInstance = true
+        // A run loop block rather than a `Task`, and deliberately not run
+        // from inside launch: `runModal` spins a nested run loop, during which
+        // the main queue is not drained, so a modal entered from a main-actor
+        // job holds every other one — the rescan that takes this warning back
+        // down included — until the alert is answered, which may be hours.
+        RunLoop.main.perform {
+            // The main run loop runs its blocks on the main thread.
+            MainActor.assumeIsolated {
+                let alert = NSAlert()
+                alert.messageText = headline
+                alert.informativeText = detail
+                NSApp.activate(ignoringOtherApps: true)
+                alert.runModal()
+            }
+        }
     }
 
     /// A `-1743` can be our own bundle's fault; that is a ship-blocking bug,
