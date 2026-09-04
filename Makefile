@@ -38,7 +38,7 @@ all: build
 help:
 	@echo "make build        xcodegen generate + xcodebuild, print the designated requirement"
 	@echo "make ci-build     Ad-hoc signed Debug build for CI; never touches the keychain"
-	@echo "make release      Developer ID build, notarize, staple, zip into dist/ (VERSION=x.y.z)"
+	@echo "make release      Unit tests, then Developer ID build, notarize, staple, zip into dist/ (VERSION=x.y.z)"
 	@echo "make test         swift test (pure logic, no GUI, no permissions)"
 	@echo "make test-app     xcodebuild test, app-hosted (needs a logged-in GUI session)"
 	@echo "make install      Copy the built app to ~/Applications"
@@ -101,7 +101,9 @@ ci-build: project
 
 ## Developer ID build, notarization, stapling and the release zip in dist/.
 ## Credentials: see the header of Scripts/release.sh.
-release:
+## The unit tests run first, so a failing build never gets signed. They also
+## run before the VERSION check, which costs a few seconds on a typo.
+release: test
 	@test -n "$(VERSION)" || { echo "usage: make release VERSION=x.y.z"; exit 2; }
 	@VERSION="$(VERSION)" bash "$(HERE)/Scripts/release.sh" all
 
