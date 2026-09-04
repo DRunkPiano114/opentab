@@ -1,10 +1,10 @@
 import AppKit
 import OpenTabCore
 
-/// `AppDirectory` over `NSWorkspace`. Our own pid is excluded (L9), the
-/// ignore list is matched by bundle id only (L3), and only processes that own
-/// a layer-0 window in the window server are candidates (L4 allows CG as an
-/// existence check; it is never the window list).
+/// `AppDirectory` over `NSWorkspace`. Our own pid is excluded, the ignore
+/// list is matched by bundle id only, and only processes that own a layer-0
+/// window in the window server are candidates (the window server is asked
+/// whether a window exists; it is never the window list).
 public final class WorkspaceAppDirectory: AppDirectory, Sendable {
     private let ignoreRules: IgnoreRules
     private let cgTable = CGWindowTable()

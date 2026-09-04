@@ -4,8 +4,8 @@ import OpenTabCore
 
 /// Chrome, Edge and every fork that ships the same dictionary. The window's
 /// `mode` property ("normal" / "incognito") is a dictionary value, not a
-/// displayed string, so branching on it is safe (L3) and makes the L16 exclusion
-/// reliable here in a way it is not for Safari.
+/// displayed string, so branching on it is safe and makes the private-window
+/// exclusion reliable here in a way it is not for Safari.
 public final class ChromiumTabProvider: TabProvider, TabCloser {
     public let bundleIDs: [String]
     /// Chromium tabs carry an id that survives reordering.
@@ -18,8 +18,7 @@ public final class ChromiumTabProvider: TabProvider, TabCloser {
     private let log = Log.make("script.chromium")
 
     /// `includesPrivateWindows` is the user's explicit opt-in; the default
-    /// withholds every incognito window's tabs and reports the window alone
-    /// (L16).
+    /// withholds every incognito window's tabs and reports the window alone.
     public init(bundleIDs: [String],
                 engine: AppleScriptEngine,
                 includesPrivateWindows: Bool = false,

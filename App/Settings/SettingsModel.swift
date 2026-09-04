@@ -27,7 +27,7 @@ struct SettingsActions {
     var openAccessibilitySettings: () -> Void = {}
     var openAutomationSettings: () -> Void = {}
     /// Runs the guided Apple Events request for one browser. Never reached
-    /// from a refresh path (packet §5).
+    /// from a refresh path.
     var requestAutomation: (String) -> Void = { _ in }
     var grantSafariCacheAccess: () -> Void = {}
     var refreshHealth: () -> Void = {}

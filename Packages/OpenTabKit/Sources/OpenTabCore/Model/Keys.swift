@@ -1,12 +1,12 @@
 import Foundation
 
 /// Two identity spaces coexist: the Accessibility side and the AppleScript side
-/// name the same window differently. Reconciling them is P3a's job.
+/// name the same window differently. `TabStore` reconciles them.
 public enum WindowKey: Hashable, Sendable {
     /// The underlying type of `CGWindowID`; this module has no CoreGraphics dependency.
     case cg(UInt32)
     /// Fallback when `_AXUIElementGetWindow` is unavailable or fails for a
-    /// window. P3c upgrades these to `.cg` when it can.
+    /// window. Later reads upgrade these to `.cg` when the bridge answers.
     case ax(pid: pid_t, elementID: UInt64)
     /// Produced by AppleScript providers.
     case scripted(bundleID: String, token: String)

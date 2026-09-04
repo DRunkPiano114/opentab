@@ -26,8 +26,8 @@ final class PanelViewModel {
         var appNameMatches: [Int] = []
         var titleMatches: [Int] = []
 
-        /// A degraded state the row must show (L10): the count column
-        /// carries a marker instead of a number.
+        /// A degraded state the row has to show rather than swallow: the
+        /// count column carries a marker instead of a number.
         enum Status: Equatable {
             case normal
             /// The app's last read did not complete; the row is its last

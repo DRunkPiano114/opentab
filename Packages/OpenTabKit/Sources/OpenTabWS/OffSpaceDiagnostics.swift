@@ -6,7 +6,7 @@ import OpenTabCore
 /// Diagnostics for the off-space path: which private symbols resolved, the
 /// scan configuration, the Space topology, whether `CGSGetWindowLevel` agrees
 /// with the public window layer, and per-app reach counts. Counts only,
-/// never titles (L16).
+/// never titles.
 public enum OffSpaceDiagnostics {
     /// CGS Space ids of a window; `nil` when the CGS symbols are missing.
     public static func spaceIDs(of windowID: CGWindowID) -> [UInt64]? {
@@ -82,10 +82,10 @@ public enum OffSpaceDiagnostics {
         return lines.joined(separator: "\n")
     }
 
-    /// E0's cross-check on every running app: ignore what AX enumerates and
-    /// reach each window through the token scan alone, with a budget wide
-    /// enough for one full cycle. Reports how many of the AX-listed windows
-    /// the scan reproduced and where their element ids sit (H18).
+    /// The token-path cross-check on every running app: ignore what AX
+    /// enumerates and reach each window through the token scan alone, with a
+    /// budget wide enough for one full cycle. Reports how many of the
+    /// AX-listed windows the scan reproduced and where their element ids sit.
     public static func tokenCrossCheck(base: AXWindowSource, apps: [AppInfo]) async -> String {
         var configuration = OffSpaceConfiguration()
         configuration.scanBudget = .seconds(3)

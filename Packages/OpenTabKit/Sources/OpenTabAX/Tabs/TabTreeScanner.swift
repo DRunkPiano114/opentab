@@ -3,7 +3,7 @@ import Foundation
 /// The subrole every tab button carries. Native AppKit tab groups (Finder,
 /// Ghostty) and Chromium's own tab strip both report `AXRadioButton` +
 /// `AXTabButton`, so one structural predicate replaces a per-app table of
-/// role triples (appendix h §3).
+/// role triples.
 let axTabButtonSubrole = "AXTabButton"
 
 /// The container role a native tab strip reports. Some apps expose their tabs
@@ -16,10 +16,10 @@ let axTabElementRole = "AXRadioButton"
 
 /// What one node contributes to the tab search.
 ///
-/// Only `role`, `subrole` and `isSelected` are branched on: E1 clears
-/// `AXRole`, `AXSubrole` and a boolean `AXValue` for logic and rules out
-/// every string that carries display text (L3). `title` and `description`
-/// are localised and feed nothing but the row label.
+/// Only `role`, `subrole` and `isSelected` are branched on: `AXRole`,
+/// `AXSubrole` and a boolean `AXValue` are the attributes measured to
+/// survive a language change. `title` and `description` are localised and
+/// feed nothing but the row label.
 struct TabNodeAttributes: Sendable, Equatable {
     var role: String
     var subrole: String
@@ -31,7 +31,7 @@ struct TabNodeAttributes: Sendable, Equatable {
 
     /// Chrome's `AXTitle` is an empty string rather than absent, and the page
     /// title lives in `AXDescription`; `title ?? description` would reliably
-    /// pick the empty one (L11).
+    /// pick the empty one.
     var displayTitle: String { title.isEmpty ? description : title }
 }
 

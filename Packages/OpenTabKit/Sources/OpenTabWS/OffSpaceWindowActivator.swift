@@ -5,10 +5,10 @@ import OpenTabCore
 import os
 
 /// Activates windows listed by `OffSpaceWindowSource`. Windows the AX source
-/// knows go through P0's activator unchanged; a window reached only through
-/// a remote token runs the same sequence on its token element:
+/// knows go through `AXWindowActivator` unchanged; a window reached only
+/// through a remote token runs the same sequence on its token element:
 /// un-minimize, unhide, `AXRaise`, activate the app, and judge success by the
-/// app's own `kAXFrontmostAttribute` (L2). No SkyLight (`00-overview.md` §2).
+/// app's own `kAXFrontmostAttribute`. No SkyLight.
 public final class OffSpaceWindowActivator: WindowActivator, Sendable {
     private static let pollInterval: Duration = .milliseconds(25)
     private static let requestInterval: Duration = .milliseconds(200)

@@ -8,13 +8,13 @@ import XCTest
 /// The remote-token path against real processes, inside the signed app that
 /// carries the Accessibility grant.
 ///
-/// Calculator reproduces E0's cross-check: the scan, given no AX windows,
-/// must land on the same CGWindowID the AX enumeration reports. Dictionary
-/// (or another app whose window accepts `AXFullScreen`) builds the one
-/// off-space scenario that can be set up without a person: a fullscreen
-/// window on its own Space, invisible to AX from the desktop Space (L10.6),
-/// reached through the token, then activated. Flicker is counted the way
-/// hkprobe does: Dock-owned windows appearing and frontmost-app changes.
+/// Calculator is the cross-check: the scan, given no AX windows, must land on
+/// the same CGWindowID the AX enumeration reports. Dictionary (or another app
+/// whose window accepts `AXFullScreen`) builds the one off-space scenario that
+/// can be set up without a person: a fullscreen window on its own Space,
+/// invisible to AX from the desktop Space, reached through the token, then
+/// activated. Flicker is counted the way hkprobe does: Dock-owned windows
+/// appearing and frontmost-app changes.
 @MainActor
 final class OffSpaceReachTests: XCTestCase {
     private static let calculatorURL = URL(fileURLWithPath: "/System/Applications/Calculator.app")
@@ -81,7 +81,7 @@ final class OffSpaceReachTests: XCTestCase {
         XCTAssertLessThan(elapsed, .seconds(1))
     }
 
-    /// L4 filter validation: every window AX lists must pass the candidate
+    /// Filter validation: every window AX lists must pass the candidate
     /// filter, or a real off-space window of the same shape would be skipped.
     func testEveryAXWindowPassesTheCandidateFilter() async throws {
         let calculator = try await launch(Self.calculatorURL)
@@ -138,7 +138,7 @@ final class OffSpaceReachTests: XCTestCase {
         try await Task.sleep(for: .seconds(1))
         // The Space switch animates: while it runs the window is on no Space
         // at all and AX may still list it. Settled means off screen, on a
-        // Space, and gone from AX (L10.6).
+        // Space, and gone from AX.
         try await poll("fullscreen window settled on its own Space", timeout: .seconds(8)) {
             let spaces = OffSpaceDiagnostics.spaceIDs(of: wid) ?? []
             let count = self.axWindowCount(app.pid)
@@ -224,7 +224,7 @@ final class OffSpaceReachTests: XCTestCase {
         return nil
     }
 
-    /// The WindowServer rows of a pid: numbers only, never names (L16).
+    /// The WindowServer rows of a pid: numbers only, never names.
     private func logRows(of pid: pid_t, label: String) {
         let info = (CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]) ?? []
         for row in info where (row[kCGWindowOwnerPID as String] as? Int) == Int(pid) {

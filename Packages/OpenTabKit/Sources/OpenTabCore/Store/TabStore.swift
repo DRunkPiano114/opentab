@@ -1,7 +1,7 @@
 import Foundation
 import os
 
-/// The reconciled table of window and tab entries (reconciliation A-J).
+/// The reconciled table of window and tab entries.
 ///
 /// Two sources describe the same browser window: Accessibility keys it
 /// `.cg(id)` and produces a window entry; a tab provider keys it
@@ -16,13 +16,13 @@ import os
 public struct TabStore: Sendable {
     public struct Configuration: Sendable, Equatable {
         /// Consecutive sweeps a window must be absent from the WindowServer
-        /// before it is removed (F). Three sweeps at the default 5s period
+        /// before it is removed. Three sweeps at the default 5s period
         /// outlast any Space or fullscreen transition.
         public var missingStrikeThreshold = 3
-        /// Private and incognito tabs are dropped unless the user opts in (L16).
+        /// Private and incognito tabs are dropped unless the user opts in.
         public var includesPrivateTabs = false
         /// A window re-added within this long of a claim-based removal is a
-        /// claim rule misfiring (E).
+        /// claim rule misfiring.
         public var flapWindow: Duration = .seconds(5)
 
         public init() {}
@@ -41,7 +41,7 @@ public struct TabStore: Sendable {
     private struct PendingRemoval: Sendable {
         var reason: RemovalReason
         /// Whether the row was in the main list when the removal was queued;
-        /// it keeps showing exactly as it did until the panel closes (H).
+        /// it keeps showing exactly as it did until the panel closes.
         let wasShown: Bool
     }
 
@@ -61,7 +61,7 @@ public struct TabStore: Sendable {
     /// Windows re-added within `flapWindow` of a claim-based removal.
     public private(set) var flapCount = 0
     /// Tab reads that ended with a private window no window entry could be
-    /// attributed to. Cumulative; a title never accompanies it (L16).
+    /// attributed to. Cumulative; a title never accompanies it.
     public private(set) var privateAttributionMissCount = 0
     /// Title claims that disagreed with a caller-supplied resolution; neither
     /// was applied.
@@ -88,7 +88,7 @@ public struct TabStore: Sendable {
     private var resolutions: [WindowKey: WindowKey] = [:]
     /// Script windows the provider reported as private with their tabs
     /// withheld. Their titles are never kept: attribution runs inside the read
-    /// that carried them and marks the window entry instead (L16).
+    /// that carried them and marks the window entry instead.
     private var privateScriptWindows: Set<WindowKey> = []
     private var pending: [EntryID: PendingRemoval] = [:]
     private struct ReadLane: Hashable { let app: AppKey; let kind: ReadKind }
@@ -103,7 +103,7 @@ public struct TabStore: Sendable {
         self.configuration = configuration
     }
 
-    // MARK: - Generation and stamps (A, B)
+    // MARK: - Generation and stamps
 
     public mutating func advanceGeneration(to generation: FocusGeneration) {
         currentGeneration = max(currentGeneration, generation)
@@ -133,13 +133,13 @@ public struct TabStore: Sendable {
         return nil
     }
 
-    // MARK: - Window reads (C, G)
+    // MARK: - Window reads
 
     /// Applies one window read of `app`.
     ///
-    /// An empty read is rejected outright (L5). A non-empty read removes the
+    /// An empty read is rejected outright. A non-empty read removes the
     /// app's active-Space windows it does not list; windows on other Spaces
-    /// are invisible to AX enumeration and are left to the sweep (G).
+    /// are invisible to AX enumeration and are left to the sweep.
     public mutating func applyWindows(_ snapshots: [WindowSnapshot], for app: AppInfo, isHidden: Bool,
                                       bumpFocused: Bool = false, stamp: ReadStamp,
                                       now: ContinuousClock.Instant = .now) -> ApplyResult {
@@ -211,7 +211,7 @@ public struct TabStore: Sendable {
         return ApplyResult(disposition: .applied, changed: changed || !claims.isEmpty, claims: claims, releasedWindows: [])
     }
 
-    // MARK: - Tab reads (C, D, E)
+    // MARK: - Tab reads
 
     /// Applies one tab read of `app`. Tabs are grouped by `windowKey` into
     /// script windows; a script window the read no longer lists is closed,
@@ -255,7 +255,7 @@ public struct TabStore: Sendable {
                            releasedWindows: releasedNow)
     }
 
-    // MARK: - Private windows (L16)
+    // MARK: - Private windows
 
     /// Takes in the read's private windows, whose tabs the provider withheld,
     /// and attributes each to the window entry Accessibility built for the
@@ -320,7 +320,7 @@ public struct TabStore: Sendable {
     }
 
     /// Drops the title of a window proven private: nothing downstream - a row,
-    /// a search index, a diagnostic dump - can leak what it cannot read (L16).
+    /// a search index, a diagnostic dump - can leak what it cannot read.
     private mutating func markPrivate(_ id: EntryID) {
         guard var entry = entries[id] else { return }
         entry.isPrivate = true
@@ -348,7 +348,7 @@ public struct TabStore: Sendable {
     }
 
     /// Private windows currently known, and how many of them have no window
-    /// entry to hide. Counts only, never titles (L16).
+    /// entry to hide. Counts only, never titles.
     public var privateWindowCount: Int { privateScriptWindows.count }
     public var unattributedPrivateWindowCount: Int {
         guard !configuration.includesPrivateTabs else { return 0 }
@@ -431,7 +431,7 @@ public struct TabStore: Sendable {
     }
 
     /// Pairs the read's tabs with existing entries. Stable tokens are
-    /// identity. Positional tokens (Safari's index, H11) shift when a tab is
+    /// identity. Positional tokens (Safari's index) shift when a tab is
     /// dragged, so an entry is matched by title first: same token and title,
     /// then the same title at another position (a move), then the same token
     /// with a new title (a navigation).
@@ -474,7 +474,7 @@ public struct TabStore: Sendable {
     /// Makes `id` the row that stands for `scriptWindow` in the main list. It
     /// takes over the row's rank and the best recency of what it replaces so
     /// switching tabs never moves the window's row. A row whose removal is
-    /// deferred keeps standing for the window until the panel closes (H);
+    /// deferred keeps standing for the window until the panel closes;
     /// `drop` promotes the active tab then.
     private mutating func promote(_ id: EntryID, in scriptWindow: WindowKey) -> Bool {
         guard var entry = entries[id], let rank = slotRank[scriptWindow] else { return false }
@@ -493,7 +493,7 @@ public struct TabStore: Sendable {
         return true
     }
 
-    // MARK: - Claims (E)
+    // MARK: - Claims
 
     /// Records that the caller's resolution cascade mapped `window` to
     /// `scriptWindow` (rule 3 input).
@@ -517,7 +517,7 @@ public struct TabStore: Sendable {
     /// every window before elimination is considered, so a script window a
     /// title vouches for is never given away as "the only one left". Skipped
     /// while the panel is visible: a claim swaps one row for another, and
-    /// rows must not change under the user's selection (H);
+    /// rows must not change under the user's selection;
     /// `setPanelVisible(false)` runs it.
     private mutating func runClaims(for app: AppInfo, now: ContinuousClock.Instant) -> [Claim] {
         guard !isPanelVisible else { return [] }
@@ -574,7 +574,7 @@ public struct TabStore: Sendable {
         return claims
     }
 
-    /// Which titled script windows corroborate each window entry (D), counted
+    /// Which titled script windows corroborate each window entry, counted
     /// from both sides so an ambiguous pair can be left alone.
     private static func matchMatrix(candidates: [Entry], titled: [(key: WindowKey, title: String)])
         -> (byWindow: [EntryID: [WindowKey]], byScript: [WindowKey: Int]) {
@@ -608,16 +608,16 @@ public struct TabStore: Sendable {
         _ = mirror(scriptWindow, from: window)
     }
 
-    // MARK: - Removal (F, H, I)
+    // MARK: - Removal
 
-    /// Reconciles against the WindowServer and the process table (F).
+    /// Reconciles against the WindowServer and the process table.
     ///
     /// `liveWindowIDs` is every window id the WindowServer currently lists;
     /// pass `nil` when it could not be read. An empty set is treated the same
     /// way: a running session always has windows, so an empty table is a
-    /// failed read, not evidence (L5). A window absent for
-    /// `missingStrikeThreshold` consecutive sweeps is removed; one absence is
-    /// transient. `runningApps` removes every entry of an app that is gone.
+    /// failed read, not evidence. A window absent for `missingStrikeThreshold`
+    /// consecutive sweeps is removed; one absence is transient. `runningApps`
+    /// removes every entry of an app that is gone.
     public mutating func sweep(liveWindowIDs: Set<UInt32>?, runningApps: Set<AppKey>? = nil,
                                now: ContinuousClock.Instant = .now) -> Bool {
         var changed = false
@@ -699,7 +699,7 @@ public struct TabStore: Sendable {
     ///
     /// What the provider said about private windows is kept. Losing the
     /// provider is losing the ability to tell, and a window already proven
-    /// private does not become listable because nothing can ask again (L16).
+    /// private does not become listable because nothing can ask again.
     public mutating func removeTabs(for app: AppInfo) -> ApplyResult {
         var changed = false
         var releasedNow: [EntryID] = []
@@ -710,7 +710,7 @@ public struct TabStore: Sendable {
         return ApplyResult(disposition: .applied, changed: changed, claims: [], releasedWindows: releasedNow)
     }
 
-    /// Activation doubles as a liveness probe (I): a failed activation is
+    /// Activation doubles as a liveness probe: a failed activation is
     /// direct evidence, so the entry goes without strikes. Only report
     /// failures the provider is sure of; a timeout is unknown, not failure.
     @discardableResult
@@ -721,7 +721,7 @@ public struct TabStore: Sendable {
     }
 
     /// Removals are queued while the panel is on screen and applied when it
-    /// closes, so rows never disappear under the selection (H). Returns
+    /// closes, so rows never disappear under the selection. Returns
     /// whether the list changed.
     @discardableResult
     public mutating func setPanelVisible(_ visible: Bool, now: ContinuousClock.Instant = .now) -> Bool {
@@ -973,7 +973,7 @@ public struct TabStore: Sendable {
     /// Returns `true` when a display-relevant field changed.
     private static func merge(_ snapshot: WindowSnapshot, into entry: inout Entry, isHidden: Bool) -> Bool {
         var changed = false
-        // A window proven private gave its title up for good (L16); a later
+        // A window proven private gave its title up for good; a later
         // read must not put it back.
         if !entry.isPrivate, entry.title != snapshot.title { entry.title = snapshot.title; changed = true }
         if entry.app != snapshot.app { entry.app = snapshot.app; changed = true }

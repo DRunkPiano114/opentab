@@ -9,12 +9,12 @@ import XCTest
 import os
 @testable import OpenTab
 
-/// The Cmd+Tab takeover the way a user drives it (keymap.md §3, E2): with
-/// the system chords disabled, synthetic HID keys reach the real
-/// `HotKeyCenter` bindings, the session opens on Cmd+Tab, walks on Tab and
-/// Cmd+Shift+Tab, and commits on the Cmd release seen by the modifier
-/// monitors. The system switcher must never appear (Dock windows), and the
-/// only frontmost change is the one we asked for.
+/// The Cmd+Tab takeover the way a user drives it: with the system chords
+/// disabled, synthetic HID keys reach the real `HotKeyCenter` bindings, the
+/// session opens on Cmd+Tab, walks on Tab and Cmd+Shift+Tab, and commits on
+/// the Cmd release seen by the modifier monitors. The system switcher must
+/// never appear (Dock windows), and the only frontmost change is the one we
+/// asked for.
 @MainActor
 final class CmdTabSessionTests: XCTestCase {
     private static let calculatorURL = URL(fileURLWithPath: "/System/Applications/Calculator.app")

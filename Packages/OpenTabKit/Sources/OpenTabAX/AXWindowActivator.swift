@@ -5,9 +5,9 @@ import OpenTabCore
 /// Brings a window listed by `AXWindowSource` to the front.
 ///
 /// AX calls run on the target pid's queue; AppKit calls hop to the main
-/// thread. Success means the target app reports `kAXFrontmostAttribute`
-/// (L2); `kAXFocusedWindowAttribute` only says which of its windows is
-/// focused and is reported, not required.
+/// thread. Success means the target app reports `kAXFrontmostAttribute`;
+/// `kAXFocusedWindowAttribute` only says which of its windows is focused and
+/// is reported, not required.
 public final class AXWindowActivator: WindowActivator, Sendable {
     private static let pollInterval: Duration = .milliseconds(25)
     /// An activation request is asynchronous and can be dropped while the

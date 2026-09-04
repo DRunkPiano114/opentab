@@ -1,9 +1,9 @@
 import Foundation
 import os
 
-/// One serial queue per target pid so a wedged app stalls only its own reads
-/// (L13). Our own pid goes to the main queue: same-process AX runs inline in
-/// AppKit, which is main-thread-only (L9).
+/// One serial queue per target pid so a wedged app stalls only its own reads.
+/// Our own pid goes to the main queue: same-process AX runs inline in AppKit,
+/// which is main-thread-only.
 final class PIDQueues: Sendable {
     private let queues = OSAllocatedUnfairLock<[pid_t: DispatchQueue]>(initialState: [:])
 

@@ -39,7 +39,7 @@ final class CmdTabRecoveryTests: XCTestCase {
 
         let restored = recovery().restoreIfCrashed()
         XCTAssertEqual(restored, [1: true, 2: false])
-        XCTAssertEqual(writes.byID, [1: true, 2: false], "a hotkey the user had off stays off (E2 requirement 2)")
+        XCTAssertEqual(writes.byID, [1: true, 2: false], "a hotkey the user had off stays off")
         XCTAssertNil(recovery().marker, "the marker is cleared once replayed")
     }
 

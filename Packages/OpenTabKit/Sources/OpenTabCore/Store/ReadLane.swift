@@ -1,13 +1,13 @@
 import Foundation
 import os
 
-/// One serial queue per key (reconciliation B). Tab reads of the same app
-/// must not overlap: AppleScript takes hundreds of milliseconds and two
-/// re-entrant reads of one browser produce duplicate entries. Reads of
-/// different apps still run in parallel.
+/// One serial queue per key. Tab reads of the same app must not overlap:
+/// AppleScript takes hundreds of milliseconds and two re-entrant reads of one
+/// browser produce duplicate entries. Reads of different apps still run in
+/// parallel.
 ///
 /// Only the ordering lives here. The blocking call itself belongs on the
-/// provider's dedicated thread (L13); this class merely awaits it.
+/// provider's dedicated thread; this class merely awaits it.
 public final class ReadLane<Key: Hashable & Sendable>: @unchecked Sendable {
     private struct Slot {
         var tail: Task<Void, Never>?

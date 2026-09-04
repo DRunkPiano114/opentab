@@ -3,10 +3,10 @@ import OpenTabCore
 import XCTest
 @testable import OpenTab
 
-/// H7: L5 forbids removing a row on an empty read, which is what keeps the
-/// list from flickering and also what guarantees rows will eventually be left
-/// behind. "Rebuild Index" is the way out, so these tests manufacture the two
-/// rows nothing else can reach and prove it clears them.
+/// A row is never removed on an empty read, which is what keeps the list from
+/// flickering and also what guarantees rows will eventually be left behind.
+/// "Rebuild Index" is the way out, so these tests manufacture the two rows
+/// nothing else can reach and prove it clears them.
 @MainActor
 final class RebuildIndexTests: XCTestCase {
     private var harness: CoordinatorHarness!
@@ -22,7 +22,7 @@ final class RebuildIndexTests: XCTestCase {
     }
 
     /// The app is still running and has stopped answering with windows. Every
-    /// later read is empty, and an empty read never removes (L5).
+    /// later read is empty, and an empty read never removes.
     func testEmptyReadsLeaveRowsNothingElseCanRemove() async {
         harness.source.set([axWindow(1, title: "Groceries"), axWindow(2, title: "Recipes")], for: notes)
         await harness.coordinator.refreshEverything(seedFocus: true)

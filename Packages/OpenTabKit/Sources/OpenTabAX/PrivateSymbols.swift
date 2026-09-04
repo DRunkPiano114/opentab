@@ -6,7 +6,7 @@ import Foundation
 /// element-to-window-number bridge that exists.
 typealias AXGetWindowFunction = @convention(c) (AXUIElement, UnsafeMutablePointer<CGWindowID>) -> AXError
 
-/// Private symbols are resolved with `dlsym` and `nil` when absent (L10);
+/// Private symbols are resolved with `dlsym` and `nil` when absent;
 /// nothing here is linked directly.
 enum PrivateSymbols {
     static let getWindow: AXGetWindowFunction? = resolve("_AXUIElementGetWindow")

@@ -14,7 +14,7 @@ import OpenTabCore
 /// 3. Google's `s2/favicons`, only when the user has explicitly turned it on.
 ///
 /// All file and SQLite work happens on `FaviconEngine`'s dedicated queue; this
-/// class only holds main-actor state and does the drawing (iron law L13).
+/// class only holds main-actor state and does the drawing.
 @MainActor
 final class FaviconStore {
     static let shared = FaviconStore()
@@ -122,7 +122,7 @@ final class FaviconStore {
             case .browserCache, nil: stats.browserCache += 1
             }
         }
-        // Counts only: no URL, host or title ever reaches the log (iron law L16).
+        // Counts only: no URL, host or title ever reaches the log.
         log.debug("favicon batch found=\(found, privacy: .public) missed=\(missed, privacy: .public)")
         let callback = batches.removeValue(forKey: batch)
         callback?()

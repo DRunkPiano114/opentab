@@ -3,7 +3,7 @@ import OpenTabCore
 
 public enum AXConfiguration {
     /// Sets the AX messaging timeout for this process. Only a value set on the
-    /// system-wide element propagates to elements created later (L8); the
+    /// system-wide element propagates to elements created later; the
     /// default is ~1.5s, which is far too long to hold a worker queue.
     public static func configureGlobalTimeout(seconds: Float = 0.15) {
         let error = AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), seconds)

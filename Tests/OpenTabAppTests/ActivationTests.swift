@@ -6,7 +6,7 @@ import XCTest
 
 /// Drives the production activator against another process from this
 /// accessory, never-active app, and judges the result the way the app does:
-/// the target's own `kAXFrontmostAttribute` (L2). Needs the Accessibility
+/// the target's own `kAXFrontmostAttribute`. Needs the Accessibility
 /// grant the installed app carries; the frontmost app is handed back at the
 /// end.
 @MainActor

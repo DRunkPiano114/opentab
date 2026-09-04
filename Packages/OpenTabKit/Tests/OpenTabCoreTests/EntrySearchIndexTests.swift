@@ -119,8 +119,8 @@ final class EntrySearchIndexTests: XCTestCase {
         var rows: [Entry] = []
         for i in 0..<2000 {
             let title = i % 5 == 0
-                ? "硕士学历彻底沦为废纸！不要盲目读硕士 \(i) - YouTube"
-                : "Enterprise Sales | Startup School \(i) - YouTube"
+                ? "硕士论文提纲第二稿：研究背景与方法 \(i) - YouTube"
+                : "Quarterly Planning | Sample Session \(i) - YouTube"
             rows.append(entry(["Google Chrome", "Safari", "Xcode", "Terminal"][i % 4], title, focusTick: UInt64(i)))
         }
         let buildStart = ContinuousClock.now

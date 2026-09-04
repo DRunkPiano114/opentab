@@ -16,7 +16,7 @@ public struct EntryStore: Sendable {
 
     /// Replaces the window entries of `app` with `snapshots`.
     ///
-    /// An empty read never deletes (L5): a Space change makes windows invisible
+    /// An empty read never deletes: a Space change makes windows invisible
     /// to AX, and an empty array is indistinguishable from "all closed". The
     /// cost is zombie rows until the app terminates or the user rebuilds.
     ///

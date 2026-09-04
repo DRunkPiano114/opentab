@@ -57,7 +57,7 @@ public final class OffSpaceSupport {
         return cmdTab.enable()
     }
 
-    /// L10: a missing symbol is shown to the user, not only logged. Deferred a
+    /// A missing symbol is shown to the user, not only logged. Deferred a
     /// turn so the rest of launch is not held behind the modal.
     public func presentDegradationIfNeeded() {
         var messages: [String] = []
@@ -76,8 +76,8 @@ public final class OffSpaceSupport {
         }
     }
 
-    /// `--selftest --out <dir>`: writes `ws-diagnostics.txt` next to P0's
-    /// selftest output. Needs the Accessibility grant for the per-app part.
+    /// `--selftest --out <dir>`: writes `ws-diagnostics.txt` next to the app's
+    /// own `selftest.txt`. Needs the Accessibility grant for the per-app part.
     public static func writeDiagnostics(to directory: URL) async {
         // The diagnostic run skips the normal launch path, and a crash marker
         // must be replayed by whichever process comes first.

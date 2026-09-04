@@ -7,7 +7,7 @@ import Foundation
 /// Every probe is one IPC to the target app, so the sweep is budgeted per
 /// call and picks up where it left off on the next one: a window whose id
 /// sits high in a long-lived process is found across several refreshes
-/// instead of never (H18). A window that a whole cycle of `maxElementID` ids
+/// instead of never. A window that a whole cycle of `maxElementID` ids
 /// failed to produce is `exhausted` and left alone for `exhaustedRetry`; it is
 /// never reported as gone, because a miss says nothing about the window.
 ///

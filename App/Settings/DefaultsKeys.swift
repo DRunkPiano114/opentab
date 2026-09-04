@@ -20,10 +20,10 @@ enum DefaultsKey {
 
     // Owned elsewhere.
 
-    /// `AppDelegate`, `TabStore.Configuration`, `TabProviderRegistry` (L16).
+    /// `AppDelegate`, `TabStore.Configuration`, `TabProviderRegistry`.
     static let includesPrivateTabs = "tabs.includePrivate"
     /// `IgnoreRules`. User-authored regexes, the one sanctioned exception to
-    /// L3's "never match on display strings".
+    /// the rule against matching on display strings.
     static let ignoreTitlePatterns = "ignoreTitlePatterns"
     /// `FaviconStore.remoteLookupDefaultsKey`.
     static let remoteFavicons = "favicons.allowRemoteLookup"

@@ -1,6 +1,6 @@
 import AppKit
 
-/// L6: `tell application` launches a target that is not running, so every send
+/// `tell application` launches a target that is not running, so every send
 /// is gated on this first.
 public protocol BrowserLiveness: Sendable {
     func isRunning(bundleID: String) -> Bool

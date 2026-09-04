@@ -4,13 +4,13 @@ import Foundation
 import OpenTabCore
 import os
 
-/// Reason a resolution failed. The cascade (`reference/reconciliation.md` K)
-/// requires its failures to stay distinguishable in the log, otherwise a field
+/// Reason a resolution failed. The cascade tries several stages in turn, so
+/// its failures have to stay distinguishable in the log, otherwise a field
 /// report cannot be traced back to the stage that gave up.
 enum WindowResolutionFailure: Error, Sendable, Equatable {
     /// A brute-force scan of the app's AX windows did not contain the element.
     case elementNotFound
-    /// Several CGWindowList rows share the frame. K says give up, never guess.
+    /// Several CGWindowList rows share the frame: give up rather than guess.
     case frameAmbiguous
     /// No CGWindowList row matched the frame.
     case cgFallbackFailed
@@ -30,7 +30,7 @@ enum WindowResolutionFailure: Error, Sendable, Equatable {
 }
 
 protocol WindowResolving: Sendable {
-    /// `nil` when unresolved; the reason is logged, never a title (L16).
+    /// `nil` when unresolved; the reason is logged, never a title.
     func resolve(_ snapshot: WindowSnapshot, deadline: ContinuousClock.Instant) async -> UInt32?
 }
 
@@ -57,7 +57,8 @@ final class WindowResolver: WindowResolving, Sendable {
     /// `AXWindowSource.isWindowIDBridgeAvailable`. When it is false only the
     /// frame fallback runs; retrying a bridge that does not exist is pointless.
     init(directBridge: Bool) {
-        // L10: resolved through dlsym with a nil fallback, never linked.
+        // Resolved through dlsym with a nil check, never linked directly: a
+        // wrong signature on a private symbol segfaults instead of failing.
         getWindow = directBridge ? Self.loadGetWindow() : nil
     }
 
@@ -68,10 +69,10 @@ final class WindowResolver: WindowResolving, Sendable {
         case .scripted:
             return nil
         case .ax(let pid, let elementID):
-            // L9: same-process AX runs inline in AppKit and is main-thread
+            // Same-process AX runs inline in AppKit and is main-thread
             // only, and our own windows are never switch targets.
             guard pid != getpid() else { return nil }
-            // L13: AX blocks the whole thread, so it stays off the cooperative
+            // AX blocks the whole thread, so it stays off the cooperative
             // pool and off the main thread, on a queue this pid owns alone.
             let outcome: Outcome = await withCheckedContinuation { continuation in
                 queue(for: pid).async {
@@ -114,7 +115,7 @@ final class WindowResolver: WindowResolving, Sendable {
     }
 
     /// Every stage rechecks the deadline: one hung app answers an attribute
-    /// read only after the process-wide messaging timeout (150ms, L8), so the
+    /// read only after the process-wide messaging timeout (150ms), so the
     /// deadline can only be overrun by a single read.
     private func cascade(pid: pid_t, elementID: UInt64, deadline: ContinuousClock.Instant) -> Outcome {
         guard ContinuousClock.now < deadline else {
@@ -167,8 +168,8 @@ final class WindowResolver: WindowResolving, Sendable {
     }
 
     /// `kCGWindowName` is deliberately never read: it needs Screen Recording,
-    /// and L16 bars window titles from leaving the process at all. That is why
-    /// K's "title ambiguity" failure cannot arise here — matching is by frame.
+    /// and no window title may leave the process at all. Matching is by frame,
+    /// so a title-ambiguity failure cannot arise here.
     private static func rows(ownedBy pid: pid_t) -> [CGRow] {
         let info = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements],
                                               kCGNullWindowID) as? [[String: Any]] ?? []

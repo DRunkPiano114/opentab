@@ -59,7 +59,7 @@ final class SwitcherSession {
     /// without ranking the query a second time.
     private var titleMatches: [EntryID: [Int]] = [:]
     /// Rows the user closed with Cmd+W. The store defers removals while the
-    /// panel is up (H), so without this the row would come back on the next
+    /// panel is up, so without this the row would come back on the next
     /// refresh.
     private var dismissed: Set<EntryID> = []
     private let commandKeys = DetailKeyMonitor()
@@ -100,7 +100,7 @@ final class SwitcherSession {
         hotKeys.installModifierMonitors()
     }
 
-    /// The grant went away while running (packet §4): the panel says so
+    /// The grant went away while running: the panel says so
     /// instead of showing a list that only decays.
     func accessibilityRevoked() {
         model.accessibilityGranted = false
@@ -111,7 +111,7 @@ final class SwitcherSession {
     var isIdle: Bool { state == .idle }
 
     /// The display topology changed: a visible panel is closed and reopened
-    /// on the new layout (packet §4).
+    /// on the new layout.
     func screensChanged() {
         guard state != .idle else { return }
         panel.reposition(rowCount: rows.count)
@@ -210,7 +210,7 @@ final class SwitcherSession {
 
     // MARK: - Search
 
-    /// Navigation to search (keymap.md §1): record who has focus, activate
+    /// Navigation to search: record who has focus, activate
     /// ourselves and hand the keyboard to the text field. The navigation
     /// hotkeys are released first: they are consumed system-wide and would
     /// otherwise starve the field of Return, Escape, Tab and the arrows.
@@ -383,7 +383,7 @@ final class SwitcherSession {
 
     /// Cmd+W: closes the selected tab where it is and takes its row out.
     /// Search state only - the panel is key there, so the chord is ours; in
-    /// navigation it would also reach the app in front (L14).
+    /// navigation it would also reach the app in front.
     func closeSelected() {
         guard state == .searching, presented.indices.contains(selection.index) else { return }
         let entry = presented[selection.index]
@@ -547,7 +547,7 @@ final class SwitcherSession {
         log.notice("select index=\(self.selection.index, privacy: .public) via=hover \(self.describeSelected(), privacy: .public)")
     }
 
-    /// "pid:focusTick" per row, first rows only; never titles (L16).
+    /// "pid:focusTick" per row, first rows only; never titles.
     private static func describe(_ entries: [Entry]) -> String {
         entries.prefix(8).map { "\($0.app.pid):\($0.focusTick)" }.joined(separator: ",")
     }

@@ -29,7 +29,7 @@ final class SafariTabProviderTests: XCTestCase {
                           liveness: StubLiveness(running: running), health: health)
     }
 
-    /// L16: Safari's dictionary cannot flag a private window, so the default
+    /// Safari's dictionary cannot flag a private window, so the default
     /// contributes no tabs at all rather than leaking private titles.
     func testDefaultPolicyReadsNoTabsAndSendsNothing() async throws {
         let recorder = recorder()
@@ -58,8 +58,8 @@ final class SafariTabProviderTests: XCTestCase {
         XCTAssertEqual(tabs.map(\.windowKey), [.cg(36879), .cg(36879)])
     }
 
-    /// L6: a `tell` would launch Safari, so a target that is not running is
-    /// never addressed at all.
+    /// A `tell` would launch Safari, so a target that is not running is never
+    /// addressed at all.
     func testNotRunningTargetIsNeverAddressed() async throws {
         let recorder = recorder()
         let provider = provider(recorder, policy: .allTabs, running: [])

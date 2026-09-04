@@ -1,6 +1,6 @@
 import AppKit
 
-/// Menu bar item. Every degraded mode is visible here (L10): a marker in the
+/// Menu bar item. Every degraded mode is visible here: a marker in the
 /// status title and a disabled explanatory item.
 @MainActor
 final class StatusMenuController: NSObject {

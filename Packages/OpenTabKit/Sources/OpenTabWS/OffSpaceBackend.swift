@@ -33,7 +33,7 @@ struct OffSpaceBackend: Sendable {
     var read: @Sendable (RemoteElement) -> WindowRead
     var focusedWindowID: @Sendable (pid_t) -> CGWindowID?
 
-    /// Positional. Slot 3 feeds only the L11 title fallback.
+    /// Positional. Slot 3 feeds only the empty-`AXTitle` fallback.
     private static let windowAttributes = [kAXRoleAttribute, kAXSubroleAttribute, kAXTitleAttribute,
                                            kAXDescriptionAttribute, kAXMinimizedAttribute]
 

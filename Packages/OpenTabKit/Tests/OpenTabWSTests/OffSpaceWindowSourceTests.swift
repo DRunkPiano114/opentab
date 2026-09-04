@@ -7,8 +7,8 @@ import XCTest
 
 /// The merge logic of the off-space source against a fake backend: what the
 /// WindowServer lists, what AX returned, what the token probe can reach, and
-/// which Spaces are active are all scripted, so the H18 / L5 rules are
-/// checked without a target process.
+/// which Spaces are active are all scripted, so what a failed scan and an
+/// empty read are allowed to remove is checked without a target process.
 final class OffSpaceWindowSourceTests: XCTestCase {
     private let app = AppInfo(bundleID: "com.example.chrome", pid: 996, localizedName: "Chrome")
     private let far = ContinuousClock.now + .seconds(60)
@@ -110,8 +110,8 @@ final class OffSpaceWindowSourceTests: XCTestCase {
         XCTAssertNotNil(source.reachedElement(for: .cg(82)), "the activator needs the element")
     }
 
-    /// H18 / L5: a scan that fails to reach a window it reached before keeps
-    /// the last snapshot as long as the WindowServer still lists the window.
+    /// A scan that fails to reach a window it reached before keeps the last
+    /// snapshot as long as the WindowServer still lists the window.
     func testUnreachedWindowKeepsItsLastSnapshotWhileWindowServerListsIt() {
         world.rows = [row(82)]
         world.spaces = [82: [1088]]
@@ -158,7 +158,7 @@ final class OffSpaceWindowSourceTests: XCTestCase {
         XCTAssertEqual(source.report(for: 996)?.filtered, 0, "counted only when it happened")
     }
 
-    /// L4: shadows and fragments at layer 0 are not windows.
+    /// Shadows and fragments at layer 0 are not windows.
     func testJunkRowsAreNotCandidates() {
         world.rows = [row(1, size: 10), row(2, alpha: 0), row(3, layer: 25), row(4, size: 10, alpha: 0)]
         let source = source()
@@ -212,7 +212,7 @@ final class OffSpaceWindowSourceTests: XCTestCase {
     }
 
     /// A failed `CGWindowListCopyWindowInfo` is not a window list. Nothing is
-    /// pruned on it and every known window stands in (L5).
+    /// pruned on it and every known window stands in.
     func testUnknownWindowListKeepsEverythingAndPrunesNothing() {
         world.rows = [row(91), row(82)]
         world.spaces = [91: [3], 82: [1088]]
@@ -301,8 +301,9 @@ final class OffSpaceWindowSourceTests: XCTestCase {
         XCTAssertEqual(result.first { $0.key == .cg(82) }?.isOnActiveSpace, false)
     }
 
-    /// H20 through the whole path: a minimized window with no Space stays on
-    /// the active Space; the same window not minimized does not.
+    /// The empty-Space fallback through the whole path: a minimized window
+    /// with no Space stays on the active Space; the same window not minimized
+    /// does not.
     func testEmptySpaceListFallsBackToMinimizedFlag() {
         world.rows = [row(121), row(122)]
         world.spaces = [:]
@@ -323,6 +324,6 @@ final class OffSpaceWindowSourceTests: XCTestCase {
         let result = source.augment([axSnapshot(82)], of: app, deadline: far)
         XCTAssertEqual(result.count, 1)
         XCTAssertEqual(result.first?.title, "ax 82")
-        XCTAssertNil(source.reachedElement(for: .cg(82)), "P0's activator owns it now")
+        XCTAssertNil(source.reachedElement(for: .cg(82)), "the pure-AX activator owns it now")
     }
 }

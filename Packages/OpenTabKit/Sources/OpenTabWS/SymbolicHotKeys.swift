@@ -2,10 +2,10 @@ import Carbon
 import Foundation
 
 /// The system's symbolic hotkeys the takeover touches. Reading goes through
-/// the public `CopySymbolicHotKeys` (array index = symbolic id, E2); writing
-/// needs the private `CGSSetSymbolicHotKeyEnabled` (dlsym, L10).
+/// the public `CopySymbolicHotKeys` (array index = symbolic id); writing
+/// needs the private `CGSSetSymbolicHotKeyEnabled` (dlsym).
 enum SymbolicHotKeys {
-    /// 1 = Cmd+Tab, 2 = Cmd+Shift+Tab (`reference/keymap.md` §3).
+    /// 1 = Cmd+Tab, 2 = Cmd+Shift+Tab.
     static let takeoverIDs: [Int32] = [1, 2]
 
     static var canSet: Bool { WSPrivateSymbols.setSymbolicHotKeyEnabled != nil }

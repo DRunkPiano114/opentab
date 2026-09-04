@@ -1,7 +1,7 @@
 import Foundation
 
 /// Decides whether a script tab's title and an AX window's title describe the
-/// same window (reconciliation D). Never string equality: Chrome titles its
+/// same window. Never string equality: Chrome titles its
 /// windows `<page> - Google Chrome` while the tab is just `<page>`, so equality
 /// would never claim a Chrome window and every Chrome window would be listed
 /// twice.

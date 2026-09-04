@@ -10,9 +10,9 @@ protocol ScriptExecuting: AnyObject {
     func execute(_ source: String, cacheable: Bool) -> Result<ScriptValue, ScriptError>
 }
 
-/// In-process execution. Roughly 14x faster than an `osascript` subprocess
-/// (appendix K §2.1), at the cost of having no way to interrupt a running
-/// script: the engine's soft timeout abandons the worker instead.
+/// In-process execution. Roughly 14x faster than an `osascript` subprocess,
+/// at the cost of having no way to interrupt a running script: the engine's
+/// soft timeout abandons the worker instead.
 final class NSAppleScriptExecutor: ScriptExecuting {
     private var compiled: [String: NSAppleScript] = [:]
 

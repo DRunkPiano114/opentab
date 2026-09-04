@@ -6,7 +6,7 @@ import XCTest
 ///
 /// Timings gathered here are not browser timings: the host has no
 /// `NSApplication` event loop, which is exactly the condition under which
-/// Apple Event benchmarks are invalid (L12). Only the engine's own behaviour is
+/// Apple Event benchmarks are invalid. Only the engine's own behaviour is
 /// under test.
 final class LocalExecutionTests: XCTestCase {
     private func requireOptIn() throws {
@@ -113,8 +113,8 @@ final class LocalExecutionTests: XCTestCase {
     /// Exercises the Carbon call itself (descriptor creation, widened OSErr,
     /// the off-main deadline) against a bundle id that is not running, which
     /// answers -600 without prompting anyone. It says nothing about whether we
-    /// are authorised: a binary run from a shell inherits the terminal's grant
-    /// (L1), so authorisation is only ever judged from the installed app.
+    /// are authorised: a binary run from a shell inherits the terminal's grant,
+    /// so authorisation is only ever judged from the installed app.
     func testPermissionProbeAnswersForANonRunningTarget() async throws {
         try requireOptIn()
         let permission = AutomationPermission(log: DefaultsAutomationRequestLog())

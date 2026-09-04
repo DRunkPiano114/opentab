@@ -6,7 +6,7 @@ import XCTest
 /// back at an ancestor.
 ///
 /// Every title in this file is invented. No accessibility dump is checked into
-/// the repository and no real window title appears in any fixture (L16); the
+/// the repository and no real window title appears in any fixture; the
 /// dumps supplied the *shape* only — role chains, depths, and which attribute
 /// carries the title on which app.
 private final class SyntheticTree: TabTreeSource {

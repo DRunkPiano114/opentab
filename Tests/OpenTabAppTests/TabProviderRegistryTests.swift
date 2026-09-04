@@ -9,7 +9,7 @@ import XCTest
 ///
 /// The rule guards one thing: a browser can show a private window whose tab
 /// titles the Accessibility tree exposes and whose privacy it gives no way to
-/// detect (L16). It must catch every such browser and nothing else — a native
+/// detect. It must catch every such browser and nothing else — a native
 /// tab app wrongly judged a browser loses its tabs silently.
 @MainActor
 final class TabProviderRegistryTests: XCTestCase {

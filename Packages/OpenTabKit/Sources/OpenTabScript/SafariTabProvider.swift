@@ -5,9 +5,9 @@ import OpenTabCore
 /// Safari's dictionary has no private-browsing flag: `sdef /Applications/Safari.app`
 /// exposes `current tab` and the tab's `name` / `index` / `URL` / `visible`, and
 /// nothing that separates a private window from a normal one. Reading its tabs
-/// therefore means reading private tabs too, which L16 forbids by default, so
-/// the default is to contribute no tabs at all and let Safari appear as windows
-/// only.
+/// therefore means reading private tabs too, which is excluded unless the user
+/// opts in, so the default is to contribute no tabs at all and let Safari
+/// appear as windows only.
 public enum SafariTabPolicy: Sendable {
     case windowsOnly
     /// Reads tabs, dropping the windows an Accessibility-side classifier reports
@@ -65,7 +65,7 @@ public final class SafariTabProvider: TabProvider, TabCloser {
                                              isPrivate: false))
             }
         }
-        // Titles never reach the log (L16).
+        // Titles never reach the log.
         log.debug("safari tabs read: windows=\(windows.count, privacy: .public) tabs=\(snapshots.count, privacy: .public)")
         return snapshots
     }

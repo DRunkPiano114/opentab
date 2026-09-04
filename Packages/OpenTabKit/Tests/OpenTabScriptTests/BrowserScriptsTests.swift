@@ -13,7 +13,7 @@ final class BrowserScriptsTests: XCTestCase {
         ]
         for source in sources {
             XCTAssertTrue(source.contains("tell application id \""), source)
-            XCTAssertFalse(source.contains("tell application \""), "must never address by name (L6)")
+            XCTAssertFalse(source.contains("tell application \""), "must never address by name")
             XCTAssertTrue(source.hasPrefix("with timeout of 2 seconds\n"), source)
             XCTAssertTrue(source.hasSuffix("\nend timeout"), source)
         }

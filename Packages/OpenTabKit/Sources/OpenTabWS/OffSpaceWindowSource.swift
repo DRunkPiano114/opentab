@@ -4,7 +4,7 @@ import OpenTabAX
 import OpenTabCore
 import os
 
-/// Which parts of the off-space path this system supports (L10).
+/// Which parts of the off-space path this system supports.
 public struct OffSpaceAvailability: Sendable, Equatable {
     /// Remote-token symbols and `_AXUIElementGetWindow` all resolved.
     public let tokenPath: Bool
@@ -40,7 +40,7 @@ public struct OffSpaceConfiguration: Sendable, Equatable {
     public static let maxElementIDKey = "ws.scanMaxElementID"
     public static let budgetMillisecondsKey = "ws.scanBudgetMs"
 
-    /// Exclusive upper bound of the element-id scan (H18).
+    /// Exclusive upper bound of the element-id scan.
     public var maxElementID: UInt64 = 32_768
     /// Wall-clock budget of the scan within one snapshot.
     public var scanBudget: Duration = .milliseconds(200)
@@ -77,20 +77,20 @@ public struct OffSpaceConfiguration: Sendable, Equatable {
     }
 }
 
-/// `WindowSource` over the pure-AX source (P0) that adds the windows AX
-/// enumeration cannot see (other Spaces, fullscreen) through remote tokens,
-/// and fills `isOnActiveSpace` from CGS Space membership.
+/// `WindowSource` over the pure-AX source that adds the windows AX
+/// enumeration cannot see (other Spaces, fullscreen) through remote tokens, and
+/// fills `isOnActiveSpace` from CGS Space membership.
 ///
 /// Per app: the WindowServer's layer-0 windows minus the ones AX returned are
 /// candidates; each is reached by a bounded, resumable element-id scan, then
 /// read like any AX window. A window the scan did not reach this round keeps
-/// its last snapshot as long as the WindowServer still lists it (H18, L5); it
-/// is dropped only when the WindowServer no longer has it.
+/// its last snapshot as long as the WindowServer still lists it; it is
+/// dropped only when the WindowServer no longer has it.
 ///
-/// Every private symbol missing degrades to the P0 behaviour: the AX result
-/// is passed through with `isOnActiveSpace == true`.
+/// Every private symbol missing degrades to the pure-AX behaviour: the AX
+/// result is passed through with `isOnActiveSpace == true`.
 public final class OffSpaceWindowSource: WindowSource, @unchecked Sendable {
-    /// Counts only, never titles (L16).
+    /// Counts only, never titles.
     public struct AppReport: Sendable, Equatable {
         public var axWindows = 0
         public var layerZeroRows = 0
@@ -102,8 +102,9 @@ public final class OffSpaceWindowSource: WindowSource, @unchecked Sendable {
         public var probed = 0
         public var filtered = 0
         /// Layer-0 rows on no Space at all: ordered-out windows the app keeps
-        /// around. Not scanned for (they are not switch targets) and not the
-        /// H20 case (those are minimized, which AX lists anyway).
+        /// around. Not scanned for (they are not switch targets) and not
+        /// the minimized case (a minimized window reports no Space either,
+        /// and AX lists it anyway).
         public var noSpace = 0
         /// Layer-0 rows on an active Space that are not on screen and that
         /// AX does not list: ordered out with a Space assignment left over.
@@ -183,9 +184,8 @@ public final class OffSpaceWindowSource: WindowSource, @unchecked Sendable {
     }
 
     /// Diagnostic read that ignores what AX enumerates and reaches every
-    /// candidate through the token scan, so the two answers can be compared
-    /// (E0's cross-check). Not for production refreshes: it discards the
-    /// cheap path.
+    /// candidate through the token scan, so the two answers can be compared.
+    /// Not for production refreshes: it discards the cheap path.
     public func snapshotViaTokenOnly(of app: AppInfo, deadline: ContinuousClock.Instant) async throws -> [WindowSnapshot] {
         guard isTokenPathActive else { throw AXSourceError.notImplemented }
         return try await queues.perform(on: app.pid) { self.augment([], of: app, deadline: deadline) }
@@ -195,7 +195,7 @@ public final class OffSpaceWindowSource: WindowSource, @unchecked Sendable {
         state.withLock { $0.pids[pid]?.lastReport }
     }
 
-    /// Element ids that hits landed on, per pid, for the H18 histogram.
+    /// Element ids that hits landed on, per pid, for the reach histogram.
     public func hitElementIDs() -> [(pid: pid_t, bundleID: String, elementIDs: [UInt64])] {
         state.withLock { state in
             state.pids.map { ($0.key, $0.value.bundleID, $0.value.scan.hits) }.sorted { $0.0 < $1.0 }
@@ -222,7 +222,7 @@ public final class OffSpaceWindowSource: WindowSource, @unchecked Sendable {
 
     /// Adds the windows AX did not return and annotates Space membership.
     /// Never throws: a deadline that passes mid-scan ends the scan, and what
-    /// was not reached takes the L5 path.
+    /// was not reached keeps its last snapshot.
     func augment(_ axSnapshots: [WindowSnapshot], of app: AppInfo,
                  deadline: ContinuousClock.Instant) -> [WindowSnapshot] {
         guard let backend else { return axSnapshots }
@@ -271,7 +271,7 @@ public final class OffSpaceWindowSource: WindowSource, @unchecked Sendable {
         }
 
         // No window list means no evidence at all: nothing is pruned, nothing
-        // is scanned, and every window known from before stands in (L5).
+        // is scanned, and every window known from before stands in.
         guard let rows = backend.rows(pid) else {
             report.windowListUnknown = true
             for (wid, cached) in pidState.lastSnapshot where !axWindowIDs.contains(wid) {
@@ -393,8 +393,8 @@ public final class OffSpaceWindowSource: WindowSource, @unchecked Sendable {
             }
         }
 
-        // H18 / L5: a miss says nothing about the window. While the
-        // WindowServer lists it, the last snapshot stands in.
+        // A miss says nothing about the window. While the WindowServer
+        // lists it, the last snapshot stands in.
         for wid in unresolved {
             if pidState.lastSnapshot[wid] != nil {
                 kept.insert(wid)

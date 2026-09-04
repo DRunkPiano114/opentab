@@ -4,7 +4,8 @@ import XCTest
 
 /// The takeover against the real WindowServer, inside the granted app. Each
 /// test restores before it returns; `readEnabled` is the public
-/// `CopySymbolicHotKeys`, the same source E2 used to confirm the state.
+/// `CopySymbolicHotKeys`, the same source the takeover reads the pre-change
+/// state from.
 @MainActor
 final class CmdTabTakeoverTests: XCTestCase {
     private var suite: String!

@@ -1,8 +1,9 @@
 import AppKit
 
 /// Borderless, non-activating overlay that exists on every Space and draws
-/// over full-screen apps. In P0 it never becomes key; `canBecomeKey` stays
-/// true for the later search state, where the app is activated on purpose.
+/// over full-screen apps. In the navigation state it never becomes key;
+/// `canBecomeKey` stays true for the search state, where the app is activated
+/// on purpose.
 final class SwitcherPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }

@@ -1,7 +1,8 @@
 import Foundation
 
-/// The 20-byte remote token `_AXUIElementCreateWithRemoteToken` accepts
-/// (`experiments/E0-results.md` §3):
+/// The 20-byte remote token `_AXUIElementCreateWithRemoteToken` accepts, read
+/// off the arm64 disassembly of HIServices on macOS 26.6.2 and cross-checked
+/// against tokens dumped from live windows:
 ///
 ///     0x00  4B  pid (little-endian)
 ///     0x04  4B  0
@@ -10,8 +11,9 @@ import Foundation
 ///
 /// The first 12 bytes are a per-process constant; only the element id varies
 /// per window. A live window's token is the preferred source of the prefix;
-/// an app that reports no AX windows at all (a fullscreen Safari, L10.6) gets
-/// the synthesized one, which E0 confirmed reaches its window.
+/// an app that reports no AX windows at all - a fullscreen app reports none -
+/// gets the synthesized one. A fullscreen Safari with no live AX window was
+/// reached from a purely synthesized prefix.
 struct RemoteToken: Equatable, Sendable {
     static let length = 20
     static let prefixLength = 12

@@ -35,7 +35,8 @@ enum CGS {
     }
 }
 
-/// Symbolic hotkey ids measured in appendix/a: 1 = Cmd+Tab, 2 = Cmd+Shift+Tab.
+/// Symbolic hotkey ids measured by probe runs on macOS 26.6.2:
+/// 1 = Cmd+Tab, 2 = Cmd+Shift+Tab.
 let symbolicIDs: [Int32] = [1, 2]
 
 // MARK: - Logging

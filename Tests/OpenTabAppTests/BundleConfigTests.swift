@@ -2,7 +2,7 @@ import XCTest
 
 /// Guards the Info.plist contract the TCC story depends on. Runs inside the
 /// real OpenTab.app (TEST_HOST), which is what makes the app-hosted target the
-/// place for anything that needs a live NSApplication event loop (L12).
+/// place for anything that needs a live NSApplication event loop.
 final class BundleConfigTests: XCTestCase {
     private var appInfo: [String: Any] {
         let host = Bundle(identifier: "im.opentab.app") ?? Bundle.main

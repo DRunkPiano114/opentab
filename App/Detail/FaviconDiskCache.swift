@@ -6,7 +6,7 @@ import Foundation
 /// Without the negative marker every panel open would re-copy and re-query
 /// every browser database for the same handful of sites that simply have no
 /// cached icon. File names are SHA-256 of the origin: nothing on disk names a
-/// host (iron law L16).
+/// host.
 struct FaviconDiskCache: Sendable {
     enum Entry {
         case hit(Data)

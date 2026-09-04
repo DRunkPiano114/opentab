@@ -5,7 +5,7 @@ import SwiftUI
 /// What the second-level pane renders: one window's tabs.
 ///
 /// Three differences from the main list are deliberate and must not be
-/// unified away (ui-spec.md §3): the main list draws the app icon and this
+/// unified away: the main list draws the app icon and this
 /// one draws a favicon, the main list has no row separators and this one
 /// does, and the main list truncates a title to one line while this one wraps
 /// to two.
@@ -30,8 +30,8 @@ struct DetailPane: Equatable {
     var isFiltered = false
 }
 
-/// Layout tokens for the detail pane (ui-spec.md §2). The measured values are
-/// the chip, icon, divider, pitch, height, inset and favicon; the vertical
+/// Layout tokens for the detail pane. The chip, icon, divider, pitch, height,
+/// inset and favicon are measured from the reference design; the vertical
 /// gaps between the header elements were not measured and are chosen here.
 enum DetailMetrics {
     static let backChipSize = CGSize(width: 61, height: 30)

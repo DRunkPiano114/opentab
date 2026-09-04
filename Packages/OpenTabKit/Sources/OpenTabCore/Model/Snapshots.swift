@@ -4,14 +4,14 @@ import Foundation
 public struct WindowSnapshot: Sendable, Hashable {
     public let key: WindowKey
     public let app: AppInfo
-    /// Display only. Read as `title.isEmpty ? description : title` (L11).
+    /// Display only. Read as `title.isEmpty ? description : title`.
     public let title: String
-    /// Raw `AXSubrole` value, not localised (L3).
+    /// Raw `AXSubrole` value, not localised.
     public let subrole: String
-    /// From `kAXMinimizedAttribute`, never inferred from the subrole (L10.5).
+    /// From `kAXMinimizedAttribute`, never inferred from the subrole.
     public let isMinimized: Bool
     /// Always `true` for the pure-AX source: it only sees the current Space.
-    /// P2 fills it from CGS Space membership.
+    /// The off-space source fills it from CGS Space membership.
     public let isOnActiveSpace: Bool
     /// CoreGraphics window layer, known only for `.cg` keys.
     public let level: Int32?
@@ -42,7 +42,7 @@ public struct TabSnapshot: Sendable, Hashable {
     public let url: URL?
     public let isActive: Bool
     public let isPrivate: Bool
-    /// The provider identified a private window and withheld its tabs (L16).
+    /// The provider identified a private window and withheld its tabs.
     /// One such snapshot stands for the whole window: it names no tab, and its
     /// `title` is the window's own, carried only so the reconciler can find the
     /// Accessibility row that shows the same window and suppress it. The

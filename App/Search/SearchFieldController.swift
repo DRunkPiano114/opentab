@@ -3,9 +3,9 @@ import OpenTabCore
 import os
 
 /// The search-state text field. A stock `NSTextField` gets full IME support
-/// for free once the app is active and the panel is key (appendix d §10.3),
-/// so this class only owns activation, the navigation-key mapping, and the
-/// rules for which keys belong to the input method.
+/// for free once the app is active and the panel is key, so this class only
+/// owns activation, the navigation-key mapping, and the rules for which keys
+/// belong to the input method.
 @MainActor
 final class SearchFieldController: NSObject, NSTextFieldDelegate {
     enum Command: Equatable {
@@ -95,8 +95,8 @@ final class SearchFieldController: NSObject, NSTextFieldDelegate {
     /// Returns true when the field editor is first responder and
     /// `NSTextInputContext.current` is non-nil: the honest IME-alive signal.
     /// `view.inputContext` is non-nil even in an inactive app, and
-    /// `handleEvent` then returns true while dropping every key (appendix d
-    /// §10.2), so neither of those may be used as the check.
+    /// `handleEvent` then returns true while dropping every key, so neither of
+    /// those may be used as the check.
     ///
     /// Activation lands asynchronously, so this pumps activation events until
     /// the field is ready or `activationTimeout` passes. The input method

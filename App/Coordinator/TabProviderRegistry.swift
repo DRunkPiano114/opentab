@@ -32,7 +32,7 @@ final class TabProviderRegistry: TabProviderLookup {
     private var rejected: Set<String> = []
     private let log = Log.make("providers")
 
-    /// `includesPrivate` is the user's explicit opt-in (L16). Safari cannot
+    /// `includesPrivate` is the user's explicit opt-in. Safari cannot
     /// tell private windows apart, so without it Safari contributes no tabs.
     init(engine: AppleScriptEngine, includesPrivate: Bool) {
         self.engine = engine
@@ -76,7 +76,7 @@ final class TabProviderRegistry: TabProviderLookup {
         // terminals and other native tab groups. A browser no scripting
         // dictionary covers is the exception: Accessibility shows a private
         // window's tab titles and offers no reliable way to tell one apart, so
-        // such a browser lists windows only unless the user opted in (L16) -
+        // such a browser lists windows only unless the user opted in -
         // the same rule Safari already lives under. The Chromium half of that
         // question was settled by the probe above.
         guard accessibility.isAvailable,
@@ -85,7 +85,7 @@ final class TabProviderRegistry: TabProviderLookup {
     }
 
     /// Whether this app can show private windows the Accessibility tree gives
-    /// no way to tell apart, and so must not have its tabs read that way (L16).
+    /// no way to tell apart, and so must not have its tabs read that way.
     ///
     /// Decided by bundle id and by the Chromium scripting-suite probe, which
     /// also catches forks nobody enumerated. Deliberately *not* decided by a

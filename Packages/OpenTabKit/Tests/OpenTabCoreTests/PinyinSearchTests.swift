@@ -1,8 +1,10 @@
 import XCTest
 @testable import OpenTabCore
 
-/// The six cases from reference/search.md §3, plus the properties that keep
-/// the Chinese path from taxing English text.
+/// The Chinese queries v1 must satisfy - a Han substring, full pinyin,
+/// initials, a mixed Han-and-Latin query, a run-together full-pinyin string,
+/// and every reading of a polyphone - plus the properties that keep the
+/// Chinese path from taxing English text.
 final class PinyinSearchTests: XCTestCase {
     private let thesis = "硕士论文.pdf"
 
@@ -85,7 +87,7 @@ final class PinyinSearchTests: XCTestCase {
     }
 
     func testIndexBuildIsFast() {
-        let title = "硕士学历彻底沦为废纸！不要盲目读硕士，更不要寄托于读硕士来改变命运！ - YouTube - Google Chrome"
+        let title = "硕士论文提纲：第一章研究背景与文献综述，第二章方法与数据，第三章结果 - YouTube - Google Chrome"
         _ = IndexedText(title)
         let rounds = 200
         let start = ContinuousClock.now
@@ -96,8 +98,8 @@ final class PinyinSearchTests: XCTestCase {
     }
 
     func testChineseMatchCostIsSameOrderAsEnglish() {
-        let cjk = IndexedText(String(repeating: "硕士学历彻底沦为废纸不要盲目读硕士更不要寄托于读", count: 2))
-        let ascii = IndexedText(String(repeating: "Enterprise Sales Startup School YouTube Google ", count: 2))
+        let cjk = IndexedText(String(repeating: "硕士论文提纲第一章研究背景文献综述第二章方法数据", count: 2))
+        let ascii = IndexedText(String(repeating: "Quarterly Planning Sample Session Summary Notes ", count: 2))
         let queryCJK = FuzzyMatch.Query("ss")
         let queryASCII = FuzzyMatch.Query("ss")
         let rounds = 2000

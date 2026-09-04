@@ -4,7 +4,7 @@ import Foundation
 /// pass over the same apps. Counts and rejections come from the warm pass;
 /// `slowestApps` ranks the cold pass, which is where first-contact stalls
 /// (Chrome booting its AX bridge, a busy JetBrains IDE) show up. Contains no
-/// window titles (L16).
+/// window titles.
 public struct EnumerationReport: Sendable {
     public let coldDuration: Duration
     public let warmDuration: Duration

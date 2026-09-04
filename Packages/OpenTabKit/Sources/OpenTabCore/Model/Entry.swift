@@ -18,14 +18,14 @@ public struct Entry: Sendable, Identifiable, Hashable {
     public var isHidden: Bool
     /// A tab in a private window, or the window entry the store proved stands
     /// for one. A private window entry carries no title and is never listed
-    /// unless the user opted in (L16).
+    /// unless the user opted in.
     public var isPrivate: Bool
 
     /// Monotonic recency counter; primary sort key. Zero means never focused.
     public var focusTick: UInt64
     /// Monotonic, assigned on insertion and never reassigned; stable tie-break.
     public var discoveryRank: UInt64
-    /// Always 0 in P0; P3a's store writes it.
+    /// Always 0 in `EntryStore`; `TabStore`'s sweep maintains it.
     public var missingStrikes: Int
 
     public init(id: EntryID, kind: EntryKind, key: WindowKey, app: AppInfo, title: String,

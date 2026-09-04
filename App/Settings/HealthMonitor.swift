@@ -2,9 +2,10 @@ import Darwin
 import Foundation
 import OpenTabCore
 
-/// The read-out behind the long-run memory check (H10). It samples the
-/// process footprint and the size of the index on a timer and writes one line
-/// per sample to the unified log under the `health` category, so a multi-day
+/// The long-run memory read-out, which exists because footprint and behaviour
+/// past a few hours of uptime were never measured. It samples the process
+/// footprint and the size of the index on a timer and writes one line per
+/// sample to the unified log under the `health` category, so a multi-day
 /// observation is a single `log show` afterwards rather than something
 /// somebody has to sit and watch:
 ///

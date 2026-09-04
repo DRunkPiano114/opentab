@@ -31,7 +31,7 @@ final class ChromiumTabProviderTests: XCTestCase {
                             health: BrowserHealth())
     }
 
-    /// L16: incognito is a dictionary value, so this exclusion is reliable.
+    /// Incognito is a dictionary value, so this exclusion is reliable.
     /// The window itself is still reported, with nothing of its tabs but the
     /// title it is displayed under: Accessibility lists that window whatever
     /// this provider does, so the reconciler needs it to suppress that row.

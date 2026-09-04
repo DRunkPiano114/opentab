@@ -178,7 +178,7 @@ func incognitoChromeWindow(_ id: UInt32, _ page: String) -> WindowSnapshot {
 }
 
 /// What the provider hands over for an incognito window by default: the
-/// window and the title it is shown under, none of its tabs (L16).
+/// window and the title it is shown under, none of its tabs.
 func withheldChromeWindow(_ window: String, _ title: String) -> TabSnapshot {
     TabSnapshot(windowKey: .scripted(bundleID: chrome.bundleID, token: window), token: "",
                 title: title, url: nil, isActive: false, isPrivate: true, withholdsTabs: true)

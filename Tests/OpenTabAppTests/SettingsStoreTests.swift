@@ -35,8 +35,8 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(DefaultsKey.scanBudgetMilliseconds, OffSpaceConfiguration.budgetMillisecondsKey)
     }
 
-    /// L16 and the favicon disclosure both rest on these being off for a user
-    /// who has never opened the settings window.
+    /// Excluding private windows and the favicon disclosure both rest on these
+    /// being off for a user who has never opened the settings window.
     func testPrivacySettingsAreOffUntilTheUserOptsIn() {
         let store = SettingsStore(defaults: defaults)
         XCTAssertFalse(store.includesPrivateTabs)

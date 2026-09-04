@@ -3,7 +3,7 @@ import os
 
 /// Owns the `EntryStore` and keeps it current from a `WindowSource`, an
 /// `AppDirectory` and a `RefreshTrigger`. Everything here runs on the main
-/// actor; blocking system calls are the source's problem (L13).
+/// actor; blocking system calls are the source's problem.
 @MainActor
 public final class WindowIndex {
     public private(set) var store: EntryStore
@@ -105,7 +105,7 @@ public final class WindowIndex {
     }
 
     /// Drops everything and re-reads. The user-visible escape hatch for the
-    /// zombie rows that L5 guarantees.
+    /// zombie rows that rejecting empty reads leaves behind.
     public func rebuild() async {
         store.removeAll()
         notify()

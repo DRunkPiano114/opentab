@@ -7,7 +7,7 @@ import OpenTabWS
 
 /// `--selftest --out <dir>` diagnostic run. Results go to `<dir>/selftest.txt`
 /// because an app launched through `open` has no stdout. No window titles are
-/// written (L16).
+/// written.
 @MainActor
 enum SelfTest {
     static func outputDirectory(from arguments: [String]) -> URL? {
@@ -59,7 +59,7 @@ enum SelfTest {
 
     /// Cold show (no pre-warm) versus a second show after the first has warmed
     /// SwiftUI's layout, then a pre-warmed controller, to reproduce the
-    /// 43.6ms → 2.2ms measurement from the appendix.
+    /// 43.6ms → 2.2ms difference pre-warming buys.
     private static func measurePanel() -> [String] {
         let rows = PanelViewModel.Row.placeholders(count: 30)
         var lines: [String] = []
@@ -81,9 +81,10 @@ enum SelfTest {
         return lines
     }
 
-    /// The panel must not take focus (L2: judged by observable behaviour). With
-    /// the grant, the previously frontmost app's own `kAXFrontmostAttribute` is
-    /// the strongest available signal; without it only NSWorkspace is available.
+    /// The panel must not take focus, judged by reading focus back rather than
+    /// by trusting an AppKit return value. With the grant, the previously
+    /// frontmost app's own `kAXFrontmostAttribute` is the strongest available
+    /// signal; without it only NSWorkspace is available.
     private static func focusCheck(frontmostBefore: NSRunningApplication?, trusted: Bool) -> [String] {
         var lines: [String] = []
         let after = NSWorkspace.shared.frontmostApplication
@@ -102,7 +103,7 @@ enum SelfTest {
         return arguments[i + 1]
     }
 
-    /// One line per app: counts and flags only, never titles (L16).
+    /// One line per app: counts and flags only, never titles.
     private static func perAppSummary(apps: [AppInfo], source: AXWindowSource,
                                       directory: WorkspaceAppDirectory) async -> [String] {
         var lines = ["per app (bundle windows minimized hidden):"]
@@ -117,11 +118,11 @@ enum SelfTest {
 
     /// The Accessibility tab scan run against every running app: what it
     /// finds, how much tree it walks, and what it costs. Counts only, never a
-    /// tab title (L16).
+    /// tab title.
     ///
     /// This is also where the Chromium path is checked. The product reads
     /// Chromium tabs over AppleScript, which is the only route that can tell
-    /// an incognito window apart (L16), so the scan itself is verified here
+    /// an incognito window apart, so the scan itself is verified here
     /// rather than through the list.
     private static func accessibilityTabScan(apps: [AppInfo]) async -> [String] {
         let provider = AXTabProvider()
@@ -146,7 +147,7 @@ enum SelfTest {
     }
 
     /// `--activate <bundle id>`: raise that app's first listed window through
-    /// the production activator and report the read-back verdict (L2).
+    /// the production activator and report the read-back verdict.
     private static func activationCheck(bundleID: String, apps: [AppInfo], source: AXWindowSource) async -> [String] {
         guard let app = apps.first(where: { $0.bundleID == bundleID }) else {
             return ["activate \(bundleID): app not in candidate list"]
@@ -168,11 +169,11 @@ enum SelfTest {
     /// The production stack (off-space source, providers, store) run through
     /// one full reconcile, then reported per app: rows versus windows, tabs
     /// per window, degraded state and the store's own diagnostics. Counts
-    /// and keys only, never titles (L16). No consent prompt can appear here.
+    /// and keys only, never titles. No consent prompt can appear here.
     ///
     /// `--stall <bundle id>` then stops that process with SIGSTOP, runs a
-    /// second reconcile and times the panel against it (the G-3 wedged
-    /// browser check); the process is continued before returning.
+    /// second reconcile and times the panel against it (the wedged-browser
+    /// check); the process is continued before returning.
     /// `--activate-tab <bundle id>` selects a tab that is not active in that
     /// browser's first listed window, reads back where the browser landed,
     /// and puts the previously active tab back.
@@ -216,7 +217,7 @@ enum SelfTest {
     }
 
     /// Which provider each running app gets, and whether it was judged a
-    /// browser. Bundle ids and verdicts only, never a title (L16).
+    /// browser. Bundle ids and verdicts only, never a title.
     private static func providerVerdicts(_ providers: TabProviderRegistry) -> [String] {
         var lines = ["tab providers (bundle isBrowser provider):"]
         for app in WorkspaceAppDirectory().runningApps().sorted(by: { $0.bundleID < $1.bundleID }) {
@@ -230,7 +231,7 @@ enum SelfTest {
 
     /// The favicon tiers measured against the tabs the store actually holds,
     /// which is what the detail pane would ask for. Counts only: no host and
-    /// no URL is written (L16). The remote tier stays off unless the user
+    /// no URL is written. The remote tier stays off unless the user
     /// turned it on, so a run with it off measures the local caches alone.
     private static func faviconReport(_ coordinator: SwitcherCoordinator) async -> [String] {
         let urls = coordinator.store.entries.values.compactMap(\.url)

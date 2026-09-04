@@ -109,7 +109,7 @@ enum CommandToken {
                 let subrole = AXRead.string(element, kAXSubroleAttribute)
                 let rawTitle = AXRead.string(element, kAXTitleAttribute) ?? ""
                 let description = AXRead.string(element, kAXDescriptionAttribute) ?? ""
-                let title = rawTitle.isEmpty ? description : rawTitle  // L11
+                let title = rawTitle.isEmpty ? description : rawTitle
                 let minimized = (AXRead.value(element, kAXMinimizedAttribute).value as? Bool)
                 findings.append(.object([
                     "cgWindowID": .int(Int(target)),

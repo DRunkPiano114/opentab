@@ -4,7 +4,7 @@ public struct AppInfo: Sendable, Hashable {
     /// Empty when the process has no bundle identifier.
     public let bundleID: String
     public let pid: pid_t
-    /// Display only. Never branch on it (L3).
+    /// Display only. Never branch on it: it is localised.
     public let localizedName: String
 
     public init(bundleID: String, pid: pid_t, localizedName: String) {

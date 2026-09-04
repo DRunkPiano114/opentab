@@ -9,7 +9,7 @@ public enum ScriptError: Error, Sendable, Hashable {
     /// `-1743` / `-10004`. Ambiguous by itself; see `AutomationSelfCheck`.
     case notPermitted
     /// `-1744`: no authorisation record. Cannot distinguish "never asked" from
-    /// "asked and denied" (appendix K §1.3), so the caller keeps its own log.
+    /// "asked and denied", so the caller keeps its own log.
     case permissionUndetermined
     /// `-600` / `-609`. A skip, not a failure: the target is simply gone.
     case targetNotRunning

@@ -145,7 +145,7 @@ final class WindowResolverTests: XCTestCase {
         try XCTSkipUnless(AXIsProcessTrusted(), "needs the Accessibility grant")
         // The app sets this at launch; the test host returns early from
         // `applicationDidFinishLaunching`, so without it a stopped app would
-        // hold a read for the ~1.5s default instead of 150ms (L8).
+        // hold a read for the ~1.5s default instead of 150ms.
         AXConfiguration.configureGlobalTimeout()
         previous = NSWorkspace.shared.frontmostApplication
         let configuration = NSWorkspace.OpenConfiguration()

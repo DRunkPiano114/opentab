@@ -8,13 +8,13 @@ import os
 /// `WindowSource`, tab reads from the providers, the periodic sweep against
 /// the WindowServer, and activation. Everything here runs on the main actor;
 /// blocking system calls stay behind the source, the activator and the
-/// providers (L13).
+/// providers.
 ///
 /// The store keys a script window `.scripted(bundleID, token)`. Safari's
 /// provider keys its windows by CGWindowID because that is what Safari's
 /// dictionary exposes; those keys are re-keyed here to the scripted form and
-/// the CGWindowID is handed to the store as a resolution (rule E-3), so a
-/// Safari window is claimed without relying on its title.
+/// the CGWindowID is handed to the store as a resolution, so a Safari window
+/// is claimed without relying on its title.
 @MainActor
 final class SwitcherCoordinator {
     struct Configuration {
@@ -24,7 +24,7 @@ final class SwitcherCoordinator {
         var tabReadBudget: Duration = ScriptBudget.read
         var activationBudget: Duration = .milliseconds(800)
         var tabActivationBudget: Duration = ScriptBudget.activate
-        /// Resolving one `.ax` keyed window to a CGWindowID (K).
+        /// Resolving one `.ax` keyed window to a CGWindowID.
         var resolutionBudget: Duration = .milliseconds(300)
         /// A window that could not be resolved is left alone this long.
         var resolutionRetry: Duration = .seconds(60)
@@ -41,7 +41,7 @@ final class SwitcherCoordinator {
     /// Called after every observable change to the list.
     var onChange: (@MainActor () -> Void)?
     /// Apps whose latest window read did not complete. Their rows are shown
-    /// as still reading and keep their last data (L5).
+    /// as still reading and keep their last data.
     private(set) var unresponsiveApps: Set<AppKey> = []
 
     private let source: any WindowSource
@@ -60,7 +60,7 @@ final class SwitcherCoordinator {
     /// rows were dropped because of them.
     private var tabFailures: [AppKey: Int] = [:]
     private var tabsUnavailable: Set<AppKey> = []
-    /// K: resolved `.cg` key -> the `.ax` key the source cached the element
+    /// Resolved `.cg` key -> the `.ax` key the source cached the element
     /// under, and the reverse. Activation goes through the original key.
     private var aliasToSource: [WindowKey: WindowKey] = [:]
     private var aliasFromSource: [WindowKey: WindowKey] = [:]
@@ -179,7 +179,7 @@ final class SwitcherCoordinator {
         await serial.run(0) { await self.reconcile(seedFocus: seedFocus, sweep: false) }
     }
 
-    /// The periodic tick: windows, the WindowServer sweep (F), then tabs.
+    /// The periodic tick: windows, the WindowServer sweep, then tabs.
     private func reconcile(seedFocus: Bool, sweep: Bool) async {
         await refreshAll(seedFocus: seedFocus)
         let apps = candidates()
@@ -187,7 +187,7 @@ final class SwitcherCoordinator {
             let live = await windowServer()
             // The process table is only trusted alongside a WindowServer read:
             // the directory itself is filtered by window ownership, so a failed
-            // read would report every app gone (L5).
+            // read would report every app gone.
             let running: Set<AppKey>? = (live == nil || apps.isEmpty) ? nil : Set(apps.map(\.key))
             let before = appsInStore()
             if store.sweep(liveWindowIDs: live, runningApps: running) { notify() }
@@ -207,22 +207,24 @@ final class SwitcherCoordinator {
         return apps
     }
 
-    /// The private-tab opt-in (L16), which the settings window can change
+    /// The private-tab opt-in, which the settings window can change
     /// while the app runs. The caller rebuilds afterwards so the rows already
     /// in the store are re-derived under the new rule.
     func setIncludesPrivateTabs(_ includes: Bool) {
         store.configuration.includesPrivateTabs = includes
     }
 
-    /// The user's own title regexes, which L3 admits as the one sanctioned
-    /// string match. The caller rebuilds afterwards: rows already in the
-    /// store were admitted under the previous patterns.
+    /// The user's own title regexes: the one place a rule is allowed to match
+    /// on a displayed string, sanctioned because the user asked for it. The
+    /// caller rebuilds afterwards: rows already in the store were admitted
+    /// under the previous patterns.
     func setIgnoreTitlePatterns(_ patterns: [String]) {
         store.ignoreRules = IgnoreRules(bundleIDs: store.ignoreRules.bundleIDs, titlePatterns: patterns)
     }
 
-    /// Drops everything and re-reads. The user-visible escape hatch for the
-    /// zombie rows L5 guarantees (H7).
+    /// Drops everything and re-reads. Refusing to delete a row on an empty
+    /// read lets zombie rows accumulate, so the user needs an escape hatch
+    /// that is not "restart the app".
     func rebuild() async {
         store.removeAll()
         aliasToSource.removeAll()
@@ -235,7 +237,7 @@ final class SwitcherCoordinator {
         await serial.run(0) { await self.reconcile(seedFocus: true, sweep: true) }
     }
 
-    /// Removals are deferred while the panel is up and applied on close (H).
+    /// Removals are deferred while the panel is up and applied on close.
     func setPanelVisible(_ visible: Bool) {
         if store.setPanelVisible(visible) { notify() }
     }
@@ -297,7 +299,7 @@ final class SwitcherCoordinator {
     }
 
     /// A read that did not complete says nothing about the windows: the rows
-    /// stay and are marked (L5). `apiDisabled` is the grant going away, which
+    /// stay and are marked. `apiDisabled` is the grant going away, which
     /// the accessibility watch reports; `invalidUIElement` is the process
     /// going away, which the termination event reports.
     private func windowReadFailed(_ app: AppInfo, error: AXSourceError) {
@@ -310,7 +312,7 @@ final class SwitcherCoordinator {
         }
     }
 
-    /// K: upgrades `.ax` keyed snapshots to `.cg` where the cascade can, and
+    /// Upgrades `.ax` keyed snapshots to `.cg` where the cascade can, and
     /// remembers the alias so activation still reaches the cached element.
     private func resolveKeys(in snapshots: [WindowSnapshot]) async -> [WindowSnapshot] {
         guard let resolver, snapshots.contains(where: { if case .ax = $0.key { true } else { false } }) else {
@@ -357,7 +359,7 @@ final class SwitcherCoordinator {
         _ = await readTabsNow(of: app, provider: provider, coalesce: true)
     }
 
-    /// One tab read through the app's lane (B), applied to the store. Returns
+    /// One tab read through the app's lane, applied to the store. Returns
     /// the snapshots the provider answered with, or `nil` when it did not. A
     /// coalesced request may join a read that is already waiting, in which
     /// case it learns nothing about the result; callers that need the
@@ -404,11 +406,10 @@ final class SwitcherCoordinator {
         return rekeyed
     }
 
-    /// Tab reads carry three kinds of failure (tab-providers.md §2): the
-    /// target left, the grant is missing, or nothing conclusive. One
-    /// inconclusive failure keeps the cached rows (L5); a run of them drops
-    /// the tab rows and marks the browser, so stale tabs never linger
-    /// silently. The next successful read clears both.
+    /// Tab reads carry three kinds of failure: the target left, the grant is
+    /// missing, or nothing conclusive. One inconclusive failure keeps the
+    /// cached rows; a run of them drops the tab rows and marks the browser, so
+    /// stale tabs never linger silently. The next successful read clears both.
     private func tabReadFailed(_ app: AppInfo, error: ScriptError) async {
         log.notice("tab read failed pid=\(app.pid, privacy: .public) error=\(Self.label(error), privacy: .public)")
         switch error {
@@ -427,8 +428,7 @@ final class SwitcherCoordinator {
         }
     }
 
-    /// Cases and codes only: an AppleScript message can quote page content
-    /// (L16).
+    /// Cases and codes only: an AppleScript message can quote page content.
     private static func label(_ error: ScriptError) -> String {
         switch error {
         case .compileFailed(let code, _): "compileFailed(\(code))"
@@ -449,7 +449,8 @@ final class SwitcherCoordinator {
 
     /// A provider that keys windows by CGWindowID has told us the resolution
     /// for free: the key becomes the scripted form the store expects and the
-    /// CGWindowID goes in as rule E-3 input.
+    /// CGWindowID goes in as the resolution that claims the redundant AX
+    /// window row, no title match needed.
     private func rekeyScriptWindows(in snapshots: [TabSnapshot], app: AppInfo) -> [TabSnapshot] {
         var resolved: Set<UInt32> = []
         let rekeyed = snapshots.map { snapshot -> TabSnapshot in
@@ -487,7 +488,7 @@ final class SwitcherCoordinator {
     /// Closes a tab where it is, without selecting it first, and re-reads the
     /// browser so the store matches. Returns whether the provider confirmed
     /// the close; the caller drops the row on its own, because the store
-    /// defers removals while the panel is up (H).
+    /// defers removals while the panel is up.
     func closeTab(_ entry: Entry) async -> Bool {
         guard entry.kind == .tab, let token = entry.id.tabToken,
               let provider = providers.provider(for: entry.app),
@@ -504,7 +505,7 @@ final class SwitcherCoordinator {
         return true
     }
 
-    // MARK: - Activation (I)
+    // MARK: - Activation
 
     func activate(_ entry: Entry) async {
         if entry.kind == .tab {
@@ -526,7 +527,7 @@ final class SwitcherCoordinator {
             Self.activateApp(entry.app)
             await readWindows(of: entry.app, bumpFocused: true)
         } catch {
-            // A timeout is unknown, not failure (I).
+            // A timeout says nothing about the window, so the row stays.
             log.error("activate failed pid=\(entry.app.pid, privacy: .public) error=\(String(describing: error), privacy: .private)")
         }
     }
@@ -535,7 +536,7 @@ final class SwitcherCoordinator {
         case landed
         case unknown
         /// The provider reported the tab gone and no read could be taken:
-        /// direct evidence, so the entry goes (I).
+        /// direct evidence, so the entry goes.
         case gone
         /// A read taken after the selection was applied to the store and did
         /// not show the expected tab active; `retry` is the tab that now

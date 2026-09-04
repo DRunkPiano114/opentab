@@ -2,7 +2,7 @@ import Foundation
 
 /// Which windows never appear in the list.
 ///
-/// The default list holds bundle ids only (L3): display names localise and the
+/// The default list holds bundle ids only: display names localise and the
 /// original product's mixed list had both spellings of "Notification Centre"
 /// in it for exactly that reason. Title patterns are the one sanctioned
 /// exception: they are explicit user configuration, so string matching is the

@@ -2,7 +2,8 @@ import XCTest
 @testable import OpenTabWS
 
 final class RemoteTokenTests: XCTestCase {
-    /// E0 §3: Chrome pid 996 dumps as `e4030000`, the magic as `6f636f63`.
+    /// From a real dumped token: Chrome pid 996 appears as `e4030000`, the
+    /// magic as `6f636f63`.
     func testSynthesizedPrefixMatchesDocumentedLayout() {
         let prefix = RemoteToken.synthesizedPrefix(pid: 996)
         XCTAssertEqual(prefix, [0xe4, 0x03, 0x00, 0x00, 0, 0, 0, 0, 0x6f, 0x63, 0x6f, 0x63])

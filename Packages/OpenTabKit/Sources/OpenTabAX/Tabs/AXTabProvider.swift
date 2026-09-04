@@ -13,8 +13,8 @@ import os
 ///
 /// And its empty read is evidence rather than silence. A script call that
 /// answers nothing may have been refused, throttled or aimed at a browser
-/// that is still starting, so `TabStore` keeps the rows it has (L5). A scan
-/// that ran to completion and found no tab button is a different statement:
+/// that is still starting, so `TabStore` keeps the rows it has. A scan that
+/// ran to completion and found no tab button is a different statement:
 /// the app has no tab strip right now. Finder hides its tab bar the moment a
 /// window drops to one tab, so without the distinction the last window to
 /// lose its tabs would leave its rows behind for good.
@@ -26,8 +26,8 @@ public protocol AccessibilityTabReads {}
 /// One structural predicate (`AXSubrole == AXTabButton`) covers native AppKit
 /// and Chromium alike, so there is no per-app role table. Every read runs on
 /// the target pid's own serial queue, so an app that stops answering stalls
-/// only its own scan (L13), and every scan is bounded in depth, node count,
-/// fan-out and wall-clock time.
+/// only its own scan, and every scan is bounded in depth, node count, fan-out
+/// and wall-clock time.
 public final class AXTabProvider: TabProvider, TabCloser, AccessibilityTabReads, @unchecked Sendable {
     /// Unused by the registry, which hands one instance to every eligible app;
     /// the protocol requires it.
@@ -38,7 +38,7 @@ public final class AXTabProvider: TabProvider, TabCloser, AccessibilityTabReads,
     public let tokenStability = TokenStability.positional
 
     /// Per-app tallies for the diagnostic self test. Counts only: a tab title
-    /// never leaves this process (L16).
+    /// never leaves this process.
     public struct ScanReport: Sendable {
         public var bundleID: String
         public var windowsScanned: Int
@@ -103,7 +103,7 @@ public final class AXTabProvider: TabProvider, TabCloser, AccessibilityTabReads,
     /// One scan of every window of `app`, reported as counts. For the self
     /// test: it is the only place the Chromium path is exercised end to end,
     /// because the product reads Chromium tabs over AppleScript, which is the
-    /// only route that can tell an incognito window apart (L16).
+    /// only route that can tell an incognito window apart.
     public func report(for app: AppInfo, deadline: ContinuousClock.Instant) async -> ScanReport? {
         guard isAvailable else { return nil }
         let clock = ContinuousClock()
@@ -146,8 +146,8 @@ public final class AXTabProvider: TabProvider, TabCloser, AccessibilityTabReads,
             throw AXSourceError.from(windows.error)
         }
         // No window is not the same as no tabs: a full-screen app reports zero
-        // AX windows while the window is plainly still there (L10.6). Saying
-        // nothing keeps the rows; saying "empty" would delete them.
+        // AX windows while the window is plainly still there. Saying nothing
+        // keeps the rows; saying "empty" would delete them.
         guard !elements.isEmpty else { throw AXSourceError.cannotComplete }
 
         var scan = AppScan()
@@ -209,8 +209,8 @@ public final class AXTabProvider: TabProvider, TabCloser, AccessibilityTabReads,
 
     /// The same filter the window source applies, so a scanned window is
     /// always a window the list already has a row for: both subroles are kept
-    /// and window state is never inferred from the subrole (L10.5), and a
-    /// record that is not a real window is dropped by its layer (L4).
+    /// and window state is never inferred from the subrole, and a record
+    /// that is not a real window is dropped by its layer.
     private func isListable(_ window: AXElement) -> Bool {
         guard let slots = AXRead.multiple(window, [kAXRoleAttribute, kAXSubroleAttribute]).values,
               (slots[0] as? String) == kAXWindowRole else { return false }
@@ -291,8 +291,8 @@ public final class AXTabProvider: TabProvider, TabCloser, AccessibilityTabReads,
 struct AXTabTreeSource: TabTreeSource {
     typealias Node = AXElement
 
-    /// Positional. Slots 2 and 3 are display text for the L11 fallback and
-    /// are never branch inputs; slot 4 is read as a boolean only.
+    /// Positional. Slots 2 and 3 are display text for the empty-`AXTitle`
+    /// fallback and are never branch inputs; slot 4 is read as a boolean only.
     private static let attributes: [String] = [
         kAXRoleAttribute, kAXSubroleAttribute, kAXTitleAttribute,
         kAXDescriptionAttribute, kAXValueAttribute,

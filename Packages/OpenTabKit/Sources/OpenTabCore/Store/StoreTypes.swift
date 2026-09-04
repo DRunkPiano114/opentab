@@ -7,9 +7,10 @@ public enum ReadKind: Sendable, Hashable {
 
 /// Identifies one asynchronous read. Issued by `TabStore.beginRead(for:kind:)`
 /// before the read starts and handed back with its result, so the store can
-/// drop what arrived too late (reconciliation A and B). Window and tab reads
-/// of one app are sequenced independently: they run on different paths and
-/// neither supersedes the other.
+/// drop what arrived too late: a read issued under an earlier focus
+/// generation, or one a later read of the same app has superseded. Window and
+/// tab reads of one app are sequenced independently: they run on different
+/// paths and neither supersedes the other.
 public struct ReadStamp: Sendable, Hashable {
     public let app: AppKey
     public let kind: ReadKind
@@ -20,22 +21,22 @@ public struct ReadStamp: Sendable, Hashable {
 public enum ReadDisposition: Sendable, Equatable {
     case applied
     /// Issued under an earlier focus generation; a slow read of the previous
-    /// app must not touch the store after the user moved on (A).
+    /// app must not touch the store after the user moved on.
     case staleGeneration
     /// A later read of the same app was issued after this one; applying it
-    /// would roll the app back (B).
+    /// would roll the app back.
     case superseded
-    /// Empty. An empty read never deletes (G, L5).
+    /// Empty. An empty read never deletes.
     case rejectedEmpty
 }
 
-/// The three claim rules, in the order they are tried (E).
+/// The three claim rules, in the order they are tried.
 public enum ClaimRule: Sendable, Equatable {
     /// The window title and the script window's active tab corroborate.
     case title
     /// The window has no title and exactly one unowned script window exists.
     case elimination
-    /// The window key was resolved to the script window by the caller (K).
+    /// The window key was resolved to the script window by the caller.
     case resolution
 }
 

@@ -7,8 +7,8 @@ import OpenTabCore
 /// is active, the panel is key, and the event is ours to consume. In the
 /// navigation state the panel is a non-activating panel that never became key,
 /// so a global monitor could observe the chord but not swallow it, and the
-/// same `Cmd+W` would also reach the app in front and close one of its windows
-/// (L14). Nothing here is installed until the search state is entered.
+/// same `Cmd+W` would also reach the app in front and close one of its
+/// windows. Nothing here is installed until the search state is entered.
 @MainActor
 final class DetailKeyMonitor {
     var onCloseSelected: (() -> Void)?

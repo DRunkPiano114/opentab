@@ -24,8 +24,8 @@ final class HotKeyBindingTests: XCTestCase {
         XCTAssertNil(HotKeyBinding(stored: "48"))
     }
 
-    /// keymap.md §2 records the shipped values; the recorder writes the same
-    /// shape, so a drift here is a silently different default hotkey.
+    /// These are the shipped defaults; the recorder writes the same shape, so
+    /// a drift here is a silently different default hotkey.
     func testDefaultsAreTheMeasuredValues() {
         XCTAssertEqual(HotKeyBinding.mainDefault.keyCode, 48)
         XCTAssertEqual(HotKeyBinding.mainDefault.carbonModifiers, 2048)

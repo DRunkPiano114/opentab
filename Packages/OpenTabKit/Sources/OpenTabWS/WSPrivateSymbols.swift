@@ -6,14 +6,14 @@ import Foundation
 typealias GetWindowFunction = @convention(c) (AXUIElement, UnsafeMutablePointer<CGWindowID>) -> AXError
 
 /// Every private symbol this module touches, resolved with `dlsym` at first
-/// use and `nil` when absent (L10). Nothing is linked directly, and every
-/// caller has a degradation path for a `nil`.
+/// use and `nil` when absent. Nothing is linked directly, and every caller
+/// has a degradation path for a `nil`.
 ///
 /// Signatures come from the arm64 disassembly of HIServices on macOS 26.6.2
-/// (`experiments/E0-results.md` §3) and the SkyLight probes in
-/// `appendix/a-skylight.md`; the `CGS*` names are shared-cache aliases of the
-/// `SLS*` exports. A wrong signature segfaults instead of returning an error,
-/// so a change here is unverified until the app-hosted symbol tests pass.
+/// and from SkyLight probe runs on the same version; the `CGS*` names are
+/// shared-cache aliases of the `SLS*` exports. A wrong signature segfaults
+/// instead of returning an error, so a change here is unverified until the
+/// app-hosted symbol tests pass.
 enum WSPrivateSymbols {
     // MARK: HIServices
 
@@ -32,8 +32,8 @@ enum WSPrivateSymbols {
     typealias CopySpacesForWindows = @convention(c) (Int32, Int32, CFArray) -> Unmanaged<CFArray>?
     typealias CopyManagedDisplaySpaces = @convention(c) (Int32) -> Unmanaged<CFArray>?
     /// `CGError CGSGetWindowLevel(int cid, CGWindowID wid, CGWindowLevel *level)`.
-    /// Not in E0's verified list; the diagnostics compare it against the
-    /// public `kCGWindowLayer` before anything relies on it.
+    /// No probe run has confirmed this symbol, so the diagnostics compare it
+    /// against the public `kCGWindowLayer` before anything relies on it.
     typealias GetWindowLevel = @convention(c) (Int32, CGWindowID, UnsafeMutablePointer<Int32>) -> Int32
     /// `CGError CGSSetSymbolicHotKeyEnabled(int hotKey, Boolean enabled)`.
     typealias SetSymbolicHotKeyEnabled = @convention(c) (Int32, Bool) -> Int32

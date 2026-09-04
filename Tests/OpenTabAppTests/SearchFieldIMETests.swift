@@ -293,7 +293,7 @@ final class SearchFieldIMETests: XCTestCase {
     /// Keyboard focus is judged by the AX server's system-wide focused
     /// application, which is independent of this process. `NSApp.isActive`
     /// is AppKit's own opinion, and `NSWorkspace.frontmostApplication` is
-    /// LaunchServices' view that never reported this test host at all (L2).
+    /// LaunchServices' view that never reported this test host at all.
     private func requireKeyboardOwnership() throws {
         let pid = ProcessInfo.processInfo.processIdentifier
         let deadline = ContinuousClock.now + .milliseconds(500)

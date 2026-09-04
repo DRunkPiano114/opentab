@@ -4,7 +4,7 @@ import OpenTabCore
 import XCTest
 
 /// Exercises the AX layer against this process's own windows. Same-process
-/// AX needs no Accessibility grant (L9 corollary), so these run in CI.
+/// AX needs no Accessibility grant, so these run in CI.
 @MainActor
 final class AXSelfProcessTests: XCTestCase {
     private var windowA: NSWindow!

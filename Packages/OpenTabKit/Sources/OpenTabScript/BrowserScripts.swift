@@ -10,7 +10,7 @@ import Foundation
 ///
 /// Every script addresses its target with `tell application id`, never by name:
 /// names resolve ambiguously and a plain `tell application "Safari"` launches
-/// Safari (L6). Callers still check that the target is running first.
+/// Safari. Callers still check that the target is running first.
 enum BrowserScripts {
     /// Bounds a wedged target. It only constrains commands sent to the
     /// application object, not local computation, and its ability to cut through
@@ -60,7 +60,7 @@ enum BrowserScripts {
     }
 
     /// Safari addresses tabs positionally, so an index that moved between the
-    /// read and this call selects the wrong tab (H11). There is no tab id to
+    /// read and this call selects the wrong tab. There is no tab id to
     /// re-resolve against.
     static func safariActivateTab(bundleID: String, windowID: String, tabIndex: Int) -> String {
         timed("""

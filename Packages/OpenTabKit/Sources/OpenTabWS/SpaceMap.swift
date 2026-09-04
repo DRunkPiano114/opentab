@@ -2,13 +2,13 @@ import CoreGraphics
 import Foundation
 import os
 
-/// Space membership by the set method (H19): a window is on an active Space
+/// Space membership by the set method: a window is on an active Space
 /// when the Spaces it belongs to intersect the set of every display's current
 /// Space. `SLSWindowIsOnCurrentSpace` is not consulted (it answers `false`
 /// for windows on the current Space), and a single "current Space" is not
 /// enough with several displays.
 public enum SpaceMembership {
-    /// H20: some minimized windows belong to no Space at all, and a minimized
+    /// Some minimized windows belong to no Space at all, and a minimized
     /// window is reachable to AX regardless of Space, so an empty list falls
     /// back to `isMinimized`.
     public static func isOnActiveSpace(windowSpaces: [UInt64], activeSpaces: Set<UInt64>,
@@ -43,7 +43,7 @@ final class SpaceMap: Sendable {
     private let copyManagedDisplaySpaces: WSPrivateSymbols.CopyManagedDisplaySpaces
     private let cache = OSAllocatedUnfairLock(initialState: Cache())
 
-    /// `nil` when any of the three CGS symbols is missing (L10).
+    /// `nil` when any of the three CGS symbols is missing.
     init?() {
         guard let mainConnection = WSPrivateSymbols.mainConnectionID,
               let copySpaces = WSPrivateSymbols.copySpacesForWindows,

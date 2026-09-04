@@ -2,7 +2,7 @@ import AppKit
 
 /// The system transitions after which the cache cannot be trusted or the
 /// panel cannot stay where it is: sleep/wake, display topology, the active
-/// Space, and fast user switching. Public notifications only (L15).
+/// Space, and fast user switching. Public notifications only.
 @MainActor
 final class SystemEventMonitor {
     var onWake: (() -> Void)?

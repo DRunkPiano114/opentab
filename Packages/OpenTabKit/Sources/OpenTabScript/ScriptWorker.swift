@@ -35,12 +35,12 @@ final class ScriptJob {
 
 /// One dedicated thread that owns one AppleScript executor.
 ///
-/// L12, all measured: jobs are pulled from a condition variable at the top level
+/// All measured: jobs are pulled from a condition variable at the top level
 /// of the thread body. Delivering them through the thread's run loop instead
 /// (`perform(_:on:)`, `CFRunLoopPerformBlock`) wedges the first send for 12-21
 /// seconds, because AppleScript spins a nested run loop while it waits for a
 /// reply. A Swift `actor` is equally wrong: it would run the blocking call on
-/// the cooperative pool and starve every other async task in the app (L13).
+/// the cooperative pool and starve every other async task in the app.
 ///
 /// A thread's own autorelease pool is popped only when the thread exits, and
 /// this one is meant never to exit, so each job runs inside a pool of its own.

@@ -1,8 +1,7 @@
 import XCTest
 @testable import OpenTabCore
 
-/// The sixteen cases of `reference/reconciliation.md`, in order, then the
-/// behaviours they rely on.
+/// The reconciliation rules, in order, then the behaviours they rely on.
 final class TabStoreTests: XCTestCase {
     let xcode = app("Xcode", pid: 200)
     let github = scripted(chrome, "w1")
@@ -492,7 +491,7 @@ final class TabStoreTests: XCTestCase {
         XCTAssertEqual(h.store.tabs(in: github).count, 1)
     }
 
-    // MARK: Positional tokens (Safari, H11)
+    // MARK: Positional tokens (Safari)
 
     func testPositionalTokensFollowTheTabWhenItIsDragged() {
         var h = StoreHarness()
@@ -566,7 +565,7 @@ final class TabStoreTests: XCTestCase {
         XCTAssertTrue(h.store.isEmpty)
     }
 
-    // MARK: Private windows (L16)
+    // MARK: Private windows
 
     func testPrivateWindowHidesTheWindowRowItStandsFor() {
         var h = StoreHarness()

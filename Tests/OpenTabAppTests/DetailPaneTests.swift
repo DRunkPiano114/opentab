@@ -163,7 +163,7 @@ final class DetailPaneTests: XCTestCase {
     }
 
     /// The same empty answer from a script provider says nothing: it may have
-    /// been refused or aimed at a browser that is still starting (L5).
+    /// been refused or aimed at a browser that is still starting.
     func testEmptyScriptReadKeepsTheTabRows() async {
         let provider = FakeTabProvider(bundleIDs: [chrome.bundleID])
         let coordinator = makeCoordinator(provider)
@@ -214,8 +214,8 @@ final class DetailPaneTests: XCTestCase {
                        DetailMetrics.height(rowCount: 1, visibleHeight: nil), accuracy: 0.001)
     }
 
-    /// ui-spec.md §3: the detail row wraps to two lines while the main list
-    /// truncates to one. The two must not drift together.
+    /// The detail row wraps to two lines while the main list truncates to
+    /// one. The two must not drift together.
     func testDetailAndMainListKeepTheirDifferences() {
         XCTAssertEqual(DetailMetrics.titleLineLimit, 2)
         XCTAssertNotEqual(DetailMetrics.rowPitch, Theme.rowPitch)

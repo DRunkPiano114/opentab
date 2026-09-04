@@ -8,7 +8,7 @@ public enum AutomationStatus: Sendable, Equatable {
     /// our own misconfiguration from a user refusal.
     case denied
     /// `-1744`. No authorisation record, which does not distinguish "never
-    /// asked" from "asked and refused" (appendix K §1.3).
+    /// asked" from "asked and refused".
     case undetermined
     /// `-600`. Nothing to ask about yet.
     case targetNotRunning

@@ -6,7 +6,7 @@ import os
 
 /// Enumerates windows over the Accessibility API, one app per call.
 ///
-/// Reads run on the target pid's own serial queue (L13) and return value
+/// Reads run on the target pid's own serial queue and return value
 /// types only; the elements stay behind the lock so the activator can find
 /// them by `WindowKey`.
 public final class AXWindowSource: WindowSource, @unchecked Sendable {
@@ -35,7 +35,7 @@ public final class AXWindowSource: WindowSource, @unchecked Sendable {
         var stats: ReadStats
     }
 
-    /// Positional. Slot 3 feeds only the L11 title fallback and is never a branch input.
+    /// Positional. Slot 3 feeds only the empty-`AXTitle` fallback and is never a branch input.
     private static let windowAttributes: [String] = [kAXRoleAttribute, kAXSubroleAttribute, kAXTitleAttribute, kAXDescriptionAttribute, kAXMinimizedAttribute]
     private static let measureBudget: Duration = .seconds(2)
 
@@ -112,7 +112,7 @@ public final class AXWindowSource: WindowSource, @unchecked Sendable {
     }
 
     /// The app's own `kAXFrontmostAttribute`: the window server's view of
-    /// which app is active, unlike `NSWorkspace.frontmostApplication` (L2).
+    /// which app is active, unlike `NSWorkspace.frontmostApplication`.
     func isFrontmost(pid: pid_t) -> Bool {
         (AXRead.value(.application(pid: pid), kAXFrontmostAttribute).value as? Bool) ?? false
     }

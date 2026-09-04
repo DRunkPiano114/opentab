@@ -108,7 +108,7 @@ final class WindowIndexTests: XCTestCase {
         await index.refreshAll()
         source.set([], for: xcode)
         await index.refresh(app: xcode)
-        XCTAssertTrue(index.entries.contains { $0.key == .cg(3) }, "empty read keeps the row (L5)")
+        XCTAssertTrue(index.entries.contains { $0.key == .cg(3) }, "empty read keeps the row")
         await index.rebuild()
         XCTAssertFalse(index.entries.contains { $0.key == .cg(3) })
     }

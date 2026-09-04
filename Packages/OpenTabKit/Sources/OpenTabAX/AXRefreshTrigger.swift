@@ -3,7 +3,7 @@ import ApplicationServices
 import OpenTabCore
 import os
 
-/// Refresh events without private API (L15): `NSWorkspace` app-lifecycle
+/// Refresh events without private API: `NSWorkspace` app-lifecycle
 /// notifications, one lightweight `AXObserver` on the frontmost app only,
 /// and a periodic tick as the safety net.
 @MainActor

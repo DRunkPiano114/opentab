@@ -2,10 +2,10 @@ import ApplicationServices
 import OpenTabCore
 
 /// Failure of one application read. Codes are distinguished because they call
-/// for different reactions (appendix B §2.6).
+/// for different reactions.
 public enum AXSourceError: Error, Sendable, Equatable {
     /// The deadline passed before the read finished. Nothing partial is
-    /// returned (L5).
+    /// returned.
     case deadlineExceeded
     /// `kAXErrorAPIDisabled`: this process is not trusted. Not per-app.
     case notTrusted
@@ -45,6 +45,6 @@ public enum AXActivationError: Error, Sendable, Equatable {
     /// No snapshot has listed this key, so there is no element to act on.
     case unknownWindow(WindowKey)
     /// The app never reported `kAXFrontmostAttribute` before the deadline.
-    /// AppKit return values are not consulted (L2).
+    /// AppKit return values are not consulted.
     case unconfirmed
 }

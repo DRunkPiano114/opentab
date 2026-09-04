@@ -66,7 +66,7 @@ func incognitoWindow(_ id: UInt32, _ page: String) -> WindowSnapshot {
 }
 
 /// What a provider hands over for a private window under the default policy:
-/// the window, its title, and none of its tabs (L16).
+/// the window, its title, and none of its tabs.
 func withheldWindow(_ window: WindowKey, _ title: String) -> TabSnapshot {
     TabSnapshot(windowKey: window, token: "", title: title, url: nil, isActive: true,
                 isPrivate: true, withholdsTabs: true)

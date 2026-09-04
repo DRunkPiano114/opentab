@@ -55,16 +55,14 @@ private final class RestoreGuard: Sendable {
     }
 }
 
-/// The system side of the Cmd+Tab takeover (`reference/keymap.md` §3,
-/// verified in E2): disables symbolic hotkeys 1 and 2 in the WindowServer so
-/// the app's own Carbon bindings for the same chords receive the keys, and
-/// puts them back. Off by default; `ws.cmdTabTakeover` turns it on. The
-/// chords themselves are bound by the app's `HotKeyCenter`, which also
-/// reports the Cmd release from its `flagsChanged` monitors.
+/// The system side of the Cmd+Tab takeover: disables symbolic hotkeys 1 and 2
+/// in the WindowServer so the app's own Carbon bindings for the same chords
+/// receive the keys, and puts them back. Off by default; `ws.cmdTabTakeover`
+/// turns it on. The chords themselves are bound by the app's `HotKeyCenter`,
+/// which also reports the Cmd release from its `flagsChanged` monitors.
 ///
-/// The state read before the change is what gets written back (E2
-/// requirement 2), from every exit path plus a marker replayed at the next
-/// launch (requirement 3).
+/// The state read before the change is what gets written back, from every
+/// exit path plus a marker replayed at the next launch.
 @MainActor
 public final class CmdTabTakeover {
     public static let defaultsKey = "ws.cmdTabTakeover"
@@ -120,7 +118,7 @@ public final class CmdTabTakeover {
 
     /// Disables the system chords. Register the app's own bindings after
     /// this returns `true`: a Carbon hotkey registered while the system chord
-    /// is enabled reports success and never fires (E2).
+    /// is enabled reports success and never fires.
     @discardableResult
     public func enable() -> Bool {
         guard !isEnabled else { return true }

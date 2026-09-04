@@ -76,7 +76,7 @@ struct FaviconConfiguration: Sendable {
 ///
 /// SQLite, `copyItem` and the remote fetch all block their thread for an
 /// unbounded time; on the cooperative pool that would starve unrelated async
-/// work, so none of this may live in an `actor` (iron law L13).
+/// work, so none of this may live in an `actor`.
 final class FaviconEngine: Sendable {
     private let configuration: FaviconConfiguration
     private let queue = DispatchQueue(label: "im.opentab.app.favicons", qos: .utility)

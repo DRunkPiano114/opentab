@@ -11,7 +11,7 @@ import os
 /// synthetic HID keys through the real Carbon hotkeys into a real session,
 /// index, panel and search field, with Calculator as the target and the
 /// Pinyin input method composing the query. Judged by the panel's state and
-/// the target's own `kAXFrontmostAttribute` (L2).
+/// the target's own `kAXFrontmostAttribute`.
 @MainActor
 final class SearchSessionTests: XCTestCase {
     private static let calculatorURL = URL(fileURLWithPath: "/System/Applications/Calculator.app")

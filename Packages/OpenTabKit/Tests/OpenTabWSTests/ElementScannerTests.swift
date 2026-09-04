@@ -89,7 +89,7 @@ final class ElementScannerTests: XCTestCase {
     }
 
     /// A still-pending window resumes at the cursor and wraps, so an id below
-    /// where the last call stopped is still reached within one lap (H18).
+    /// where the last call stopped is still reached within one lap.
     func testCursorResumesAcrossCallsAndWraps() {
         var state = ElementScanner.State()
         let scanner = scanner(maxID: 10)

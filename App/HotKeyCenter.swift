@@ -15,7 +15,7 @@ enum KeyPhase {
 
 /// The modifier the user holds while the panel is up; releasing it commits
 /// the selection. Option is the app's own default chord and Command is the
-/// Cmd+Tab takeover (keymap.md §3); a recorded chord may use any of the
+/// Cmd+Tab takeover; a recorded chord may use any of the
 /// three, and the monitors track all of them.
 ///
 /// Shift is deliberately not one: it is the reverse-direction modifier, so
@@ -55,7 +55,8 @@ final class HotKeyCenter {
     /// for the keys registered while the panel is up.
     var onNavigationKey: ((NavigationKey, KeyPhase, HoldModifier?) -> Void)?
     /// A hold modifier is no longer held. Fires only from the monitors, never
-    /// from Carbon's release event (E2: the two are not ordered against each other).
+    /// from Carbon's release event: the two are not ordered against each
+    /// other, so Carbon's release can arrive after the monitor's.
     var onModifierReleased: ((HoldModifier) -> Void)?
     private(set) var modifierMonitorsInstalled = false
 
@@ -70,7 +71,7 @@ final class HotKeyCenter {
     private nonisolated static let signature: OSType = 0x4F50_5442 // 'OPTB'
 
     /// The chords registered for the whole process lifetime. Replaced when
-    /// the user records new ones; the defaults are keymap.md §2.
+    /// the user records new ones; the defaults live on `HotKeyBinding`.
     private static func persistent(main: HotKeyBinding, reverse: HotKeyBinding,
                                    search: HotKeyBinding) -> [Binding] {
         [
@@ -82,8 +83,8 @@ final class HotKeyCenter {
     }
 
     /// The Cmd+Tab takeover. Registered only while `CmdTabTakeover` has the
-    /// system chords disabled: registered earlier they succeed and never
-    /// fire (E2).
+    /// system chords disabled: registered earlier they report success and
+    /// never fire.
     private static let commandTab: [Binding] = [
         Binding(id: 4, keyCode: UInt32(kVK_Tab), modifiers: UInt32(cmdKey), key: .next, hold: .command),
         Binding(id: 5, keyCode: UInt32(kVK_Tab), modifiers: UInt32(cmdKey | shiftKey), key: .previous, hold: .command),

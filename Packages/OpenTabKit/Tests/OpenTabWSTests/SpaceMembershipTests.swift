@@ -1,8 +1,9 @@
 import XCTest
 import OpenTabWS
 
-/// E0 §4: two displays, active Spaces {3, 829}; wid 82 on 1088 and the
-/// fullscreen Safari on 1109 are off; Ghostty wid 122 (minimized) has no Space.
+/// The scene from a real dump: two displays, active Spaces {3, 829}; wid 82
+/// on 1088 and the fullscreen Safari on 1109 are off; the minimized wid 122
+/// has no Space at all.
 final class SpaceMembershipTests: XCTestCase {
     private let active: Set<UInt64> = [3, 829]
 
@@ -20,7 +21,7 @@ final class SpaceMembershipTests: XCTestCase {
         XCTAssertTrue(SpaceMembership.isOnActiveSpace(windowSpaces: [1088, 829], activeSpaces: active, isMinimized: false))
     }
 
-    /// H20: no Space at all falls back to the minimized flag.
+    /// No Space at all falls back to the minimized flag.
     func testEmptySpaceListFallsBackToMinimized() {
         XCTAssertTrue(SpaceMembership.isOnActiveSpace(windowSpaces: [], activeSpaces: active, isMinimized: true))
         XCTAssertFalse(SpaceMembership.isOnActiveSpace(windowSpaces: [], activeSpaces: active, isMinimized: false))

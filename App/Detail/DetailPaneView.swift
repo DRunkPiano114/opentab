@@ -2,7 +2,7 @@ import SwiftUI
 
 /// The second-level pane. Fills the frame the host view is given, like the
 /// main list; the panel body underneath stays fully opaque and only the back
-/// chip and the search control transmit the desktop (iron laws §A, row 1).
+/// chip and the search control transmit the desktop.
 struct DetailPaneView: View {
     let model: PanelViewModel
     let pane: DetailPane
@@ -125,7 +125,7 @@ struct DetailPaneView: View {
 }
 
 /// One tab. An 18pt favicon, then the title wrapped to at most two lines —
-/// both differences from the main list are intentional (ui-spec.md §3).
+/// both differences from the main list are intentional.
 private struct DetailRowView: View {
     let model: PanelViewModel
     let index: Int

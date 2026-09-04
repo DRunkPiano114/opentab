@@ -7,7 +7,7 @@ import Foundation
 ///
 /// The signatures were read off the arm64 disassembly of HIServices on
 /// macOS 26.6.2 (see the `token` command's header comment for the token
-/// layout) and off the SkyLight probes recorded in `appendix/a-skylight.md`.
+/// layout) and off SkyLight probe runs on the same version.
 /// A wrong signature segfaults instead of returning an error, so treat any
 /// change here as unverified until a `token probe` run has survived it.
 enum PrivateSymbols {

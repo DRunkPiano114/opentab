@@ -7,9 +7,8 @@ import os
 @testable import OpenTab
 
 /// The store, the providers and the window source wired together the way
-/// the app wires them, driven with fake snapshots. Every scenario here is
-/// one the packet lists as an integration failure that no library test can
-/// see.
+/// the app wires them, driven with fake snapshots. Every scenario here is an
+/// integration failure that no library test can see.
 @MainActor
 final class CoordinatorTests: XCTestCase {
     private var harness: CoordinatorHarness!
@@ -37,7 +36,7 @@ final class CoordinatorTests: XCTestCase {
         harness.rows.filter { $0.appName == chrome.localizedName }
     }
 
-    // MARK: Incognito windows (L16, gate G-3)
+    // MARK: Incognito windows
 
     /// The provider withholding the tabs is not enough on its own: the window
     /// still reaches the list through Accessibility, under its own title.
@@ -103,7 +102,7 @@ final class CoordinatorTests: XCTestCase {
         XCTAssertEqual(opted.coordinator.store.privateWindowCount, 0)
     }
 
-    // MARK: Three Chrome windows (packet §3, the reason this packet exists)
+    // MARK: Three Chrome windows, one row each
 
     func testThreeChromeWindowsGiveExactlyThreeRowsWithTabCounts() async {
         await activateChrome()
@@ -156,7 +155,7 @@ final class CoordinatorTests: XCTestCase {
         XCTAssertEqual(chromeRows.map(\.title), ["GitHub", "Docs"])
     }
 
-    // MARK: Failure modes (packet §4)
+    // MARK: Failure modes
 
     func testAutomationRefusalDegradesTheBrowserToWindowsOnly() async {
         await activateChrome()
@@ -212,7 +211,7 @@ final class CoordinatorTests: XCTestCase {
         provider.failReads(with: .failed(code: -1, message: "page content must not reach a log"))
         await harness.coordinator.handle(.periodic)
         await harness.coordinator.handle(.periodic)
-        XCTAssertEqual(chromeRows.map(\.count), [3, 2, nil], "two failures keep the cache (L5)")
+        XCTAssertEqual(chromeRows.map(\.count), [3, 2, nil], "two failures keep the cache")
         XCTAssertEqual(chromeRows.map(\.status), [.normal, .normal, .normal])
 
         await harness.coordinator.handle(.periodic)
@@ -364,7 +363,7 @@ final class CoordinatorTests: XCTestCase {
         XCTAssertNotNil(harness.entries.first { $0.id == entry.id })
     }
 
-    // MARK: Panel visibility (H) and the sweep (F)
+    // MARK: Panel visibility and the periodic sweep
 
     func testRemovalsWaitForThePanelToClose() async {
         harness.source.set([window(9, notes, title: "Groceries", focused: true), window(10, notes, title: "Todo")], for: notes)
@@ -386,7 +385,7 @@ final class CoordinatorTests: XCTestCase {
         harness.directory.set(apps: [chrome])
         harness.setLive(nil)
         await harness.coordinator.handle(.periodic)
-        XCTAssertTrue(harness.entries.contains { $0.app.key == notes.key }, "no WindowServer read, no evidence (L5)")
+        XCTAssertTrue(harness.entries.contains { $0.app.key == notes.key }, "no WindowServer read, no evidence")
 
         harness.setLive([1, 2, 3])
         await harness.coordinator.handle(.periodic)

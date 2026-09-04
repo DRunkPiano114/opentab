@@ -36,8 +36,8 @@ final class AutomationGateKeeper: AutomationGate {
     /// The guided request ended in a grant; the browser's tabs can be read.
     var onAuthorized: (@MainActor (AppInfo) -> Void)?
     /// How long a refusal is trusted before the grant is checked again. Each
-    /// check costs a thread that may hang (appendix K §1.3), so the cadence
-    /// is slow; the status-menu action forces a recheck.
+    /// check costs a thread that may hang, so the cadence is slow; the
+    /// status-menu action forces a recheck.
     var recheckInterval: Duration = .seconds(300)
 
     private(set) var deniedBundleIDs: Set<String> = [] {
@@ -115,7 +115,7 @@ final class AutomationGateKeeper: AutomationGate {
         Set(verdicts.filter { $0.value.status == .undetermined && !requestLog.hasRequested($0.key) }.map(\.key))
     }
 
-    /// The onboarding step (packet §5) for the browsers running now, one at
+    /// The onboarding step for the browsers running now, one at
     /// a time, and the status-menu action for a browser that arrived later.
     /// Our own explanation comes first, then the system prompt, so the
     /// consent dialog never appears out of nowhere.

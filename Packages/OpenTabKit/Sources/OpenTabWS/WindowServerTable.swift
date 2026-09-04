@@ -2,7 +2,7 @@ import CoreGraphics
 import Foundation
 import os
 
-/// One row of `CGWindowListCopyWindowInfo`. Names are never read (L16).
+/// One row of `CGWindowListCopyWindowInfo`. Names are never read.
 struct WindowRow: Sendable, Equatable {
     let id: CGWindowID
     let pid: pid_t
@@ -23,7 +23,7 @@ final class WindowServerTable: Sendable {
     }
 
     private static let maxAge: Duration = .milliseconds(300)
-    /// A CGWindowList row is not a window (L4): shadows, tooltips and
+    /// A CGWindowList row is not a window: shadows, tooltips and
     /// toolbar fragments sit at layer 0 too. Anything smaller than this on a
     /// side, or fully transparent, is not worth a token scan; a real window
     /// the filter would drop is still listed whenever AX reaches it.
@@ -33,7 +33,7 @@ final class WindowServerTable: Sendable {
 
     /// `nil` when the WindowServer answered nothing at all: an empty list
     /// for the whole session is a failed call, never a fact about windows,
-    /// and pruning on it would delete rows (L5). The previous table stands
+    /// and pruning on it would delete rows. The previous table stands
     /// until the next successful read.
     func rows(ownedBy pid: pid_t) -> [WindowRow]? {
         state.withLock { state in

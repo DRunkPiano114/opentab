@@ -63,7 +63,8 @@ enum AXReader {
         return id
     }
 
-    /// The app's own `kAXFrontmostAttribute` (L2).
+    /// The app's own `kAXFrontmostAttribute`: the window server's view of
+    /// which app is active.
     static func isFrontmost(pid: pid_t) -> Bool {
         (value(.application(pid: pid), kAXFrontmostAttribute) as? Bool) ?? false
     }
@@ -73,9 +74,9 @@ enum AXReader {
     }
 }
 
-/// One serial queue per target pid so a wedged app stalls only its own reads
-/// (L13). Our own pid goes to the main queue: same-process AX runs inline in
-/// AppKit, which is main-thread-only (L9).
+/// One serial queue per target pid so a wedged app stalls only its own reads.
+/// Our own pid goes to the main queue: same-process AX runs inline in AppKit,
+/// which is main-thread-only.
 final class SerialQueues: Sendable {
     private let queues = OSAllocatedUnfairLock<[pid_t: DispatchQueue]>(initialState: [:])
 

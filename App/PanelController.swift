@@ -8,7 +8,7 @@ import os
 /// fills whatever frame it is given.
 @MainActor
 final class PanelController {
-    /// Layout tokens from reference/ui-spec.md §2.
+    /// Layout tokens measured from the reference design.
     enum Metrics {
         /// Settings-driven; read through `Theme` so the panel frame and the
         /// SwiftUI layer can never disagree about the width.

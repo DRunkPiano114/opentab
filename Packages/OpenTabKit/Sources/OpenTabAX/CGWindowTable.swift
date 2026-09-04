@@ -4,7 +4,7 @@ import os
 
 /// Window number → `kCGWindowLayer`, from `CGWindowListCopyWindowInfo`. Used
 /// only to confirm that an AX window exists in the window server and to read
-/// its layer (L4); names are never read.
+/// its layer; names are never read.
 ///
 /// The table is shared across all per-pid queues so a parallel sweep over 30
 /// apps costs one copy, not thirty. A miss forces a fresh copy unless one was
