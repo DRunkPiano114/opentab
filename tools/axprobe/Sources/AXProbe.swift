@@ -13,7 +13,7 @@ import Foundation
 @main
 enum AXProbe {
     static let version = "0.1.0"
-    static let bundleIdentifierFallback = "com.paulwu.opentab.axprobe"
+    static let bundleIdentifierFallback = "im.opentab.tools.axprobe"
 
     static func main() {
         // Registers the process with LaunchServices so `open -W` can observe it

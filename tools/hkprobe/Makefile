@@ -10,7 +10,7 @@
 SHELL      := /bin/bash
 HERE       := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 NAME       := HKProbe
-BUNDLE_ID  := com.paulwu.opentab.hkprobe
+BUNDLE_ID  := im.opentab.tools.hkprobe
 IDENTITY   := OpenTab Dev Signing
 BUILD      := $(HERE)/build
 APP        := $(BUILD)/$(NAME).app

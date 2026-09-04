@@ -11,7 +11,7 @@
 SHELL      := /bin/bash
 HERE       := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 NAME       := AXProbe
-BUNDLE_ID  := com.paulwu.opentab.axprobe
+BUNDLE_ID  := im.opentab.tools.axprobe
 IDENTITY   := OpenTab Dev Signing
 BUILD      := $(HERE)/build
 APP        := $(BUILD)/$(NAME).app

@@ -6,11 +6,8 @@ receive Cmd+Tab, and does a global `flagsChanged` monitor see the Cmd release?
 
 It is a separate bundle from axprobe on purpose. axprobe promises never to
 mutate anything it observes; this tool flips WindowServer hotkey state. Same
-stable signing identity, its own bundle id (`com.paulwu.opentab.hkprobe`), its
+stable signing identity, its own bundle id (`im.opentab.tools.hkprobe`), its
 own row in the Accessibility list.
-
-Result on 2026-09-03 / macOS 26.6.2: forwarding works. See
-`runbook/2026-09-03-opentab-switcher/experiments/E2-cmdtab.md`.
 
 ## Setup
 
@@ -37,3 +34,9 @@ The initial state is read with `CopySymbolicHotKeys` before anything changes
 and written back on normal exit, SIGINT, SIGTERM, `atexit`, and a 45s
 watchdog. The state lives in WindowServer, is not persisted, and any process
 can flip it back — `make restore` recovers a run that died before restoring.
+
+## Requirements
+
+Requires Xcode 26 and macOS 26 or later to build; the deployment target is
+macOS 14.0. Builds with `swiftc` directly; no Xcode project, no package
+dependencies.

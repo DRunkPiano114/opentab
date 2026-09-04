@@ -35,7 +35,7 @@ lookup. The grant survives rebuilds because the app is signed with a stable
 self-signed identity whose designated requirement is
 
 ```
-identifier "com.paulwu.opentab.axprobe" and certificate leaf = H"<cert sha1>"
+identifier "im.opentab.tools.axprobe" and certificate leaf = H"<cert sha1>"
 ```
 
 An ad-hoc signature would produce a bare `cdhash` requirement instead, which
@@ -206,6 +206,6 @@ Sources/
 out/                         command results (JSON + text summaries)
 ```
 
-Requires Swift 6 (built and verified on Swift 6.3.2 / Xcode 26.5 /
-macOS 26.6.2), deployment target macOS 14.0. Builds with `swiftc` directly; no
-Xcode project, no package dependencies.
+Requires Xcode 26 and macOS 26 or later to build; the deployment target is
+macOS 14.0. Builds with `swiftc` directly; no Xcode project, no package
+dependencies.
