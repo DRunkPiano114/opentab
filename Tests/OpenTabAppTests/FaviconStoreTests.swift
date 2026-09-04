@@ -12,6 +12,7 @@ import XCTest
 @MainActor
 final class FaviconStoreTests: XCTestCase {
     private var root: URL!
+    private var suites: [String] = []
 
     override func setUp() async throws {
         root = FileManager.default.temporaryDirectory.appending(path: "favicon-tests-\(UUID().uuidString)")
@@ -19,6 +20,8 @@ final class FaviconStoreTests: XCTestCase {
     }
 
     override func tearDown() async throws {
+        for suite in suites { UserDefaults.standard.removePersistentDomain(forName: suite) }
+        suites = []
         if let root { try? FileManager.default.removeItem(at: root) }
         root = nil
     }
@@ -264,7 +267,9 @@ final class FaviconStoreTests: XCTestCase {
     }
 
     private func makeDefaults() throws -> UserDefaults {
-        try XCTUnwrap(UserDefaults(suiteName: "favicon-tests-\(UUID().uuidString)"))
+        let suite = "favicon-tests-\(UUID().uuidString)"
+        suites.append(suite)
+        return try XCTUnwrap(UserDefaults(suiteName: suite))
     }
 
     private func firstHit(chromium: [URL] = [],
