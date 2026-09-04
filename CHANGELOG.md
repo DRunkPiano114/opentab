@@ -6,6 +6,12 @@ New / Changed / Improved / Fixed / Security.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-05
+
+### New
+
+- OpenTab warns you, once at launch and in Settings, when another copy of it is running: both copies answer the shortcut, so every press would open two switchers.
+
 ## [0.1.0] - 2026-09-04
 
 **Every window and every tab in one list, on Option-Tab.**
