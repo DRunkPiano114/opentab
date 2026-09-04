@@ -25,7 +25,12 @@ PRODUCT     := $(DERIVED)/Build/Products/$(CONFIG)/$(APP_NAME).app
 # tccutil resolves bundle ids through LaunchServices, which will not resolve an
 # app under build/ or /tmp. ~/Applications is why install exists.
 INSTALL_DIR := $(HOME)/Applications
-INSTALLED   := $(INSTALL_DIR)/$(APP_NAME).app
+# The Accessibility list labels each row with the .app folder name, so the
+# development copy carries a folder name of its own to be told apart from the
+# release copy in /Applications. PRODUCT_NAME, and thus the executable name,
+# stays OpenTab.
+INSTALLED_NAME := OpenTab Dev
+INSTALLED   := $(INSTALL_DIR)/$(INSTALLED_NAME).app
 OUT         := $(HERE)/build/out
 DIST        := $(HERE)/dist
 # `log` is a shell builtin in some shells; always use the absolute path.
@@ -43,8 +48,8 @@ help:
 	@echo "make release      Unit tests, then Developer ID build, notarize, staple, zip into dist/ (VERSION=x.y.z)"
 	@echo "make test         swift test (pure logic, no GUI, no permissions)"
 	@echo "make test-app     xcodebuild test, app-hosted (needs a logged-in GUI session)"
-	@echo "make install      Copy the built app to ~/Applications"
-	@echo "make run          Kill the old instance, relaunch via open -a, show logs"
+	@echo "make install      Copy the built app to ~/Applications/OpenTab Dev.app"
+	@echo "make run          Kill the development copy, relaunch via open -a, show logs"
 	@echo "make selftest     Launch the installed app in diagnostic mode; output in build/out/"
 	@echo "make logs         Last 2 minutes of the Debug app's unified log (im.opentab.app.dev)"
 	@echo "make reset-perms  Revoke the Debug app's Accessibility and Apple Events grants"
@@ -109,7 +114,8 @@ release: test
 	@test -n "$(VERSION)" || { echo "usage: make release VERSION=x.y.z"; exit 2; }
 	@VERSION="$(VERSION)" bash "$(HERE)/Scripts/release.sh" all
 
-## Copy to ~/Applications so the bundle path (and thus the TCC row) is stable.
+## Copy to ~/Applications as "OpenTab Dev.app" so the bundle path (and thus the
+## TCC row) is stable.
 install: build
 	mkdir -p "$(INSTALL_DIR)"
 	rm -rf "$(INSTALLED)"
@@ -121,7 +127,7 @@ install: build
 stop:
 	@pkill -x $(APP_NAME) 2>/dev/null && echo "stopped running instance" || true
 
-## Kill the old instance, relaunch from ~/Applications, tail the logs.
+## Kill the development copy, relaunch it from ~/Applications, tail the logs.
 run: install stop
 	@open -a "$(INSTALLED)"
 	@sleep 1

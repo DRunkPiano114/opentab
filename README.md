@@ -55,7 +55,7 @@ Xcode 26 and [xcodegen](https://github.com/yonaskolb/XcodeGen) (`brew install xc
 make build      # generate the project and build Debug into build/
 make test       # OpenTabKit unit tests, no permissions needed
 make test-app   # app-hosted tests; needs the Accessibility grant and drives the real UI
-make run        # install to ~/Applications and launch
+make run        # install to ~/Applications as "OpenTab Dev" and launch
 ```
 
 Debug builds are signed with a self-signed certificate that `make build` creates on first use, so the Accessibility grant survives rebuilds. Release builds are signed with a Developer ID and notarized by `Scripts/release.sh`; a `v*` tag runs that script in GitHub Actions and publishes the release with the matching section of `CHANGELOG.md` as its notes.

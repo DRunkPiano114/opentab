@@ -44,7 +44,7 @@ enum SelfTest {
             }
             lines.append(contentsOf: await coordinatorReport())
         } else {
-            lines.append("enumeration skipped: Accessibility not granted (grant ~/Applications/OpenTab.app and rerun)")
+            lines.append("enumeration skipped: Accessibility not granted (grant \(Bundle.main.bundlePath) and rerun)")
         }
 
         let text = lines.joined(separator: "\n") + "\n"
