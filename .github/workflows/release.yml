@@ -23,8 +23,10 @@ jobs:
           # every release report build 1 and break the monotonic ordering
           # macOS uses to tell two installed copies apart.
           fetch-depth: 0
-      # The release body is the changelog section for this tag. A tag pushed
-      # without one must fail here, before anything is signed or published.
+      # Three gates run before the certificate is imported: the changelog has
+      # to carry a section for this tag (it becomes the release body), the tag
+      # has to be on main, and the unit tests have to pass. A tag that fails
+      # any of them stops here, before anything is signed or published.
       - name: Extract release notes from the changelog
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
@@ -39,6 +41,20 @@ jobs:
           fi
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           cat release-notes.md
+      # actions/checkout only fetches the ref that triggered the run, so
+      # origin/main has to be fetched explicitly. The anonymous fetch works
+      # because the repository is public; a private one would need a token.
+      - name: Refuse tags outside main
+        run: |
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$(git rev-parse 'HEAD^{commit}')" FETCH_HEAD; then
+            echo "::error::$GITHUB_REF_NAME is not on main — releases are cut from main only."
+            exit 1
+          fi
+      # Plain swift test: no generated project and no keychain, so it runs
+      # before either exists.
+      - name: Unit tests
+        run: make test
       # The runner image ships Homebrew and Xcode but not xcodegen, and
       # OpenTab.xcodeproj is generated from project.yml rather than committed.
       - name: Install xcodegen
