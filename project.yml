@@ -61,6 +61,13 @@ targets:
         NSAccessibilityUsageDescription: "OpenTab uses the Accessibility API to list open windows and switch between them."
         NSSupportsAutomaticTermination: false
         NSSupportsSuddenTermination: false
+    # Debug entitlements, generated into Support/OpenTab.entitlements.
+    # get-task-allow and disable-library-validation exist for the app-hosted
+    # test bundles: they are signed with the same team-less self-signed
+    # certificate as the host app, and library validation would refuse to load
+    # them. Release builds must not carry either (notarization rejects
+    # get-task-allow), so they switch to the hand-written
+    # Support/OpenTab-Release.entitlements below.
     entitlements:
       path: Support/OpenTab.entitlements
       properties:
@@ -86,6 +93,24 @@ targets:
         DEVELOPMENT_TEAM: ""
         ENABLE_HARDENED_RUNTIME: YES
         COMBINE_HIDPI_IMAGES: YES
+      configs:
+        # Distributed builds: Developer ID, secure timestamp, hardened runtime
+        # with library validation on. The resulting designated requirement is
+        # anchored to the team id, so it stays stable across certificate
+        # renewals and the installed copy keeps its Accessibility grant.
+        Release:
+          CODE_SIGN_IDENTITY: "Developer ID Application"
+          DEVELOPMENT_TEAM: 5RV9PT7PK4
+          OTHER_CODE_SIGN_FLAGS: "--timestamp"
+          # The plain `xcodebuild build` action injects get-task-allow into
+          # every configuration (only `archive` leaves it out), and
+          # notarization rejects it.
+          CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
+          # XcodeGen writes the generated entitlements path into every
+          # configuration after applying these settings, so a plain
+          # CODE_SIGN_ENTITLEMENTS here would be overwritten; the conditional
+          # form survives and wins for Release.
+          "CODE_SIGN_ENTITLEMENTS[config=Release]": Support/OpenTab-Release.entitlements
 
   OpenTabAppTests:
     type: bundle.unit-test
