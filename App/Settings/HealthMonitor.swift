@@ -12,6 +12,9 @@ import OpenTabCore
 ///     /usr/bin/log show --last 72h --style compact \
 ///       --predicate 'subsystem == "im.opentab.app" AND category == "health"'
 ///
+/// The subsystem is the bundle id, so a Debug build logs under
+/// `im.opentab.app.dev` instead.
+///
 /// The same snapshot is shown live in the settings window.
 @MainActor
 final class HealthMonitor {

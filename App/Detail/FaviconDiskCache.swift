@@ -18,8 +18,11 @@ struct FaviconDiskCache: Sendable {
     /// caches tomorrow is not invisible forever.
     static let missLifetime: TimeInterval = 24 * 60 * 60
 
+    /// Keyed by bundle id so a Debug build and the installed release never
+    /// share (and never corrupt) one cache directory.
     static var productionDirectory: URL {
-        URL(fileURLWithPath: NSHomeDirectory()).appending(path: "Library/Caches/im.opentab.app/favicons")
+        let bundleID = Bundle.main.bundleIdentifier ?? "im.opentab.app"
+        return URL(fileURLWithPath: NSHomeDirectory()).appending(path: "Library/Caches/\(bundleID)/favicons")
     }
 
     let directory: URL
