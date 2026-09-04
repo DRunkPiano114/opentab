@@ -59,7 +59,7 @@ enum SelfTest {
 
     /// Cold show (no pre-warm) versus a second show after the first has warmed
     /// SwiftUI's layout, then a pre-warmed controller, to reproduce the
-    /// 43.6ms → 2.2ms difference pre-warming buys.
+    /// 43.6ms → 2.2ms spread these three paths measured.
     private static func measurePanel() -> [String] {
         let rows = PanelViewModel.Row.placeholders(count: 30)
         var lines: [String] = []

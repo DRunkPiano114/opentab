@@ -6,7 +6,8 @@ public enum WindowKey: Hashable, Sendable {
     /// The underlying type of `CGWindowID`; this module has no CoreGraphics dependency.
     case cg(UInt32)
     /// Fallback when `_AXUIElementGetWindow` is unavailable or fails for a
-    /// window. Later reads upgrade these to `.cg` when the bridge answers.
+    /// window. `WindowResolver` upgrades these to `.cg` when the bridge or
+    /// the frame fallback can name the window.
     case ax(pid: pid_t, elementID: UInt64)
     /// Produced by AppleScript providers.
     case scripted(bundleID: String, token: String)

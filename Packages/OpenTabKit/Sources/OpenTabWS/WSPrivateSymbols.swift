@@ -32,7 +32,7 @@ enum WSPrivateSymbols {
     typealias CopySpacesForWindows = @convention(c) (Int32, Int32, CFArray) -> Unmanaged<CFArray>?
     typealias CopyManagedDisplaySpaces = @convention(c) (Int32) -> Unmanaged<CFArray>?
     /// `CGError CGSGetWindowLevel(int cid, CGWindowID wid, CGWindowLevel *level)`.
-    /// No probe run has confirmed this symbol, so the diagnostics compare it
+    /// Unverified against a live probe, so the diagnostics compare it
     /// against the public `kCGWindowLayer` before anything relies on it.
     typealias GetWindowLevel = @convention(c) (Int32, CGWindowID, UnsafeMutablePointer<Int32>) -> Int32
     /// `CGError CGSSetSymbolicHotKeyEnabled(int hotKey, Boolean enabled)`.

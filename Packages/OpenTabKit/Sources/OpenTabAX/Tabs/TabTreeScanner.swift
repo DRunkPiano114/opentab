@@ -17,9 +17,10 @@ let axTabElementRole = "AXRadioButton"
 /// What one node contributes to the tab search.
 ///
 /// Only `role`, `subrole` and `isSelected` are branched on: `AXRole`,
-/// `AXSubrole` and a boolean `AXValue` are the attributes measured to
-/// survive a language change. `title` and `description` are localised and
-/// feed nothing but the row label.
+/// `AXSubrole` and a boolean `AXValue` are the only attributes measured to
+/// survive a language change. No string that carries display text may ever
+/// be a branch input. `title` and `description` are localised and feed
+/// nothing but the row label.
 struct TabNodeAttributes: Sendable, Equatable {
     var role: String
     var subrole: String

@@ -449,8 +449,8 @@ final class SwitcherCoordinator {
 
     /// A provider that keys windows by CGWindowID has told us the resolution
     /// for free: the key becomes the scripted form the store expects and the
-    /// CGWindowID goes in as the resolution that claims the redundant AX
-    /// window row, no title match needed.
+    /// CGWindowID goes in as the third claim rule's input, so a Safari window
+    /// can be claimed with no title match.
     private func rekeyScriptWindows(in snapshots: [TabSnapshot], app: AppInfo) -> [TabSnapshot] {
         var resolved: Set<UInt32> = []
         let rekeyed = snapshots.map { snapshot -> TabSnapshot in

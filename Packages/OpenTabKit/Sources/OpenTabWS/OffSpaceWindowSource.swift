@@ -40,7 +40,9 @@ public struct OffSpaceConfiguration: Sendable, Equatable {
     public static let maxElementIDKey = "ws.scanMaxElementID"
     public static let budgetMillisecondsKey = "ws.scanBudgetMs"
 
-    /// Exclusive upper bound of the element-id scan.
+    /// Exclusive upper bound of the element-id scan. The real ceiling is
+    /// unknown: an app with very many elements may place a window above it,
+    /// which is why a miss is never read as absence.
     public var maxElementID: UInt64 = 32_768
     /// Wall-clock budget of the scan within one snapshot.
     public var scanBudget: Duration = .milliseconds(200)
@@ -103,8 +105,8 @@ public final class OffSpaceWindowSource: WindowSource, @unchecked Sendable {
         public var filtered = 0
         /// Layer-0 rows on no Space at all: ordered-out windows the app keeps
         /// around. Not scanned for (they are not switch targets) and not
-        /// the minimized case (a minimized window reports no Space either,
-        /// and AX lists it anyway).
+        /// the minimized case (some minimized windows also report no Space,
+        /// and AX lists those anyway).
         public var noSpace = 0
         /// Layer-0 rows on an active Space that are not on screen and that
         /// AX does not list: ordered out with a Space assignment left over.

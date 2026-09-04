@@ -56,7 +56,7 @@ final class HotKeyCenter {
     var onNavigationKey: ((NavigationKey, KeyPhase, HoldModifier?) -> Void)?
     /// A hold modifier is no longer held. Fires only from the monitors, never
     /// from Carbon's release event: the two are not ordered against each
-    /// other, so Carbon's release can arrive after the monitor's.
+    /// other.
     var onModifierReleased: ((HoldModifier) -> Void)?
     private(set) var modifierMonitorsInstalled = false
 
