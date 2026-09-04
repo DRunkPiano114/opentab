@@ -56,7 +56,7 @@ targets:
         CFBundleVersion: "1"
         LSUIElement: true
         LSMinimumSystemVersion: "26.0"
-        NSHumanReadableCopyright: "Copyright © 2026 Lingwei Wu. All rights reserved."
+        NSHumanReadableCopyright: "Copyright © 2026 Lingwei Wu"
         NSAppleEventsUsageDescription: "OpenTab sends Apple Events to other applications to enumerate their windows and tabs and bring the one you pick to the front."
         NSAccessibilityUsageDescription: "OpenTab uses the Accessibility API to list open windows and switch between them."
         NSSupportsAutomaticTermination: false
