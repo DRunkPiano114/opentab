@@ -25,11 +25,12 @@ PRODUCT     := $(DERIVED)/Build/Products/$(CONFIG)/$(APP_NAME).app
 INSTALL_DIR := $(HOME)/Applications
 INSTALLED   := $(INSTALL_DIR)/$(APP_NAME).app
 OUT         := $(HERE)/build/out
+DIST        := $(HERE)/dist
 # `log` is a shell builtin in some shells; always use the absolute path.
 LOG         := /usr/bin/log
 LSREGISTER  := /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister
 
-.PHONY: all project build ci-build test test-app run stop sign install \
+.PHONY: all project build ci-build release test test-app run stop sign install \
         logs logs-stream reset-perms selftest clean help
 
 all: build
@@ -37,6 +38,7 @@ all: build
 help:
 	@echo "make build        xcodegen generate + xcodebuild, print the designated requirement"
 	@echo "make ci-build     Ad-hoc signed Debug build for CI; never touches the keychain"
+	@echo "make release      Developer ID build, notarize, staple, zip into dist/ (VERSION=x.y.z)"
 	@echo "make test         swift test (pure logic, no GUI, no permissions)"
 	@echo "make test-app     xcodebuild test, app-hosted (needs a logged-in GUI session)"
 	@echo "make install      Copy the built app to ~/Applications"
@@ -97,6 +99,12 @@ ci-build: project
 	  grep -E "error:" "$(HERE)/build/xcodebuild-ci.log" || tail -20 "$(HERE)/build/xcodebuild-ci.log"; exit 1; fi
 	@grep -E "warning:|\*\* BUILD" "$(HERE)/build/xcodebuild-ci.log" | grep -v "Metadata extraction skipped" || true
 
+## Developer ID build, notarization, stapling and the release zip in dist/.
+## Credentials: see the header of Scripts/release.sh.
+release:
+	@test -n "$(VERSION)" || { echo "usage: make release VERSION=x.y.z"; exit 2; }
+	@VERSION="$(VERSION)" bash "$(HERE)/Scripts/release.sh" all
+
 ## Copy to ~/Applications so the bundle path (and thus the TCC row) is stable.
 install: build
 	mkdir -p "$(INSTALL_DIR)"
@@ -137,5 +145,5 @@ reset-perms:
 	-tccutil reset AppleEvents $(BUNDLE_ID)
 
 clean:
-	rm -rf "$(HERE)/build" "$(HERE)/$(APP_NAME).xcodeproj"
+	rm -rf "$(HERE)/build" "$(DIST)" "$(HERE)/$(APP_NAME).xcodeproj"
 	cd "$(HERE)/Packages/OpenTabKit" && rm -rf .build
