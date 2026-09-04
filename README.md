@@ -24,8 +24,8 @@ Option-Tab window and tab switcher for macOS. Hold Option, tap Tab, and every op
 | Option-Shift-Tab | Same, stepping backward |
 | Return (in the list) or Command-Shift-L | Search by app, window title, tab title or address |
 | Right arrow / Left arrow | Open a window's tabs in a side pane / go back |
-| Command-W (in the side pane) | Close the selected tab |
-| Escape | Dismiss |
+| Command-W (while searching) | Close the selected tab |
+| Escape | Clear the search, leave the side pane, then dismiss |
 
 Search is forgiving: a few characters in the right order match. Chinese titles match by character, by full pinyin or by initials.
 
@@ -39,8 +39,8 @@ Search is forgiving: a few characters in the right order match. Chinese titles m
 
 ## Privacy
 
-- No network access, no telemetry, no automatic updates.
-- Private and incognito windows are left out of the list unless you opt in under Settings › Privacy. Safari exposes no private-window flag to other apps, so Safari is listed by window only, never by tab.
+- No telemetry and no automatic updates. OpenTab makes no network request unless you turn on "Look up missing icons on Google" under Settings › Privacy, which is off by default; with it on, the domain of each tab is sent to Google to fetch a favicon.
+- Private and incognito windows are left out of the list unless you opt in under Settings › Privacy. Safari exposes no private-window flag to other apps, so with the opt-in off Safari is listed by window and never by tab.
 - Logs and diagnostic dumps never contain window titles.
 
 ## How it works

@@ -18,7 +18,7 @@ New / Changed / Improved / Fixed / Security.
 - Windows on other Spaces and in full screen are listed and reachable like any other.
 - Safari, Chrome, Edge, Brave and other Chromium browsers list their tabs alongside their windows.
 - Finder, Ghostty and iTerm2 tabs are listed too, as are the tabs of other apps that use native macOS tabs.
-- Right arrow opens a window's tabs in a side pane with favicons; Command-W there closes the selected tab.
+- Right arrow opens a window's tabs in a side pane with favicons. While searching, Command-W closes the selected tab.
 - Private and incognito windows stay out of the list unless you opt in under Settings › Privacy.
 - Settings: panel position, text size and width, sort by recency or name, the three shortcuts, open at login, and title patterns to hide.
 - Optional: let OpenTab take over the system Command-Tab. Off by default; the system switcher returns when OpenTab quits.
