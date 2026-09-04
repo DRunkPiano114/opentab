@@ -8,8 +8,9 @@
 #   2. The app is never executed directly. A binary launched from a granted
 #      terminal inherits that terminal's TCC attribution and reports a false
 #      positive; every launch below goes through `open -a`.
+# macOS ships GNU Make 3.81, which has no .SHELLFLAGS: recipes that need
+# pipefail set it inside the recipe line.
 SHELL       := /bin/bash
-.SHELLFLAGS := -eu -o pipefail -c
 
 HERE        := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 APP_NAME    := OpenTab
@@ -49,9 +50,8 @@ project:
 	cd "$(HERE)" && xcodegen generate --quiet
 
 ## Fast unit tests: pure logic only, no GUI, no permissions, no Xcode.
-## `pipefail` is set inside the recipe because make 3.81, the version macOS
-## ships, ignores .SHELLFLAGS; without it the grep filter would report a green
-## run for a failing `swift test`.
+## Without `pipefail` the grep filter would report a green run for a failing
+## `swift test`.
 test:
 	cd "$(HERE)/Packages/OpenTabKit" && set -o pipefail && swift test 2>&1 \
 	  | { grep -E "Test Case|Executed|error:|warning:|failed" || true; }
