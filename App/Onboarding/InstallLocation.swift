@@ -36,6 +36,49 @@ enum InstallLocation {
         return .applications
     }
 
+    /// What launching from this location calls for.
+    enum Action: Equatable {
+        /// Running from a permanent home. Nothing to do, on every launch but
+        /// the first few.
+        case none
+        /// Move this bundle into `/Applications`, then start it from there.
+        case move(from: String)
+        /// The bundle is already in a permanent home, and macOS is running a
+        /// throwaway copy of it only because the download flag is still set.
+        /// Clearing that flag and starting the real one is the whole fix, and
+        /// it needs no question put to the user.
+        case relaunch(from: String)
+        /// Running from a throwaway copy the system will not trace back to an
+        /// original. Only the user can fix this, in the Finder.
+        case explain
+    }
+
+    /// The whole first-launch decision, pure so that every branch is testable
+    /// without installing anything. `resolveOriginal` is asked for the
+    /// pre-translocation path only when there is one to ask about, and
+    /// answers nil when the system cannot say.
+    static func action(bundlePath: String, homeDirectory: String,
+                       resolveOriginal: (String) -> String?) -> Action {
+        switch placement(ofBundlePath: bundlePath, homeDirectory: homeDirectory) {
+        case .applications:
+            return .none
+        case .elsewhere:
+            return .move(from: bundlePath)
+        case .translocated:
+            guard let original = resolveOriginal(bundlePath) else { return .explain }
+            switch placement(ofBundlePath: original, homeDirectory: homeDirectory) {
+            case .applications:
+                return .relaunch(from: original)
+            case .elsewhere:
+                return .move(from: original)
+            case .translocated:
+                // A throwaway copy of a throwaway copy: there is no location
+                // here that moving would make permanent.
+                return .explain
+            }
+        }
+    }
+
     /// Collapses repeated separators and drops a trailing one, so that the
     /// prefix comparisons above do not depend on how the path was spelled.
     private static func normalized(_ path: String) -> String {

@@ -57,6 +57,50 @@ final class InstallLocationTests: XCTestCase {
         XCTAssertEqual(placement("/Applications/AppTranslocation/d/OpenTab.app"), .translocated)
     }
 
+    // MARK: What to do about it
+
+    private func action(_ path: String, original: String? = nil) -> InstallLocation.Action {
+        InstallLocation.action(bundlePath: path, homeDirectory: home) { _ in original }
+    }
+
+    func testAnInstalledCopyIsLeftAlone() {
+        XCTAssertEqual(action("/Applications/OpenTab.app"), .none)
+        XCTAssertEqual(action("/Users/example/Applications/OpenTab.app"), .none)
+    }
+
+    func testACopySomewhereElseIsOfferedTheMove() {
+        XCTAssertEqual(action("/Users/example/Downloads/OpenTab.app"),
+                       .move(from: "/Users/example/Downloads/OpenTab.app"))
+    }
+
+    /// The read-only copy cannot be moved; what the user downloaded can.
+    func testATranslocatedCopyOffersToMoveTheOriginal() {
+        XCTAssertEqual(action(translocated, original: "/Users/example/Downloads/OpenTab.app"),
+                       .move(from: "/Users/example/Downloads/OpenTab.app"))
+    }
+
+    /// Unzipping into the Applications folder and double-clicking there gets
+    /// the app translocated with nowhere to move to: the copy is already
+    /// where it belongs and only the download flag is holding it back.
+    /// Offering a move here would try to move the folder's copy onto itself.
+    func testATranslocatedCopyAlreadyInstalledIsJustRestarted() {
+        XCTAssertEqual(action(translocated, original: "/Applications/OpenTab.app"),
+                       .relaunch(from: "/Applications/OpenTab.app"))
+        XCTAssertEqual(action(translocated, original: "/Users/example/Applications/OpenTab.app"),
+                       .relaunch(from: "/Users/example/Applications/OpenTab.app"))
+    }
+
+    /// The symbol that names the original is private and may go away; with no
+    /// original there is nothing to move, and the user is told what to do.
+    func testATranslocatedCopyWithNoKnownOriginalFallsBackToInstructions() {
+        XCTAssertEqual(action(translocated, original: nil), .explain)
+        XCTAssertEqual(action(translocated, original: translocated), .explain)
+    }
+
+    private let translocated = "/private/var/folders/2k/xy/T/AppTranslocation/9F3B2C1D-0000-4A5E-9B7C-2E1F4A6D8B03/d/OpenTab.app"
+
+    // MARK: Private symbol
+
     /// Without this symbol there is no way back from the read-only copy to
     /// what the user downloaded, and the flow degrades to written
     /// instructions. The test says which of the two is in force today.
