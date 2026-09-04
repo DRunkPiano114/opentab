@@ -15,12 +15,16 @@ final class CmdTabRecoveryTests: XCTestCase {
     }
 
     override func setUp() {
-        suite = "im.opentab.app.tests.\(UUID().uuidString)"
+        // The suite name is a path, so the plist lands in the temp directory rather
+        // than ~/Library/Preferences, where cfprefsd leaves an empty one per test.
+        suite = FileManager.default.temporaryDirectory
+            .appending(path: "im.opentab.app.tests.\(UUID().uuidString)").path
         defaults = UserDefaults(suiteName: suite)
     }
 
     override func tearDown() {
         defaults.removePersistentDomain(forName: suite)
+        try? FileManager.default.removeItem(at: URL(filePath: suite + ".plist"))
     }
 
     private func recovery() -> CmdTabRecovery {

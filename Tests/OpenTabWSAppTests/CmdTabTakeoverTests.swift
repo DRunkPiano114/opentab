@@ -13,7 +13,10 @@ final class CmdTabTakeoverTests: XCTestCase {
 
     override func setUp() async throws {
         try XCTSkipUnless(CmdTabTakeover.isAvailable, "CGSSetSymbolicHotKeyEnabled unavailable")
-        suite = "im.opentab.app.tests.ws.\(UUID().uuidString)"
+        // The suite name is a path, so the plist lands in the temp directory rather
+        // than ~/Library/Preferences, where cfprefsd leaves an empty one per test.
+        suite = FileManager.default.temporaryDirectory
+            .appending(path: "im.opentab.app.tests.ws.\(UUID().uuidString)").path
         defaults = UserDefaults(suiteName: suite)
         original = enabled()
         XCTAssertEqual(original.count, 2)
@@ -25,6 +28,7 @@ final class CmdTabTakeoverTests: XCTestCase {
         CmdTabTakeover.setSystemState(original)
         XCTAssertEqual(enabled(), original)
         defaults.removePersistentDomain(forName: suite)
+        try? FileManager.default.removeItem(at: URL(filePath: suite + ".plist"))
     }
 
     private func enabled() -> [Int32: Bool] { readSymbolicHotKeys([1, 2]) }

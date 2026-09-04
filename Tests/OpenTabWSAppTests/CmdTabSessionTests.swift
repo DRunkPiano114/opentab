@@ -41,7 +41,10 @@ final class CmdTabSessionTests: XCTestCase {
         try XCTSkipUnless(AXIsProcessTrusted(), "needs the Accessibility grant")
         try XCTSkipUnless(CmdTabTakeover.isAvailable, "CGSSetSymbolicHotKeyEnabled unavailable")
         previous = try XCTUnwrap(NSWorkspace.shared.frontmostApplication)
-        suite = "im.opentab.app.tests.ws.session.\(UUID().uuidString)"
+        // The suite name is a path, so the plist lands in the temp directory rather
+        // than ~/Library/Preferences, where cfprefsd leaves an empty one per test.
+        suite = FileManager.default.temporaryDirectory
+            .appending(path: "im.opentab.app.tests.ws.session.\(UUID().uuidString)").path
         defaults = UserDefaults(suiteName: suite)
         original = CmdTabTakeover.systemState()
 
@@ -90,6 +93,7 @@ final class CmdTabSessionTests: XCTestCase {
         CmdTabTakeover.setSystemState(original)
         XCTAssertEqual(CmdTabTakeover.systemState(), original, "the system chords come back as found")
         defaults?.removePersistentDomain(forName: suite)
+        try? FileManager.default.removeItem(at: URL(filePath: suite + ".plist"))
         if let calculator {
             calculator.terminate()
             try? await poll("calculator terminated", timeout: .seconds(3)) { calculator.isTerminated }

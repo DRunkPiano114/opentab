@@ -267,7 +267,10 @@ final class FaviconStoreTests: XCTestCase {
     }
 
     private func makeDefaults() throws -> UserDefaults {
-        let suite = "favicon-tests-\(UUID().uuidString)"
+        // The suite name is a path under `root`, so its plist is removed with the
+        // rest of the fixture instead of piling up in ~/Library/Preferences, where
+        // cfprefsd leaves an empty one per test.
+        let suite = root.appending(path: "favicon-tests-\(UUID().uuidString)").path
         suites.append(suite)
         return try XCTUnwrap(UserDefaults(suiteName: suite))
     }

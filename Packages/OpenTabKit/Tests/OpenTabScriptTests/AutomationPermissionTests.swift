@@ -63,9 +63,15 @@ final class AutomationPermissionTests: XCTestCase {
     }
 
     func testRequestLogRemembersEachTargetOnce() throws {
-        let suite = "opentab.tests.\(UUID().uuidString)"
+        // The suite name is a path, so the plist lands in the temp directory rather
+        // than ~/Library/Preferences, where cfprefsd leaves an empty one per test.
+        let suite = FileManager.default.temporaryDirectory
+            .appending(path: "opentab.tests.\(UUID().uuidString)").path
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        addTeardownBlock { UserDefaults.standard.removePersistentDomain(forName: suite) }
+        addTeardownBlock {
+            UserDefaults.standard.removePersistentDomain(forName: suite)
+            try? FileManager.default.removeItem(at: URL(filePath: suite + ".plist"))
+        }
         let log = DefaultsAutomationRequestLog(defaults: defaults)
 
         XCTAssertFalse(log.hasRequested("com.google.Chrome"))
