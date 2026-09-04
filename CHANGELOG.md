@@ -6,7 +6,7 @@ New / Changed / Improved / Fixed / Security.
 
 ## [Unreleased]
 
-## [0.1.0] - 2026-09-XX
+## [0.1.0] - 2026-09-04
 
 **Every window and every tab in one list, on Option-Tab.**
 
