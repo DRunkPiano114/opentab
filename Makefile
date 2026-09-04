@@ -136,7 +136,7 @@ stop:
 	  && echo "stopped $(INSTALLED)" || true
 
 ## Kill the development copy, relaunch it from ~/Applications, tail the logs.
-run: install stop
+run: stop install
 	@open -a "$(INSTALLED)"
 	@sleep 1
 	@$(MAKE) --no-print-directory logs
