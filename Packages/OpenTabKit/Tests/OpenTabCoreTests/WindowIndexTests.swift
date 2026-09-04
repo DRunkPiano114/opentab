@@ -50,9 +50,12 @@ final class WindowIndexTests: XCTestCase {
         let calc = app("Calculator", pid: 300)
         directory.set(apps: [safari, xcode, calc])
         directory.setFrontmost(calc)
+        let focused = expectation(description: "launched app read again with focus")
+        focused.assertForOverFulfill = false
+        index.onChange = { [weak index] in if index?.entries.first?.key == .cg(9) { focused.fulfill() } }
         await index.handle(.appLaunched(calc))
         source.set([window(9, calc, focused: true)], for: calc)
-        try? await Task.sleep(for: .milliseconds(80))
+        await fulfillment(of: [focused], timeout: 5)
         XCTAssertEqual(index.entries.first?.key, .cg(9))
     }
 
@@ -85,8 +88,11 @@ final class WindowIndexTests: XCTestCase {
         await index.refreshAll()
         source.delay(safari, .milliseconds(30))
         source.set([window(1, safari)], for: safari)
+        let reads = source.snapshotCount
         let slow = Task { await index.refresh(app: safari) }
-        try? await Task.sleep(for: .milliseconds(5))
+        // The stale read has to have taken its sequence number before the
+        // newer one starts.
+        while source.snapshotCount == reads { await Task.yield() }
         source.delay(safari, .zero)
         source.set([window(1, safari), window(2, safari), window(4, safari)], for: safari)
         await index.refresh(app: safari)
