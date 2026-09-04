@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-26
+    # A cold SwiftPM resolve plus a full Debug build takes a few minutes; the
+    # six-hour default would bill a hung job for all of it.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # No step here needs git auth; don't leave the token in .git/config
+          # where a third-party action could read it.
+          persist-credentials: false
+      # The runner image ships Homebrew and Xcode but not xcodegen, and
+      # OpenTab.xcodeproj is generated from project.yml rather than committed.
+      - name: Install xcodegen
+        run: brew install xcodegen
+      # OpenTabKit only: pure logic, no window server, no permissions. The
+      # app-hosted test targets stay out of CI on purpose — they drive the
+      # Accessibility API against the host app, which needs a granted
+      # Accessibility permission and a real graphical login session. A runner
+      # has neither, so they can only be run on a developer's machine.
+      - name: Unit tests
+        run: make test
+      # Ad-hoc signed, so it needs no keychain and no certificate. This is a
+      # compile check; the bundle is never installed or launched.
+      - name: Build the app
+        run: make ci-build
