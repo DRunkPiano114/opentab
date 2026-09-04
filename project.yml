@@ -19,6 +19,11 @@ settings:
     ENABLE_USER_SCRIPT_SANDBOXING: NO
     CLANG_ENABLE_MODULES: YES
     SWIFT_EMIT_LOC_STRINGS: NO
+    # The git tag is the only source of a real version. Release builds pass
+    # MARKETING_VERSION and CURRENT_PROJECT_VERSION on the xcodebuild command
+    # line (see Scripts/release.sh); local builds keep these placeholders.
+    MARKETING_VERSION: "0.0.0"
+    CURRENT_PROJECT_VERSION: "0"
   configs:
     Debug:
       ONLY_ACTIVE_ARCH: YES
@@ -52,8 +57,8 @@ targets:
         CFBundleIdentifier: $(PRODUCT_BUNDLE_IDENTIFIER)
         CFBundleInfoDictionaryVersion: "6.0"
         CFBundlePackageType: APPL
-        CFBundleShortVersionString: "0.1.0"
-        CFBundleVersion: "1"
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSUIElement: true
         LSMinimumSystemVersion: "26.0"
         NSHumanReadableCopyright: "Copyright © 2026 Lingwei Wu"
