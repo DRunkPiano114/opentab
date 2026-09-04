@@ -72,13 +72,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        // Before the first-run flow and before anything can ask for a
+        // permission: a grant follows the app's location, so the app has to be
+        // where it is going to stay before it is given one.
+        if InstallLocationPrompt.runIfNeeded() { return }
+
         settings = SettingsStore()
         settingsModel = SettingsModel()
         health = HealthMonitor()
         Theme.apply(Theme.Style(textScale: settings.textSize.scale, isWide: settings.widePanel))
         let rules = IgnoreRules(titlePatterns: settings.ignoreTitlePatterns)
-        // `open` cannot pass environment variables, so the L10 degradation
-        // path is reachable from the command line as well.
+        // A launch flag rather than an environment variable, because `open`
+        // cannot pass one: this is how the fallback taken when the private
+        // window-id symbol is missing gets exercised deliberately.
         source = AXWindowSource(windowIDBridgeEnabled: !CommandLine.arguments.contains("--disable-window-id-bridge"))
         // Off-space windows (remote tokens + CGS Space queries) and the
         // Cmd+Tab takeover sit on top of the pure-AX source; every missing
@@ -87,7 +93,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         directory = WorkspaceAppDirectory(ignoreRules: rules)
         trigger = AXRefreshTrigger()
 
-        // Private and incognito tabs stay out unless the user opts in (L16).
+        // Private and incognito tab titles are fully readable through the
+        // Accessibility API, so they are excluded until the user opts in.
         let includesPrivate = settings.includesPrivateTabs
         var storeConfiguration = TabStore.Configuration()
         storeConfiguration.includesPrivateTabs = includesPrivate
@@ -166,7 +173,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.prewarm()
         session.start()
         offSpace.presentDegradationIfNeeded()
-        // The system chords must be off before the app's own are bound (E2).
+        // Registering Cmd+Tab while the system still owns it succeeds and
+        // then never delivers an event, so the takeover goes first.
         if offSpace.enableCmdTabIfConfigured() {
             hotKeys.registerCommandTab()
         }
@@ -220,7 +228,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         IconCache.shared.prewarm(apps: directory.runningApps())
     }
 
-    /// Packet §4: the list must not decay silently. The panel shows the
+    /// The list must not decay silently. The panel shows the
     /// onboarding message, the menu shows the marker, and refreshing stops
     /// until the grant is back.
     private func accessibilityRevoked() {
@@ -249,7 +257,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Packet §5: the Automation request is part of onboarding, made once
+    /// The Automation request is part of onboarding, made once
     /// for each browser running now that has never been asked about, one
     /// browser at a time, and never from a refresh. A browser that arrives
     /// later is offered from the status menu.
@@ -391,7 +399,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// The app's own chords must be bound only while the system ones are off,
-    /// and released before they go back (E2).
+    /// and released before they go back: a registration made while the system
+    /// owns the chord returns success and receives nothing.
     private func applyCmdTabTakeover() {
         if settings.cmdTabTakeover {
             guard offSpace.cmdTab.enable() else {
