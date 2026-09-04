@@ -1,0 +1,99 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  release:
+    runs-on: macos-26
+    permissions:
+      contents: write
+    # Build, then notarization: Apple's queue is usually minutes but has no
+    # upper bound, and release.sh waits for the verdict.
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Only the gh CLI talks to GitHub, and it reads GH_TOKEN; keep the
+          # write-scoped token out of .git/config.
+          persist-credentials: false
+          # release.sh derives CFBundleVersion from `git rev-list --count
+          # HEAD`. The default shallow clone has one commit, which would make
+          # every release report build 1 and break the monotonic ordering
+          # macOS uses to tell two installed copies apart.
+          fetch-depth: 0
+      # The release body is the changelog section for this tag. A tag pushed
+      # without one must fail here, before anything is signed or published.
+      - name: Extract release notes from the changelog
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          HEADING="## [$VERSION]"
+          awk -v h="$HEADING" '
+            /^## \[/ { if (on) exit; on = (substr($0, 1, length(h)) == h); next }
+            on { print }
+          ' CHANGELOG.md > release-notes.md
+          if ! grep -q '[^[:space:]]' release-notes.md; then
+            echo "::error::CHANGELOG.md has no non-empty \"$HEADING\" section — write the release notes before tagging."
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          cat release-notes.md
+      # The runner image ships Homebrew and Xcode but not xcodegen, and
+      # OpenTab.xcodeproj is generated from project.yml rather than committed.
+      - name: Install xcodegen
+        run: brew install xcodegen
+      # xcodebuild resolves the "Developer ID Application" identity through
+      # the keychain search list, so the certificate has to sit in a
+      # search-listed keychain before the build runs.
+      # set-key-partition-list pre-authorizes codesign for the imported key —
+      # without it the non-interactive runner blocks on a keychain prompt.
+      # `list-keychains -s` replaces the whole search list, so login is
+      # re-listed alongside the build keychain.
+      - name: Import the Developer ID certificate into a build keychain
+        env:
+          APPLE_DEVID_P12: ${{ secrets.APPLE_DEVID_P12 }}
+          APPLE_DEVID_P12_PASSWORD: ${{ secrets.APPLE_DEVID_P12_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH="$RUNNER_TEMP/release.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          printf '%s' "$APPLE_DEVID_P12" | base64 -d > "$RUNNER_TEMP/devid.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$RUNNER_TEMP/devid.p12" -k "$KEYCHAIN_PATH" \
+            -P "$APPLE_DEVID_P12_PASSWORD" -f pkcs12 -T /usr/bin/codesign
+          security set-key-partition-list -S 'apple-tool:,apple:,codesign:' \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          rm -f "$RUNNER_TEMP/devid.p12"
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep -q "1 valid" \
+            || { echo "::error::Developer ID identity not valid in build keychain"; exit 1; }
+      # notarytool wants the App Store Connect key as a file. Only the path
+      # crosses into GITHUB_ENV; the key id and issuer id are handed to the
+      # build step directly so no secret value is ever stored there.
+      - name: Write the App Store Connect key
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          KEY_PATH="$RUNNER_TEMP/asc-key.p8"
+          printf '%s' "$ASC_KEY_P8" > "$KEY_PATH"
+          chmod 600 "$KEY_PATH"
+          echo "ASC_KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
+      # Builds with MARKETING_VERSION set to the tag, signs, notarizes,
+      # staples and writes dist/OpenTab-$VERSION.zip plus its checksum. Every
+      # signature and Gatekeeper check lives in the script, so a bad build
+      # fails before anything is published.
+      - name: Build, sign, notarize and package
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: Scripts/release.sh all
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            dist/OpenTab-*.zip dist/*.sha256 \
+            --title "OpenTab $VERSION" \
+            --notes-file release-notes.md
