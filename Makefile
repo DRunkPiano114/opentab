@@ -29,13 +29,14 @@ OUT         := $(HERE)/build/out
 LOG         := /usr/bin/log
 LSREGISTER  := /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister
 
-.PHONY: all project build test test-app run stop sign install logs logs-stream \
-        reset-perms selftest clean help
+.PHONY: all project build ci-build test test-app run stop sign install \
+        logs logs-stream reset-perms selftest clean help
 
 all: build
 
 help:
 	@echo "make build        xcodegen generate + xcodebuild, print the designated requirement"
+	@echo "make ci-build     Ad-hoc signed Debug build for CI; never touches the keychain"
 	@echo "make test         swift test (pure logic, no GUI, no permissions)"
 	@echo "make test-app     xcodebuild test, app-hosted (needs a logged-in GUI session)"
 	@echo "make install      Copy the built app to ~/Applications"
@@ -82,6 +83,19 @@ build: project sign
 	  grep -E "error:" "$(HERE)/build/xcodebuild.log" || tail -20 "$(HERE)/build/xcodebuild.log"; exit 1; fi
 	@grep -E "warning:|\*\* BUILD" "$(HERE)/build/xcodebuild.log" | grep -v "Metadata extraction skipped" || true
 	@codesign -d -r- "$(PRODUCT)" 2>&1 | grep designated
+
+## Unsigned-identity build for CI runners, which have no "OpenTab Dev Signing"
+## certificate. Ad-hoc signing needs no keychain access; the resulting bundle
+## is only a compile check and is never installed, so it builds into its own
+## DerivedData and leaves the stable-identity product untouched.
+ci-build: project
+	@mkdir -p "$(HERE)/build"
+	@cd "$(HERE)" && if ! xcodebuild -project $(APP_NAME).xcodeproj -scheme $(APP_NAME) \
+	  -configuration Debug -derivedDataPath "$(HERE)/build/DerivedData-ci" \
+	  CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGN_ENTITLEMENTS= \
+	  build > "$(HERE)/build/xcodebuild-ci.log" 2>&1; then \
+	  grep -E "error:" "$(HERE)/build/xcodebuild-ci.log" || tail -20 "$(HERE)/build/xcodebuild-ci.log"; exit 1; fi
+	@grep -E "warning:|\*\* BUILD" "$(HERE)/build/xcodebuild-ci.log" | grep -v "Metadata extraction skipped" || true
 
 ## Copy to ~/Applications so the bundle path (and thus the TCC row) is stable.
 install: build
