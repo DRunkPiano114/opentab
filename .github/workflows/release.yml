@@ -30,15 +30,8 @@ jobs:
       - name: Extract release notes from the changelog
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          HEADING="## [$VERSION]"
-          awk -v h="$HEADING" '
-            /^## \[/ { if (on) exit; on = (substr($0, 1, length(h)) == h); next }
-            on { print }
-          ' CHANGELOG.md > release-notes.md
-          if ! grep -q '[^[:space:]]' release-notes.md; then
-            echo "::error::CHANGELOG.md has no non-empty \"$HEADING\" section — write the release notes before tagging."
-            exit 1
-          fi
+          Scripts/release-notes.sh "$VERSION" > release-notes.md \
+            || { echo "::error::CHANGELOG.md has no non-empty section for $VERSION — write the release notes before tagging."; exit 1; }
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           cat release-notes.md
       # actions/checkout only fetches the ref that triggered the run, so
