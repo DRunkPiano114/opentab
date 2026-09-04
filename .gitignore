@@ -11,6 +11,8 @@ build/
 .build/
 DerivedData/
 *.dmg
+*.xcresult
+*.dSYM
 
 # SwiftPM
 .swiftpm/
@@ -20,7 +22,9 @@ Package.resolved
 *.p12
 *.cer
 *.pem
+*.p8
 *.mobileprovision
+*.base64
 
 # macOS
 .DS_Store
@@ -41,3 +45,15 @@ runbook/
 
 # Probe output: contains real window titles, never commit
 tools/*/out*/
+
+# Release artifacts
+dist/
+*.zip
+
+# Local agent instructions and state — not published
+CLAUDE.md
+.claude/
+
+# Local secrets
+.env
+.env.*
