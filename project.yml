@@ -87,7 +87,7 @@ targets:
         PRODUCT_NAME: OpenTab
         # The name shown in the Accessibility list and Spotlight. PRODUCT_NAME
         # stays OpenTab in every configuration: the executable name is what
-        # TEST_HOST and `pkill -x` key on.
+        # TEST_HOST keys on.
         OPENTAB_BUNDLE_NAME: OpenTab
         INFOPLIST_FILE: Support/Info.plist
         CODE_SIGN_ENTITLEMENTS: Support/OpenTab.entitlements

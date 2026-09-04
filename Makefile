@@ -124,8 +124,16 @@ install: build
 	@echo "installed -> $(INSTALLED)"
 	@codesign -d -r- "$(INSTALLED)" 2>&1 | sed 's/^designated => /installed DR: /' | grep "installed DR"
 
+# The `pkill -f` pattern is an ERE that has to match the installed path
+# literally; `.` is the only metacharacter a bundle path can contain.
+INSTALLED_ERE := $(subst .,\.,$(INSTALLED))
+
+## Stop the development copy only: `pkill -x` matches by executable name and
+## takes the release copy in /Applications down with it. The alternation at the
+## end is so an instance launched with arguments still matches.
 stop:
-	@pkill -x $(APP_NAME) 2>/dev/null && echo "stopped running instance" || true
+	@pkill -f "^$(INSTALLED_ERE)/Contents/MacOS/$(APP_NAME)( |\$$)" 2>/dev/null \
+	  && echo "stopped $(INSTALLED)" || true
 
 ## Kill the development copy, relaunch it from ~/Applications, tail the logs.
 run: install stop
