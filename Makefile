@@ -37,7 +37,7 @@ DIST        := $(HERE)/dist
 LOG         := /usr/bin/log
 LSREGISTER  := /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister
 
-.PHONY: all project build ci-build release test test-app run stop sign install \
+.PHONY: all project build ci-build release tag test test-app run stop sign install \
         logs logs-stream reset-perms selftest clean help
 
 all: build
@@ -46,6 +46,7 @@ help:
 	@echo "make build        xcodegen generate + xcodebuild, print the designated requirement"
 	@echo "make ci-build     Ad-hoc signed Debug build for CI; never touches the keychain"
 	@echo "make release      Unit tests, then Developer ID build, notarize, staple, zip into dist/ (VERSION=x.y.z)"
+	@echo "make tag          Run every check and both test suites, then create the annotated tag (VERSION=x.y.z)"
 	@echo "make test         swift test (pure logic, no GUI, no permissions)"
 	@echo "make test-app     xcodebuild test, app-hosted (needs a logged-in GUI session)"
 	@echo "make install      Copy the built app to ~/Applications/OpenTab Dev.app"
@@ -113,6 +114,39 @@ ci-build: project
 release: test
 	@test -n "$(VERSION)" || { echo "usage: make release VERSION=x.y.z"; exit 2; }
 	@VERSION="$(VERSION)" bash "$(HERE)/Scripts/release.sh" all
+
+## Everything that has to hold before the version exists, cheapest check first:
+## the tag is new, the tree is clean, main is pushed, the changelog carries the
+## section that becomes the release body, no copy of OpenTab is running, and
+## both suites pass. Pushing the tag is what publishes, so that stays manual.
+##
+## The app-hosted suite needs the Accessibility grant and a graphics session, so
+## no runner can ever run it, and it posts Option-Tab and Command-Tab
+## system-wide, which any running instance would answer as well. A tag is
+## created by hand on one machine; this is the only place those tests can be
+## required.
+##
+## Each step is a separate recipe line. GNU Make executes a recipe line
+## containing $(MAKE) even under `-n`, so joining the steps would make
+## `make -n tag` create the tag for real.
+tag:
+	@test -n "$(VERSION)" || { echo "usage: make tag VERSION=x.y.z"; exit 2; }
+	@cd "$(HERE)" && if git rev-parse -q --verify "refs/tags/v$(VERSION)" >/dev/null; then \
+	  echo "v$(VERSION) already exists"; exit 1; fi
+	@cd "$(HERE)" && test -z "$$(git status --porcelain)" \
+	  || { echo "the working tree has uncommitted changes"; exit 1; }
+	@cd "$(HERE)" && test "$$(git symbolic-ref -q --short HEAD)" = main \
+	  || { echo "HEAD is not on main; releases are cut from main only"; exit 1; }
+	@cd "$(HERE)" && git fetch --no-tags origin main
+	@cd "$(HERE)" && test "$$(git rev-parse HEAD)" = "$$(git rev-parse FETCH_HEAD)" \
+	  || { echo "HEAD differs from origin/main; push main first"; exit 1; }
+	@"$(HERE)/Scripts/release-notes.sh" "$(VERSION)" >/dev/null
+	@if pgrep -fl '/Contents/MacOS/$(APP_NAME)( |$$)'; then \
+	  echo "quit every copy of OpenTab (including the one in /Applications) before tagging: the app-hosted tests post ⌥⇥ and ⌘⇥ system-wide"; exit 1; fi
+	@$(MAKE) --no-print-directory test
+	@$(MAKE) --no-print-directory test-app
+	@cd "$(HERE)" && git tag -a "v$(VERSION)" -m "OpenTab $(VERSION)"
+	@echo "created v$(VERSION); publish it with: git push origin v$(VERSION)"
 
 ## Copy to ~/Applications as "OpenTab Dev.app" so the bundle path (and thus the
 ## TCC row) is stable.

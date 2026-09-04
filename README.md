@@ -58,7 +58,15 @@ make test-app   # app-hosted tests; needs the Accessibility grant and drives the
 make run        # install to ~/Applications as "OpenTab Dev" and launch
 ```
 
-Debug builds are signed with a self-signed certificate that `make build` creates on first use, so the Accessibility grant survives rebuilds. Release builds are signed with a Developer ID and notarized by `Scripts/release.sh`; a `v*` tag runs that script in GitHub Actions and publishes the release with the matching section of `CHANGELOG.md` as its notes.
+Debug builds are signed with a self-signed certificate that `make build` creates on first use, so the Accessibility grant survives rebuilds.
+
+## Releasing
+
+1. Write the new version's section in `CHANGELOG.md` and push it to `main`.
+2. Quit every running copy of OpenTab, then `make tag VERSION=x.y.z`. It runs every check and both test suites before it creates the annotated tag, and refuses to tag if any of them fails.
+3. `git push origin vx.y.z`.
+
+Release builds are signed with a Developer ID and notarized by `Scripts/release.sh`. Pushing the `v*` tag runs that script in GitHub Actions, which publishes the release with the matching section of `CHANGELOG.md` as its notes.
 
 ## License
 
