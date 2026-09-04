@@ -8,6 +8,12 @@ on:
 permissions:
   contents: read
 
+# Consecutive pushes to a branch cancel the runs they superseded; the group is
+# keyed by ref, so the tip commit always keeps a run of its own.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: macos-26

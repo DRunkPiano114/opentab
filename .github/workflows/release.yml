@@ -4,6 +4,13 @@ on:
   push:
     tags: ["v*"]
 
+# Two triggers for the same tag would sign and notarize in parallel and then
+# collide in `gh release create`. Queueing them is not a fix for a duplicate
+# release, but it stops the two runs from racing each other.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: macos-26
