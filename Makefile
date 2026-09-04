@@ -49,8 +49,12 @@ project:
 	cd "$(HERE)" && xcodegen generate --quiet
 
 ## Fast unit tests: pure logic only, no GUI, no permissions, no Xcode.
+## `pipefail` is set inside the recipe because make 3.81, the version macOS
+## ships, ignores .SHELLFLAGS; without it the grep filter would report a green
+## run for a failing `swift test`.
 test:
-	cd "$(HERE)/Packages/OpenTabKit" && swift test 2>&1 | grep -E "Test Case|Executed|error:|warning:|failed" || true
+	cd "$(HERE)/Packages/OpenTabKit" && set -o pipefail && swift test 2>&1 \
+	  | { grep -E "Test Case|Executed|error:|warning:|failed" || true; }
 
 ## Tests that need the real app bundle (Info.plist contract, self-process AX).
 test-app: project
