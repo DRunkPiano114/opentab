@@ -15,6 +15,7 @@ public final class ReadLane<Key: Hashable & Sendable>: @unchecked Sendable {
         /// The operation waiting for its turn, if any. A coalesced request
         /// joins it instead of queueing a second read of the same state.
         var queued: (id: UInt64, task: Task<Void, Never>)?
+        var admitted: Int = 0
     }
 
     private struct State {
@@ -33,7 +34,11 @@ public final class ReadLane<Key: Hashable & Sendable>: @unchecked Sendable {
     public func run(_ key: Key, coalesce: Bool = false, _ operation: @escaping @Sendable () async -> Void) async {
         let task: Task<Void, Never> = state.withLock { state in
             var slot = state.slots[key] ?? Slot()
-            if coalesce, let queued = slot.queued { return queued.task }
+            slot.admitted += 1
+            if coalesce, let queued = slot.queued {
+                state.slots[key] = slot
+                return queued.task
+            }
             let id = state.nextID
             state.nextID += 1
             let previous = slot.tail
@@ -60,5 +65,14 @@ public final class ReadLane<Key: Hashable & Sendable>: @unchecked Sendable {
     /// No operation is running or waiting on any key.
     public var isIdle: Bool {
         state.withLock { $0.slots.isEmpty }
+    }
+
+    /// Requests admitted for `key` since the lane last held none for it,
+    /// counting the ones coalesced onto a waiting operation. A request counts
+    /// from the moment `run` registers it, not when it finishes, so an
+    /// observer can tell that a request has joined the lane without waiting
+    /// for its result.
+    public func admittedRequests(for key: Key) -> Int {
+        state.withLock { $0.slots[key]?.admitted ?? 0 }
     }
 }

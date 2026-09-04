@@ -23,20 +23,61 @@ final class ReadLaneTests: XCTestCase {
         var order: [String] { lock.withLock { $0.order } }
     }
 
+    /// One-shot gate. `wait()` returns once `open()` has been called, in
+    /// either order.
+    private final class Gate: @unchecked Sendable {
+        private let state = OSAllocatedUnfairLock(
+            initialState: (isOpen: false, waiting: [CheckedContinuation<Void, Never>]()))
+
+        func open() {
+            let waiting = state.withLock { state -> [CheckedContinuation<Void, Never>] in
+                state.isOpen = true
+                let pending = state.waiting
+                state.waiting = []
+                return pending
+            }
+            for continuation in waiting { continuation.resume() }
+        }
+
+        func wait() async {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                let isOpen = state.withLock { state -> Bool in
+                    if !state.isOpen { state.waiting.append(continuation) }
+                    return state.isOpen
+                }
+                if isOpen { continuation.resume() }
+            }
+        }
+    }
+
     func testSameKeyRunsSeriallyInOrder() async {
         let lane = ReadLane<String>()
         let probe = Probe()
+        let firstStarted = Gate()
+        let firstMayFinish = Gate()
         await withTaskGroup(of: Void.self) { group in
-            for i in 0..<5 {
+            group.addTask {
+                await lane.run("chrome") {
+                    probe.enter("chrome", "op0")
+                    firstStarted.open()
+                    await firstMayFinish.wait()
+                    probe.leave("chrome")
+                }
+            }
+            await firstStarted.wait()
+            for i in 1..<5 {
                 group.addTask {
                     await lane.run("chrome") {
                         probe.enter("chrome", "op\(i)")
-                        try? await Task.sleep(for: .milliseconds(2))
+                        await Task.yield()
                         probe.leave("chrome")
                     }
                 }
-                try? await Task.sleep(for: .milliseconds(1))
+                // Enqueue order decides run order, so each request has to
+                // reach the lane before the next one is added.
+                while lane.admittedRequests(for: "chrome") < i + 1 { await Task.yield() }
             }
+            firstMayFinish.open()
         }
         XCTAssertEqual(probe.peak["chrome"], 1)
         XCTAssertEqual(probe.order, (0..<5).map { "op\($0)" })
@@ -45,39 +86,43 @@ final class ReadLaneTests: XCTestCase {
 
     func testDifferentKeysRunInParallel() async {
         let lane = ReadLane<String>()
-        let probe = Probe()
         let started = OSAllocatedUnfairLock(initialState: 0)
+        let sawPeer = OSAllocatedUnfairLock(initialState: 0)
         await withTaskGroup(of: Void.self) { group in
             for key in ["chrome", "safari"] {
                 group.addTask {
                     await lane.run(key) {
-                        probe.enter(key, key)
                         started.withLock { $0 += 1 }
-                        // Neither may finish before both have started.
-                        for _ in 0..<200 where started.withLock({ $0 }) < 2 {
-                            try? await Task.sleep(for: .milliseconds(1))
-                        }
-                        probe.leave(key)
+                        // Serialised keys would leave the peer unstarted. The
+                        // bound turns that into a failed assertion rather than
+                        // a test that never returns.
+                        for _ in 0..<100_000 where started.withLock({ $0 }) < 2 { await Task.yield() }
+                        if started.withLock({ $0 }) == 2 { sawPeer.withLock { $0 += 1 } }
                     }
                 }
             }
         }
-        XCTAssertEqual(started.withLock { $0 }, 2)
+        XCTAssertEqual(sawPeer.withLock { $0 }, 2, "reads of different keys must overlap")
     }
 
     func testCoalescedRequestJoinsTheWaitingOperation() async {
         let lane = ReadLane<String>()
         let probe = Probe()
         let runs = OSAllocatedUnfairLock(initialState: 0)
+        let firstStarted = Gate()
+        let firstMayFinish = Gate()
         await withTaskGroup(of: Void.self) { group in
             group.addTask {
                 await lane.run("chrome") {
                     probe.enter("chrome", "first")
-                    try? await Task.sleep(for: .milliseconds(10))
+                    firstStarted.open()
+                    await firstMayFinish.wait()
                     probe.leave("chrome")
                 }
             }
-            try? await Task.sleep(for: .milliseconds(2))
+            // An operation is joinable until it starts, so the coalesced
+            // requests must arrive after the first one is running.
+            await firstStarted.wait()
             for _ in 0..<3 {
                 group.addTask {
                     await lane.run("chrome", coalesce: true) {
@@ -86,8 +131,11 @@ final class ReadLaneTests: XCTestCase {
                         probe.leave("chrome")
                     }
                 }
-                try? await Task.sleep(for: .milliseconds(1))
             }
+            // Release the first operation only once all three have reached the
+            // lane: one queues, the other two join it.
+            while lane.admittedRequests(for: "chrome") < 4 { await Task.yield() }
+            firstMayFinish.open()
         }
         XCTAssertEqual(runs.withLock { $0 }, 1, "three requests while one is waiting collapse into one read")
         XCTAssertEqual(probe.order, ["first", "queued"])
