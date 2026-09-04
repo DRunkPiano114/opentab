@@ -14,8 +14,10 @@ SHELL       := /bin/bash
 
 HERE        := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 APP_NAME    := OpenTab
-BUNDLE_ID   := im.opentab.app
-SUBSYSTEM   := im.opentab.app
+# The Debug identity. Release builds keep im.opentab.app; the targets below
+# that take an id (reset-perms, logs) act on the development copy only.
+BUNDLE_ID   := im.opentab.app.dev
+SUBSYSTEM   := $(BUNDLE_ID)
 SIGN_CN     := OpenTab Dev Signing
 CONFIG      ?= Debug
 DERIVED     := $(HERE)/build/DerivedData
@@ -44,8 +46,8 @@ help:
 	@echo "make install      Copy the built app to ~/Applications"
 	@echo "make run          Kill the old instance, relaunch via open -a, show logs"
 	@echo "make selftest     Launch the installed app in diagnostic mode; output in build/out/"
-	@echo "make logs         Last 2 minutes of the app's unified log"
-	@echo "make reset-perms  Revoke the Accessibility and Apple Events grants"
+	@echo "make logs         Last 2 minutes of the Debug app's unified log (im.opentab.app.dev)"
+	@echo "make reset-perms  Revoke the Debug app's Accessibility and Apple Events grants"
 	@echo "make sign         Create the stable signing identity (idempotent)"
 
 ## Regenerate OpenTab.xcodeproj from project.yml. Run after adding files.
@@ -101,7 +103,7 @@ ci-build: project
 
 ## Developer ID build, notarization, stapling and the release zip in dist/.
 ## Credentials: see the header of Scripts/release.sh.
-## The unit tests run first, so a failing build never gets signed. They also
+## The unit tests run first, so a build whose tests fail never gets signed. They also
 ## run before the VERSION check, which costs a few seconds on a typo.
 release: test
 	@test -n "$(VERSION)" || { echo "usage: make release VERSION=x.y.z"; exit 2; }

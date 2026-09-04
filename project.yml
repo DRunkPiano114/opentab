@@ -51,8 +51,8 @@ targets:
     info:
       path: Support/Info.plist
       properties:
-        CFBundleName: OpenTab
-        CFBundleDisplayName: OpenTab
+        CFBundleName: $(OPENTAB_BUNDLE_NAME)
+        CFBundleDisplayName: $(OPENTAB_BUNDLE_NAME)
         CFBundleExecutable: $(EXECUTABLE_NAME)
         CFBundleIdentifier: $(PRODUCT_BUNDLE_IDENTIFIER)
         CFBundleInfoDictionaryVersion: "6.0"
@@ -85,6 +85,10 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: im.opentab.app
         PRODUCT_NAME: OpenTab
+        # The name shown in the Accessibility list and Spotlight. PRODUCT_NAME
+        # stays OpenTab in every configuration: the executable name is what
+        # TEST_HOST and `pkill -x` key on.
+        OPENTAB_BUNDLE_NAME: OpenTab
         INFOPLIST_FILE: Support/Info.plist
         CODE_SIGN_ENTITLEMENTS: Support/OpenTab.entitlements
         CODE_SIGN_STYLE: Manual
@@ -99,6 +103,14 @@ targets:
         ENABLE_HARDENED_RUNTIME: YES
         COMBINE_HIDPI_IMAGES: YES
       configs:
+        # Debug builds are a separate app to the system: their own TCC rows,
+        # UserDefaults domain, log subsystem and cache directory, so a
+        # development copy in ~/Applications and the installed release can
+        # hold grants and run at the same time. The signing identity is the
+        # same, so the designated requirement only changes its identifier.
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: im.opentab.app.dev
+          OPENTAB_BUNDLE_NAME: OpenTab Dev
         # Distributed builds: Developer ID, secure timestamp, hardened runtime
         # with library validation on. The resulting designated requirement is
         # anchored to the team id, so it stays stable across certificate
