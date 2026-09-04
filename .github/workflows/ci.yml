@@ -26,10 +26,12 @@ jobs:
           # No step here needs git auth; don't leave the token in .git/config
           # where a third-party action could read it.
           persist-credentials: false
-      # The runner image ships Homebrew and Xcode but not xcodegen, and
-      # OpenTab.xcodeproj is generated from project.yml rather than committed.
+      # OpenTab.xcodeproj is generated from project.yml rather than committed,
+      # so xcodegen decides what the runner builds. The version is pinned
+      # because drift would make the runner's project — and the bundle signed
+      # from it — a different one from what was tested locally.
       - name: Install xcodegen
-        run: brew install xcodegen
+        run: Scripts/install-xcodegen.sh "$RUNNER_TEMP" >> "$GITHUB_PATH"
       # OpenTabKit only: pure logic, no window server, no permissions. The
       # app-hosted test targets stay out of CI on purpose — they drive the
       # Accessibility API against the host app, which needs a granted

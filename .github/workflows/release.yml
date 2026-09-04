@@ -55,10 +55,12 @@ jobs:
       # before either exists.
       - name: Unit tests
         run: make test
-      # The runner image ships Homebrew and Xcode but not xcodegen, and
-      # OpenTab.xcodeproj is generated from project.yml rather than committed.
+      # OpenTab.xcodeproj is generated from project.yml rather than committed,
+      # so xcodegen decides what gets signed. The version is pinned because
+      # drift would make the notarized bundle come out of a different project
+      # from the one tested locally.
       - name: Install xcodegen
-        run: brew install xcodegen
+        run: Scripts/install-xcodegen.sh "$RUNNER_TEMP" >> "$GITHUB_PATH"
       # xcodebuild resolves the "Developer ID Application" identity through
       # the keychain search list, so the certificate has to sit in a
       # search-listed keychain before the build runs.
