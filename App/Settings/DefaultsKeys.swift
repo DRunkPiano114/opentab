@@ -41,4 +41,8 @@ enum DefaultsKey {
     static let scanBudgetMilliseconds = OffSpaceConfiguration.budgetMillisecondsKey
     /// `CmdTabRecovery`. A session marker, not a setting.
     static let cmdTabOriginalState = "ws.cmdTab.originalState"
+    /// `InstallLocationPrompt.skipCheckDefaultsKey`, the "Don't ask again"
+    /// box on the move-to-Applications prompt; main-actor isolated like
+    /// `CmdTabTakeover`'s, and covered by the same test.
+    static let skipInstallLocationCheck = "install.skipLocationCheck"
 }

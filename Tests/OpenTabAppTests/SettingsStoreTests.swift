@@ -33,6 +33,7 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(DefaultsKey.safariFaviconBookmark, FaviconSafariBookmark.defaultsKey)
         XCTAssertEqual(DefaultsKey.scanMaxElementID, OffSpaceConfiguration.maxElementIDKey)
         XCTAssertEqual(DefaultsKey.scanBudgetMilliseconds, OffSpaceConfiguration.budgetMillisecondsKey)
+        XCTAssertEqual(DefaultsKey.skipInstallLocationCheck, InstallLocationPrompt.skipCheckDefaultsKey)
     }
 
     /// Excluding private windows and the favicon disclosure both rest on these
