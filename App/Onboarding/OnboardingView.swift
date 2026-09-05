@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct OnboardingView: View {
-    let model: OnboardingModel
+    @Bindable var model: OnboardingModel
     /// Puts up the system Accessibility prompt.
     let promptForAccessibility: () -> Void
     let openAccessibilitySettings: () -> Void
@@ -35,7 +35,7 @@ struct OnboardingView: View {
             }
         }
         .padding(24)
-        .frame(width: 460, height: 320)
+        .frame(width: 460, height: 380)
     }
 
     private var title: String {
@@ -43,7 +43,7 @@ struct OnboardingView: View {
         case .welcome: "Welcome to OpenTab"
         case .what: "One list for every window"
         case .accessibility: "Allow Accessibility"
-        case .shortcuts: "Your shortcuts"
+        case .shortcuts: "Choose your shortcut"
         case .done: "You're set"
         }
     }
@@ -87,10 +87,14 @@ struct OnboardingView: View {
                 }
             }
         case .shortcuts:
-            VStack(alignment: .leading, spacing: 10) {
-                shortcut("Open the switcher", model.mainHotKey)
-                shortcut("Open it backwards", model.reverseHotKey)
-                shortcut("Open straight into search", model.searchHotKey)
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(OnboardingModel.ShortcutChoice.allCases, id: \.self) { option($0) }
+                Toggle("Open OpenTab at login", isOn: $model.opensAtLogin)
+                if model.shortcutChoice == .cmdTab {
+                    Text("Opening at login means a crash cannot leave you without an app switcher.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Text("Change these any time in Settings \u{203A} Shortcuts.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -115,15 +119,48 @@ struct OnboardingView: View {
         }
     }
 
-    private func shortcut(_ label: String, _ binding: HotKeyBinding) -> some View {
-        HStack {
-            Text(label)
-            Spacer()
-            Text(binding.displayString)
-                .font(.system(size: 13, weight: .medium))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(RoundedRectangle(cornerRadius: 5).fill(Color.secondary.opacity(0.15)))
+    /// One row of the choice. Built out of a plain button rather than a
+    /// radio-group picker, because macOS does not reliably honour `.disabled`
+    /// on a single option of a picker and the Command-Tab row has to be
+    /// disabled on its own.
+    private func option(_ choice: OnboardingModel.ShortcutChoice) -> some View {
+        Button {
+            model.shortcutChoice = choice
+        } label: {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: model.shortcutChoice == choice ? "largecircle.fill.circle" : "circle")
+                    .foregroundStyle(model.shortcutChoice == choice ? Color.accentColor : Color.secondary)
+                VStack(alignment: .leading, spacing: 4) {
+                    chip(choice.main)
+                    Text(caption(for: choice))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .disabled(choice == .cmdTab && !model.takeoverAvailable)
+    }
+
+    private func caption(for choice: OnboardingModel.ShortcutChoice) -> String {
+        switch choice {
+        case .cmdTab:
+            model.takeoverAvailable
+                ? "\u{2318}\u{2009}Tab replaces the system app switcher while OpenTab runs and comes back when it quits."
+                : "\u{2318}\u{2009}Tab is not available on this Mac, so OpenTab is using \u{2325}\u{2009}Tab."
+        case .optionTab:
+            "Leaves the system app switcher alone."
+        }
+    }
+
+    private func chip(_ binding: HotKeyBinding) -> some View {
+        Text(binding.displayString)
+            .font(.system(size: 13, weight: .medium))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(RoundedRectangle(cornerRadius: 5).fill(Color.secondary.opacity(0.15)))
     }
 }
