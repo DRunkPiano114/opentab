@@ -483,8 +483,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// precedes disabling. Both takeover calls are idempotent, so this may
     /// run whenever an input changes.
     private func applyCmdTabTakeover() {
-        let wanted = settings.mainHotKey.needsSymbolicHotKeyTakeover
-            || settings.reverseHotKey.needsSymbolicHotKeyTakeover
+        let wanted = (settings.mainHotKey.needsSymbolicHotKeyTakeover
+            || settings.reverseHotKey.needsSymbolicHotKeyTakeover)
+            && !(onboarding?.holdsTakeover ?? false)
         let policy = TakeoverPolicy.resolve(wanted: wanted, trusted: AXTrust.isTrusted,
                                             available: CmdTabTakeover.isAvailable,
                                             otherInstanceRunning: !instances.others.isEmpty)
@@ -508,15 +509,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard !settings.hasCompletedOnboarding else { return }
         let controller = OnboardingWindowController()
         onboarding = controller
+        controller.onHoldChanged = { [weak self] in self?.applyCmdTabTakeover() }
         controller.onFinish = { [weak self] in
             guard let self else { return }
             self.settings.hasCompletedOnboarding = true
+            controller.holdsTakeover = false
             self.onboarding = nil
+            // A window closed before the shortcuts step still releases the hold.
+            self.applyCmdTabTakeover()
             // The browser consent prompts were held back so they could not
             // land in front of the first-run window.
             Task { await self.onboardAutomation() }
         }
-        controller.show(hotKeys: (settings.mainHotKey, settings.reverseHotKey, settings.searchHotKey))
+        controller.show(store: settings, takeoverAvailable: CmdTabTakeover.isAvailable)
     }
 
     static func frontmostAppInfo() -> AppInfo? {
