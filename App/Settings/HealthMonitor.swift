@@ -26,8 +26,9 @@ final class HealthMonitor {
         var uptime: Duration
 
         var text: String {
-            "memory \(HealthMonitor.megabytes(footprintBytes)) MB (peak \(HealthMonitor.megabytes(peakFootprintBytes)) MB) · "
-                + "\(entryCount) rows · up \(HealthMonitor.hours(uptime))"
+            "\(HealthMonitor.megabytes(footprintBytes)) MB now, "
+                + "\(HealthMonitor.megabytes(peakFootprintBytes)) MB peak \u{00B7} "
+                + "running \(HealthMonitor.uptimeText(uptime))"
         }
     }
 
@@ -95,8 +96,8 @@ final class HealthMonitor {
         String(format: "%.1f", Double(bytes) / 1_048_576)
     }
 
-    nonisolated static func hours(_ duration: Duration) -> String {
+    nonisolated static func uptimeText(_ duration: Duration) -> String {
         let seconds = duration.components.seconds
-        return seconds < 3_600 ? "\(seconds / 60)m" : String(format: "%.1fh", Double(seconds) / 3_600)
+        return seconds < 3_600 ? "\(seconds / 60) min" : String(format: "%.1f h", Double(seconds) / 3_600)
     }
 }

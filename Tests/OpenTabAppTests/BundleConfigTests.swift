@@ -27,6 +27,13 @@ final class BundleConfigTests: XCTestCase {
         XCTAssertEqual(Bundle.main.executableURL?.lastPathComponent, "OpenTab")
     }
 
+    /// The About page draws both. A local build reads 0.0.0 (0) by design, so
+    /// the value is not asserted: the git tag is where a real one comes from.
+    func testVersionKeysArePresent() {
+        XCTAssertFalse((appInfo["CFBundleShortVersionString"] as? String ?? "").isEmpty)
+        XCTAssertFalse((appInfo["CFBundleVersion"] as? String ?? "").isEmpty)
+    }
+
     /// The development host carries the key but no feed: a development copy
     /// with a feed could update itself into the release build.
     func testDebugHostHasAnEmptyFeed() {

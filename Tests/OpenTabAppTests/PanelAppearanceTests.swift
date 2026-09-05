@@ -68,6 +68,16 @@ final class PanelAppearanceTests: XCTestCase {
         XCTAssertGreaterThan(snapshot.footprintBytes, 1_000_000)
         XCTAssertGreaterThanOrEqual(snapshot.peakFootprintBytes, snapshot.footprintBytes)
         XCTAssertEqual(snapshot.entryCount, 42)
-        XCTAssertTrue(snapshot.text.contains("42 rows"), snapshot.text)
+    }
+
+    /// The About page shows this verbatim; the row count is not in it, because
+    /// the General page already has its own row for that.
+    func testHealthTextReadsAsASentence() {
+        let hours = HealthMonitor.Snapshot(footprintBytes: 54_000_000, peakFootprintBytes: 59_700_000,
+                                           entryCount: 42, uptime: .seconds(17_280))
+        XCTAssertEqual(hours.text, "51.5 MB now, 56.9 MB peak \u{00B7} running 4.8 h")
+        let minutes = HealthMonitor.Snapshot(footprintBytes: 54_000_000, peakFootprintBytes: 59_700_000,
+                                             entryCount: 42, uptime: .seconds(2_220))
+        XCTAssertEqual(minutes.text, "51.5 MB now, 56.9 MB peak \u{00B7} running 37 min")
     }
 }
