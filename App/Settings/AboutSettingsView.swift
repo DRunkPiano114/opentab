@@ -21,18 +21,16 @@ struct AboutSettingsView: View {
                         Once a day OpenTab asks GitHub whether a newer version exists; an update \
                         installs only after you click Install.
                         """)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .settingsHelp()
                 }
             }
             Section {
                 Text(model.health.text)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .settingsHelp()
             }
         }
         .formStyle(.grouped)
-        .frame(width: 520)
+        .frame(width: ChromeTheme.windowWidth)
         .onAppear(perform: actions.refreshHealth)
     }
 

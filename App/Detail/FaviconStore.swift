@@ -156,8 +156,8 @@ final class FaviconStore {
     @discardableResult
     func requestSafariCacheAccess() -> Bool {
         let panel = NSOpenPanel()
-        panel.message = "Choose your Safari folder so OpenTab can read its favicon cache."
-        panel.prompt = "Grant Access"
+        panel.message = "Choose your Safari folder so OpenTab can read its icon cache."
+        panel.prompt = "Choose"
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false

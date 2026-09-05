@@ -49,15 +49,14 @@ final class HotKeyRecorderView: NSView {
     required init?(coder: NSCoder) { fatalError("not supported") }
 
     override var acceptsFirstResponder: Bool { true }
-    override var intrinsicContentSize: NSSize { NSSize(width: 130, height: 24) }
+    override var intrinsicContentSize: NSSize { ChromeTheme.recorderSize }
 
     private static let resetHelp = "Reset to the default shortcut"
-    private static let cornerRadius: CGFloat = 5
 
     /// `focusRingType` alone draws nothing, and the default mask bounds are
     /// empty, which leaves Accessibility zoom unable to find the control.
     override func drawFocusRingMask() {
-        NSBezierPath(roundedRect: bounds, xRadius: Self.cornerRadius, yRadius: Self.cornerRadius).fill()
+        NSBezierPath(roundedRect: bounds, xRadius: ChromeTheme.controlRadius, yRadius: ChromeTheme.controlRadius).fill()
     }
 
     override var focusRingMaskBounds: NSRect { bounds }
@@ -163,7 +162,7 @@ final class HotKeyRecorderView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         let shape = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5),
-                                 xRadius: Self.cornerRadius, yRadius: Self.cornerRadius)
+                                 xRadius: ChromeTheme.controlRadius, yRadius: ChromeTheme.controlRadius)
         (isRecording ? NSColor.controlAccentColor.withAlphaComponent(0.12) : NSColor.controlBackgroundColor).setFill()
         shape.fill()
         (isRecording ? NSColor.controlAccentColor : NSColor.separatorColor).setStroke()

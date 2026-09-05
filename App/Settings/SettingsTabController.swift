@@ -28,9 +28,6 @@ final class SettingsTabController: NSTabViewController {
         }
     }
 
-    /// The pages are a fixed width, so only the height ever changes.
-    private static let width: CGFloat = 520
-
     private let actions: SettingsActions
 
     init(store: SettingsStore, model: SettingsModel, actions: SettingsActions) {
@@ -68,7 +65,7 @@ final class SettingsTabController: NSTabViewController {
     /// size settles the rest.
     var initialContentSize: NSSize {
         let height = tabViewItems[Tab.general.rawValue].viewController?.view.fittingSize.height ?? 0
-        return NSSize(width: Self.width, height: height)
+        return NSSize(width: ChromeTheme.windowWidth, height: height)
     }
 
     override func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {

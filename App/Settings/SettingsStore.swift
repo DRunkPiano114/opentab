@@ -9,7 +9,7 @@ enum PanelPosition: String, CaseIterable, Sendable {
     var label: String {
         switch self {
         case .left: "Left"
-        case .centre: "Centre"
+        case .centre: "Center"
         case .right: "Right"
         }
     }

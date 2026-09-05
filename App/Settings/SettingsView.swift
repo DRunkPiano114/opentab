@@ -11,12 +11,11 @@ struct GeneralSettingsView: View {
     var body: some View {
         Form {
             Section {
-                Toggle("Open OpenTab at login", isOn: $store.launchesAtLogin)
-                Toggle("Show the menu bar icon", isOn: $store.showMenuBarIcon)
+                Toggle("Open at login", isOn: $store.launchesAtLogin)
+                Toggle("Show menu bar icon", isOn: $store.showMenuBarIcon)
                 if !store.showMenuBarIcon {
-                    Text("With the icon hidden, open this window again by launching OpenTab.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Text("With the icon hidden, launch OpenTab again to reopen this window.")
+                        .settingsHelp()
                 }
             }
             Section("Panel") {
@@ -35,27 +34,25 @@ struct GeneralSettingsView: View {
                 }
                 .pickerStyle(.radioGroup)
             }
-            Section("Hide windows") {
+            Section("Hidden windows") {
                 IgnorePatternsEditor(store: store)
             }
             Section("Index") {
-                LabeledContent("Windows and tabs listed") {
+                LabeledContent("Windows and tabs") {
                     HStack {
                         Text("\(model.health.entryCount)")
                         Button("Rebuild Index", action: actions.rebuildIndex)
                     }
                 }
                 Text("""
-                    A window that closes at the exact moment its app answers nothing leaves a row behind: \
-                    OpenTab never deletes a row on an empty read, because doing so makes the list flicker. \
-                    Rebuilding drops the whole list and reads every window again.
+                    Rebuilding drops the whole list and reads every window again, which clears rows left \
+                    behind by a window that closed while its app was not answering.
                     """)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .settingsHelp()
             }
         }
         .formStyle(.grouped)
-        .frame(width: 520)
+        .frame(width: ChromeTheme.windowWidth)
         .onAppear(perform: actions.refreshHealth)
     }
 }
@@ -74,7 +71,7 @@ struct HotKeySettingsView: View {
                                    reservedChords: [store.reverseHotKey, store.searchHotKey],
                                    onRecord: { store.mainHotKey = $0 },
                                    onRecordingChanged: actions.setRecording)
-                        .frame(width: 130, height: 24)
+                        .frame(width: ChromeTheme.recorderSize.width, height: ChromeTheme.recorderSize.height)
                 }
                 LabeledContent("Open the switcher backwards") {
                     HotKeyRecorder(binding: store.reverseHotKey, defaultBinding: .reverseDefault,
@@ -82,7 +79,7 @@ struct HotKeySettingsView: View {
                                    reservedChords: [store.mainHotKey, store.searchHotKey],
                                    onRecord: { store.reverseHotKey = $0 },
                                    onRecordingChanged: actions.setRecording)
-                        .frame(width: 130, height: 24)
+                        .frame(width: ChromeTheme.recorderSize.width, height: ChromeTheme.recorderSize.height)
                 }
                 LabeledContent("Open search") {
                     HotKeyRecorder(binding: store.searchHotKey, defaultBinding: .searchDefault,
@@ -91,17 +88,15 @@ struct HotKeySettingsView: View {
                                    reservedChords: [store.mainHotKey, store.reverseHotKey],
                                    onRecord: { store.searchHotKey = $0 },
                                    onRecordingChanged: actions.setRecording)
-                        .frame(width: 130, height: 24)
+                        .frame(width: ChromeTheme.recorderSize.width, height: ChromeTheme.recorderSize.height)
                 }
                 Text("""
                     Holding the modifier keeps the panel up and letting go switches, so the first two shortcuts \
                     need \u{2325}, \u{2303} or \u{2318}.
                     """)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .settingsHelp()
                 Text("\u{2318}\u{2009}Tab replaces the system app switcher while OpenTab runs and comes back when it quits.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .settingsHelp()
                 if model.takeoverPolicy == .unavailable {
                     Text("\u{2318}\u{2009}Tab is not available on this Mac, so OpenTab is using \u{2325}\u{2009}Tab.")
                         .font(.caption)
@@ -112,8 +107,7 @@ struct HotKeySettingsView: View {
                         \u{2318}\u{2009}Tab works once Accessibility is granted; until then OpenTab is using \
                         \u{2325}\u{2009}Tab.
                         """)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .settingsHelp()
                 }
                 if let otherInstance = model.otherInstance {
                     Text(otherInstance)
@@ -122,8 +116,7 @@ struct HotKeySettingsView: View {
                 }
                 if model.secureInputActive {
                     Text("Secure Input is active, so shortcuts may not reach OpenTab.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .settingsHelp()
                 }
                 // The store cannot see availability, and a reset to a chord
                 // the recorder refuses would show Cmd-Tab over the red caption.
@@ -139,7 +132,7 @@ struct HotKeySettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 520)
+        .frame(width: ChromeTheme.windowWidth)
     }
 }
 
@@ -150,31 +143,30 @@ struct PrivacySettingsView: View {
 
     var body: some View {
         Form {
-            Section("What OpenTab lists") {
+            Section("What is listed") {
                 Toggle("Include private and incognito windows", isOn: $store.includesPrivateTabs)
                 Text("""
-                    Off by default. Private tab titles are readable, so leaving this off is what keeps them \
-                    out of the list, out of search and off disk. Safari cannot tell OpenTab which of its \
-                    windows are private, so with this off Safari is listed by window and never by tab.
+                    Private tab titles are readable, so leaving this off is what keeps them out of the list, \
+                    out of search and off disk.
                     """)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .settingsHelp()
             }
             Section("Icons") {
                 Toggle("Look up missing icons on Google", isOn: $store.remoteFavicons)
                 Text(FaviconStore.remoteDisclosureText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                LabeledContent("Safari's icon cache") {
+                    .settingsHelp()
+                LabeledContent("Safari icon cache") {
                     if model.safariCacheGranted {
                         Text("Readable").foregroundStyle(.secondary)
                     } else {
                         Button("Choose Folder\u{2026}", action: actions.grantSafariCacheAccess)
                     }
                 }
-                Text("OpenTab reads Safari's icon cache only if you hand it the ~/Library/Safari folder once.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text("""
+                    OpenTab can read Safari's icon cache only after you choose the ~/Library/Safari folder \
+                    once.
+                    """)
+                    .settingsHelp()
             }
             Section("Permissions") {
                 LabeledContent("Accessibility") {
@@ -184,22 +176,20 @@ struct PrivacySettingsView: View {
                         Button("Open System Settings\u{2026}", action: actions.openAccessibilitySettings)
                     }
                 }
-                Text("Required. Without it OpenTab can list no windows at all.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text("Required: without it OpenTab lists no windows at all.")
+                    .settingsHelp()
                 automation
                 if !model.windowIDBridgeAvailable {
                     Text("""
-                        Running with reduced features: this system does not expose the window-id call, so \
-                        some windows are matched less precisely.
+                        This Mac does not expose the window-id call, so some windows are matched less \
+                        precisely.
                         """)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .settingsHelp()
                 }
             }
         }
         .formStyle(.grouped)
-        .frame(width: 520)
+        .frame(width: ChromeTheme.windowWidth)
     }
 
     @ViewBuilder
@@ -212,18 +202,16 @@ struct PrivacySettingsView: View {
             }
         }
         Text("""
-            Browsers need this to list their tabs; without it they are listed by window. macOS only shows an \
-            Automation pane once an app has asked at least once.
+            Browsers need this to list their tabs; macOS only shows an Automation pane once an app has asked \
+            at least once.
             """)
-        .font(.caption)
-        .foregroundStyle(.secondary)
+        .settingsHelp()
         ForEach(model.tabsUnavailable, id: \.self) { name in
-            Text("\(name): tabs unavailable.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            Text("\(name) tabs need Automation access.")
+                .settingsHelp()
         }
         ForEach(model.tabsAwaitingRequest, id: \.bundleID) { browser in
-            Button("Enable tabs for \(browser.name)\u{2026}") { actions.requestAutomation(browser.bundleID) }
+            Button("Enable Tabs for \(browser.name)\u{2026}") { actions.requestAutomation(browser.bundleID) }
         }
     }
 }
