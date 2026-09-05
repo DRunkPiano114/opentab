@@ -41,6 +41,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var onboarding: OnboardingWindowController?
     private var health: HealthMonitor!
     private var instances: InstanceWatch!
+    /// Nil in a build whose bundle carries no update feed.
+    private var updates: UpdateController?
     /// Whether the refresh machinery is running; it stops while the grant is
     /// missing and while another user's session is active.
     private var running = false
@@ -81,6 +83,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // permission: a grant follows the app's location, so the app has to be
         // where it is going to stay before it is given one.
         if InstallLocationPrompt.runIfNeeded() { return }
+
+        // After the relaunch prompt, so a copy about to move itself never
+        // schedules a check, and after the test-host return above, so the
+        // app-hosted suite never starts an updater.
+        updates = UpdateController()
 
         settings = SettingsStore()
         settingsModel = SettingsModel()
@@ -130,6 +137,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         statusMenu = StatusMenuController()
+        statusMenu.updatesAvailable = updates != nil
+        statusMenu.onCheckForUpdates = { [weak self] in self?.updates?.checkForUpdates() }
+        // Assigning the closure replays the current value, so the menu is
+        // right from the first draw.
+        updates?.onCanCheckForUpdatesChanged = { [weak self] can in self?.statusMenu.canCheckForUpdates = can }
         statusMenu.isIconVisible = settings.showMenuBarIcon
         statusMenu.windowIDBridgeAvailable = source.isWindowIDBridgeAvailable
         statusMenu.onOpenSettings = { [weak self] in self?.showSettings() }

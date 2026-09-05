@@ -20,6 +20,11 @@ final class StatusMenuController: NSObject {
     /// Whether the user has picked ~/Library/Safari, which is the only way to
     /// read Safari's favicon cache without Full Disk Access.
     var safariCacheGranted = false { didSet { rebuild() } }
+    /// Whether the running copy has an updater at all; the development copy
+    /// has none, and an item that cannot work is worse than no item.
+    var updatesAvailable = false { didSet { rebuild() } }
+    /// The updater's own gate: false while a check or an install is running.
+    var canCheckForUpdates = true { didSet { rebuild() } }
     /// Hiding the icon is a setting; the settings window stays reachable by
     /// launching the app again, which reopens it.
     var isIconVisible = true { didSet { item.isVisible = isIconVisible } }
@@ -29,6 +34,7 @@ final class StatusMenuController: NSObject {
     var onRebuildIndex: (() -> Void)?
     var onOpenAutomationSettings: (() -> Void)?
     var onEnableTabs: ((String) -> Void)?
+    var onCheckForUpdates: (() -> Void)?
 
     private let item: NSStatusItem
 
@@ -85,6 +91,14 @@ final class StatusMenuController: NSObject {
         rebuildItem.target = self
         rebuildItem.toolTip = "Drop the whole list and read every window again."
         menu.addItem(rebuildItem)
+        if updatesAvailable {
+            let check = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+            check.target = self
+            // Auto-enabling is off for this menu, so the updater's own
+            // validation never runs and this is the only gate there is.
+            check.isEnabled = canCheckForUpdates
+            menu.addItem(check)
+        }
         let settings = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settings.target = self
         menu.addItem(settings)
@@ -137,6 +151,10 @@ final class StatusMenuController: NSObject {
 
     @objc private func rebuildIndex() {
         onRebuildIndex?()
+    }
+
+    @objc private func checkForUpdates() {
+        onCheckForUpdates?()
     }
 
     @objc private func openAutomationSettings() {
