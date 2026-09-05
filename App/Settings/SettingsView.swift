@@ -53,7 +53,6 @@ struct GeneralSettingsView: View {
         }
         .formStyle(.grouped)
         .frame(width: ChromeTheme.windowWidth)
-        .onAppear(perform: actions.refreshHealth)
     }
 }
 
