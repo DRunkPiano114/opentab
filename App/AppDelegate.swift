@@ -415,12 +415,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.settingsModel.health = self.health.snapshot()
         }
         // A Carbon hotkey is consumed before any window sees it, so the
-        // shortcut field could never be shown the chord it is replacing.
+        // shortcut field could never be shown the chord it is replacing. The
+        // window server consumes Cmd-Tab the same way, so the takeover is
+        // borrowed for the capture whenever it could be on at all; ending
+        // the capture re-applies the real policy before anything registers.
         actions.setRecording = { [weak self] recording in
             guard let self else { return }
             if recording {
                 self.hotKeys.unregisterPersistent()
+                let borrowed = TakeoverPolicy.resolve(wanted: true, trusted: AXTrust.isTrusted,
+                                                      available: CmdTabTakeover.isAvailable,
+                                                      otherInstanceRunning: !self.instances.others.isEmpty)
+                if borrowed.isEnabled { self.offSpace.cmdTab.enable() }
             } else {
+                self.applyCmdTabTakeover()
                 self.hotKeys.registerPersistent()
             }
         }

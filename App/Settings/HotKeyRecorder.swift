@@ -13,15 +13,29 @@ final class HotKeyRecorderView: NSView {
     /// Main and reverse chords must carry a modifier whose release can be
     /// observed, or the panel commits the instant it opens.
     var requiresHoldModifier: Bool
+    /// Only a field whose chord switches the system's Cmd-Tab off can take
+    /// Cmd-Tab: anywhere else it registers fine and never fires.
+    var acceptsCmdTab: Bool
+    /// Whether this Mac has the window-server call the takeover needs.
+    var takeoverAvailable: Bool
+    /// The other fields' chords. A second registration of one chord in one
+    /// process is only logged, so a collision here is a silently dead field;
+    /// the fallback pair counts too, because it is what gets bound while the
+    /// takeover is off.
+    var reservedChords: [HotKeyBinding]
     var onRecord: ((HotKeyBinding) -> Void)?
     var onRecordingChanged: ((Bool) -> Void)?
 
     private var isRecording = false { didSet { needsDisplay = true } }
     private var message: String?
 
-    init(binding: HotKeyBinding, requiresHoldModifier: Bool) {
+    init(binding: HotKeyBinding, requiresHoldModifier: Bool, acceptsCmdTab: Bool = true,
+         takeoverAvailable: Bool = true, reservedChords: [HotKeyBinding] = []) {
         self.binding = binding
         self.requiresHoldModifier = requiresHoldModifier
+        self.acceptsCmdTab = acceptsCmdTab
+        self.takeoverAvailable = takeoverAvailable
+        self.reservedChords = reservedChords
         super.init(frame: .zero)
     }
 
@@ -89,8 +103,17 @@ final class HotKeyRecorderView: NSView {
             fail("Use \u{2325}, \u{2303} or \u{2318}")
             return
         }
-        if requiresHoldModifier, recorded == HotKeyBinding(keyCode: UInt32(kVK_Tab), carbonModifiers: UInt32(cmdKey)) {
-            fail("\u{2318}\u{21E5} is the takeover switch")
+        if recorded.needsSymbolicHotKeyTakeover, !acceptsCmdTab {
+            fail("\u{2318}\u{2009}Tab is taken")
+            return
+        }
+        if recorded.needsSymbolicHotKeyTakeover, !takeoverAvailable {
+            fail("\u{2318}\u{2009}Tab is unavailable")
+            return
+        }
+        if reservedChords.contains(recorded) || reservedChords.contains(recorded.withoutTakeover())
+            || reservedChords.contains(where: { $0.withoutTakeover() == recorded }) {
+            fail("Already in use")
             return
         }
         binding = recorded
@@ -126,11 +149,16 @@ final class HotKeyRecorderView: NSView {
 struct HotKeyRecorder: NSViewRepresentable {
     let binding: HotKeyBinding
     var requiresHoldModifier = true
+    var acceptsCmdTab = true
+    let takeoverAvailable: Bool
+    let reservedChords: [HotKeyBinding]
     let onRecord: (HotKeyBinding) -> Void
     let onRecordingChanged: (Bool) -> Void
 
     func makeNSView(context: Context) -> HotKeyRecorderView {
-        let view = HotKeyRecorderView(binding: binding, requiresHoldModifier: requiresHoldModifier)
+        let view = HotKeyRecorderView(binding: binding, requiresHoldModifier: requiresHoldModifier,
+                                      acceptsCmdTab: acceptsCmdTab, takeoverAvailable: takeoverAvailable,
+                                      reservedChords: reservedChords)
         view.onRecord = onRecord
         view.onRecordingChanged = onRecordingChanged
         return view
@@ -139,6 +167,9 @@ struct HotKeyRecorder: NSViewRepresentable {
     func updateNSView(_ view: HotKeyRecorderView, context: Context) {
         view.binding = binding
         view.requiresHoldModifier = requiresHoldModifier
+        view.acceptsCmdTab = acceptsCmdTab
+        view.takeoverAvailable = takeoverAvailable
+        view.reservedChords = reservedChords
         view.onRecord = onRecord
         view.onRecordingChanged = onRecordingChanged
     }

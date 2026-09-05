@@ -99,54 +99,70 @@ private struct HotKeySettingsView: View {
             Section {
                 LabeledContent("Open the switcher") {
                     HotKeyRecorder(binding: store.mainHotKey,
+                                   takeoverAvailable: model.cmdTabTakeoverAvailable,
+                                   reservedChords: [store.reverseHotKey, store.searchHotKey],
                                    onRecord: { store.mainHotKey = $0 },
                                    onRecordingChanged: actions.setRecording)
                         .frame(width: 130, height: 24)
                 }
-                LabeledContent("Open it backwards") {
+                LabeledContent("Open the switcher backwards") {
                     HotKeyRecorder(binding: store.reverseHotKey,
+                                   takeoverAvailable: model.cmdTabTakeoverAvailable,
+                                   reservedChords: [store.mainHotKey, store.searchHotKey],
                                    onRecord: { store.reverseHotKey = $0 },
                                    onRecordingChanged: actions.setRecording)
                         .frame(width: 130, height: 24)
                 }
-                LabeledContent("Open straight into search") {
-                    HotKeyRecorder(binding: store.searchHotKey, requiresHoldModifier: false,
+                LabeledContent("Open search") {
+                    HotKeyRecorder(binding: store.searchHotKey, requiresHoldModifier: false, acceptsCmdTab: false,
+                                   takeoverAvailable: model.cmdTabTakeoverAvailable,
+                                   reservedChords: [store.mainHotKey, store.reverseHotKey],
                                    onRecord: { store.searchHotKey = $0 },
                                    onRecordingChanged: actions.setRecording)
                         .frame(width: 130, height: 24)
                 }
                 Text("""
-                    Holding the modifier keeps the panel up; letting go switches to whatever is highlighted. \
-                    The first two therefore need \u{2325}, \u{2303} or \u{2318} in them.
+                    Holding the modifier keeps the panel up and letting go switches, so the first two shortcuts \
+                    need \u{2325}, \u{2303} or \u{2318}.
                     """)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                Text("\u{2318}\u{2009}Tab replaces the system app switcher while OpenTab runs and comes back when it quits.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if model.takeoverPolicy == .unavailable {
+                    Text("\u{2318}\u{2009}Tab is not available on this Mac, so OpenTab is using \u{2325}\u{2009}Tab.")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+                if model.takeoverPolicy == .untrusted {
+                    Text("""
+                        \u{2318}\u{2009}Tab works once Accessibility is granted; until then OpenTab is using \
+                        \u{2325}\u{2009}Tab.
+                        """)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
                 if let otherInstance = model.otherInstance {
                     Text(otherInstance)
                         .font(.caption)
                         .foregroundStyle(.red)
                 }
-                Button("Reset to Defaults", action: store.resetHotKeys)
-            }
-            Section("Replace the system \u{2318}\u{21E5}") {
-                Text("""
-                    OpenTab switches off the system's own \u{2318}\u{21E5} in the window server for as long as it \
-                    runs, and puts it back when it quits. If OpenTab is force quit or crashes instead, \
-                    \u{2318}\u{21E5} stops working entirely until you log out and back in — the setting lives in \
-                    the window server, not on disk, so a restart of OpenTab cannot always recover it. \
-                    Off unless you turn it on.
-                    """)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                if !model.cmdTabTakeoverAvailable {
-                    Text("Not available on this system: the window server call OpenTab needs is missing.")
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                }
                 if model.secureInputActive {
-                    Text("Secure Input is active right now, so shortcuts may not reach OpenTab.")
+                    Text("Secure Input is active, so shortcuts may not reach OpenTab.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+                // The store cannot see availability, and a reset to a chord
+                // the recorder refuses would show Cmd-Tab over the red caption.
+                Button("Reset to Defaults") {
+                    if model.cmdTabTakeoverAvailable {
+                        store.resetHotKeys()
+                    } else {
+                        store.mainHotKey = .optionTab
+                        store.reverseHotKey = .optionShiftTab
+                        store.searchHotKey = .searchDefault
+                    }
                 }
             }
         }
