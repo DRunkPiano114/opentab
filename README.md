@@ -15,6 +15,7 @@ Option-Tab window and tab switcher for macOS. Hold Option, tap Tab, and every op
 4. Grant the two permissions the first-run guide asks for:
    - **Accessibility** is required. It is how OpenTab lists windows and brings the one you pick to the front.
    - **Automation** is asked per browser, the first time OpenTab lists that browser's tabs. Declining it for a browser only removes that browser's tabs from the list; its windows stay.
+5. From then on OpenTab checks once a day for a newer version and offers to install it with one click. Turn that off under Settings › General if you would rather update by hand from the release page.
 
 ## Use
 
@@ -39,9 +40,9 @@ Search is forgiving: a few characters in the right order match. Chinese titles m
 
 ## Privacy
 
-- No telemetry and no automatic updates. OpenTab makes no network request unless you turn on "Look up missing icons on Google" under Settings › Privacy, which is off by default; with it on, the domain of each tab is sent to Google to fetch a favicon.
+- No telemetry. OpenTab sends nothing about you or your windows anywhere, and its logs and diagnostic dumps never contain window titles.
+- Once a day OpenTab asks GitHub whether a newer version exists. That request carries your IP address, OpenTab's name and version, and nothing about you or your windows. An update is shown to you and installs when you click Install; the first update alert also offers a box to install future updates automatically, which stays unticked unless you tick it. Switch the check off under Settings › General, or check by hand with "Check for Updates…" from the menu bar icon. The only other network request is the optional "Look up missing icons on Google" under Settings › Privacy, off by default; with it on, the domain of each tab is sent to Google to fetch a favicon.
 - Private and incognito windows are left out of the list unless you opt in under Settings › Privacy. Safari exposes no private-window flag to other apps, so with the opt-in off Safari is listed by window and never by tab.
-- Logs and diagnostic dumps never contain window titles.
 
 ## How it works
 
@@ -60,13 +61,15 @@ make run        # install to ~/Applications as "OpenTab Dev" and launch
 
 Debug builds are signed with a self-signed certificate that `make build` creates on first use, so the Accessibility grant survives rebuilds.
 
+The first `make build` after a clean checkout downloads Sparkle through Swift Package Manager, so it needs network once; `make test` never does.
+
 ## Releasing
 
 1. Write the new version's section in `CHANGELOG.md` and push it to `main`.
 2. Quit every running copy of OpenTab, then `make tag VERSION=x.y.z`. It runs every check and both test suites before it creates the annotated tag, and refuses to tag if any of them fails.
 3. `git push origin vx.y.z`.
 
-Release builds are signed with a Developer ID and notarized by `Scripts/release.sh`. Pushing the `v*` tag runs that script in GitHub Actions, which publishes the release with the matching section of `CHANGELOG.md` as its notes.
+Release builds are signed with a Developer ID and notarized by `Scripts/release.sh`. Pushing the `v*` tag runs that script in GitHub Actions, which publishes the release with the matching section of `CHANGELOG.md` as its notes. The workflow also signs the zip with the project's Sparkle key and publishes `appcast.xml` next to it, which is what installed copies read to find the update.
 
 ## License
 
