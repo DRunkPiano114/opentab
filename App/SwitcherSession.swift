@@ -117,6 +117,16 @@ final class SwitcherSession {
         panel.reposition(rowCount: rows.count)
     }
 
+    /// A click has no modifier held, so the panel must not commit on the
+    /// release it would otherwise wait for; Return, Escape and the navigation
+    /// keys are registered as they are for the search hotkey.
+    func openFromMenu(search: Bool) {
+        guard state == .idle else { return }
+        let hold = hotKeys.persistentChords.first?.hold ?? .option
+        open(startAtEnd: false, since: .now, hold: hold, commitOnReleasedModifier: false)
+        if search { enterSearch() }
+    }
+
     // MARK: - Keys
 
     /// Without the Accessibility grant the global monitor never reports the
