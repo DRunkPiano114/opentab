@@ -141,36 +141,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         statusMenu = StatusMenuController()
-        statusMenu.updatesAvailable = updates != nil
+        statusMenu.hasUpdater = updates != nil
         statusMenu.onCheckForUpdates = { [weak self] in self?.updates?.checkForUpdates() }
         // Assigning the closure replays the current value, so the menu is
         // right from the first draw.
         updates?.onCanCheckForUpdatesChanged = { [weak self] can in self?.statusMenu.canCheckForUpdates = can }
         statusMenu.isIconVisible = settings.showMenuBarIcon
         statusMenu.windowIDBridgeAvailable = source.isWindowIDBridgeAvailable
+        statusMenu.onOpenSwitcher = { [weak self] in self?.session.openFromMenu(search: false) }
+        statusMenu.onSearchWindows = { [weak self] in self?.session.openFromMenu(search: true) }
         statusMenu.onOpenSettings = { [weak self] in self?.showSettings() }
+        statusMenu.onOpenAbout = { [weak self] in self?.showSettings() }
+        statusMenu.onOpenShortcutsTab = { [weak self] in self?.showSettings() }
+        statusMenu.onOpenPrivacyTab = { [weak self] in self?.showSettings() }
         statusMenu.onRebuildIndex = { [weak self] in
             guard let self else { return }
             Task { await self.coordinator.rebuild() }
         }
         statusMenu.onOpenAutomationSettings = { [weak self] in self?.automation.openSettings() }
-        statusMenu.onEnableTabs = { [weak self] bundleID in self?.offerTabs(for: bundleID) }
-        statusMenu.faviconRemoteDisclosure = FaviconStore.remoteDisclosureText
-        statusMenu.faviconRemoteEnabled = FaviconStore.shared.isRemoteLookupEnabled
-        statusMenu.safariCacheGranted = FaviconStore.shared.hasSafariCacheAccess
-        // Through the store, so the menu item and the settings window cannot
-        // end up showing different answers.
-        statusMenu.onToggleFaviconRemote = { [weak self] enabled in
-            self?.settings.remoteFavicons = enabled
-        }
-        statusMenu.onGrantSafariCache = { [weak self] in
-            // The open panel is modal and an accessory app is not active when
-            // its status item is clicked.
-            NSApp.activate()
-            let granted = FaviconStore.shared.requestSafariCacheAccess()
-            self?.statusMenu.safariCacheGranted = granted
-            self?.settingsModel.safariCacheGranted = granted
-        }
+        statusMenu.boundChords = { [weak self] in self?.hotKeys.persistentChords ?? [] }
         if !source.isWindowIDBridgeAvailable {
             log.error("_AXUIElementGetWindow unavailable: windows keyed by AX element only")
         }
@@ -321,9 +310,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first?.localizedName ?? bundleID
         }
         statusMenu.tabsUnavailable = automation.deniedBundleIDs.subtracting(awaiting).sorted().map(name)
-        statusMenu.tabsAwaitingRequest = awaiting.sorted().map { (bundleID: $0, name: name($0)) }
+        statusMenu.tabsAwaitingRequest = awaiting.sorted().map(name)
         settingsModel.tabsUnavailable = statusMenu.tabsUnavailable
-        settingsModel.tabsAwaitingRequest = statusMenu.tabsAwaitingRequest
+        settingsModel.tabsAwaitingRequest = awaiting.sorted().map { (bundleID: $0, name: name($0)) }
     }
 
     private var otherInstances: [InstanceWatch.OtherInstance] = []
@@ -345,9 +334,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // underneath, and a copy quitting is what hands this one the chords.
         applyCmdTabTakeover()
         guard let other = others.first else {
+            statusMenu.otherInstanceRunning = false
             settingsModel.otherInstance = nil
             return
         }
+        statusMenu.otherInstanceRunning = true
         let location = other.path ?? "an unknown location"
         let headline = "Another copy of OpenTab is running from \(location)."
         let detail = """
@@ -407,7 +398,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return }
             NSApp.activate()
             let granted = FaviconStore.shared.requestSafariCacheAccess()
-            self.statusMenu.safariCacheGranted = granted
             self.settingsModel.safariCacheGranted = granted
         }
         actions.refreshHealth = { [weak self] in
@@ -459,7 +449,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             rebuildIndex()
         case .remoteFavicons:
             FaviconStore.shared.isRemoteLookupEnabled = settings.remoteFavicons
-            statusMenu.faviconRemoteEnabled = settings.remoteFavicons
             log.notice("favicon remote lookup enabled=\(self.settings.remoteFavicons, privacy: .public)")
         case .hotKeys:
             applyCmdTabTakeover()
@@ -490,6 +479,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                             available: CmdTabTakeover.isAvailable,
                                             otherInstanceRunning: !instances.others.isEmpty)
         settingsModel.takeoverPolicy = policy
+        statusMenu.takeoverUnavailable = policy == .unavailable
         if policy.isEnabled, offSpace.cmdTab.enable() {
             hotKeys.configure(main: settings.mainHotKey, reverse: settings.reverseHotKey,
                               search: settings.searchHotKey)

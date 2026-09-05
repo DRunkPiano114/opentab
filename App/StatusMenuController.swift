@@ -1,152 +1,216 @@
 import AppKit
+import Carbon
+import OpenTabCore
 
-/// Menu bar item. Every degraded mode is visible here: a marker in the
-/// status title and a disabled explanatory item.
+/// Menu bar item. The menu is a short list of verbs, rebuilt from the spec
+/// every time it opens; anything degraded is folded into one attention row at
+/// the top and marked on the status item itself.
 @MainActor
-final class StatusMenuController: NSObject {
-    var accessibilityGranted = false { didSet { rebuild() } }
-    var windowIDBridgeAvailable = true { didSet { rebuild() } }
-    var secureInputActive = false { didSet { rebuild() } }
+final class StatusMenuController: NSObject, NSMenuDelegate {
+    var accessibilityGranted = false { didSet { refreshBadge() } }
+    /// Both copies answer the same chord, so both open a panel.
+    var otherInstanceRunning = false { didSet { refreshBadge() } }
+    /// The bound chord wants the window-server write and this Mac has none.
+    var takeoverUnavailable = false { didSet { refreshBadge() } }
+    var windowIDBridgeAvailable = true { didSet { refreshBadge() } }
+    var secureInputActive = false { didSet { refreshBadge() } }
     /// Display names of browsers listed as windows only because Apple
     /// Events were refused.
-    var tabsUnavailable: [String] = [] { didSet { rebuild() } }
-    /// Browsers never asked for Apple Events consent; the item runs the
-    /// guided request.
-    var tabsAwaitingRequest: [(bundleID: String, name: String)] = [] { didSet { rebuild() } }
-    /// Favicon lookups that leave the machine. Off unless the user turns it
-    /// on, and the menu says what it costs.
-    var faviconRemoteEnabled = false { didSet { rebuild() } }
-    var faviconRemoteDisclosure = "" { didSet { rebuild() } }
-    /// Whether the user has picked ~/Library/Safari, which is the only way to
-    /// read Safari's favicon cache without Full Disk Access.
-    var safariCacheGranted = false { didSet { rebuild() } }
+    var tabsUnavailable: [String] = [] { didSet { refreshBadge() } }
+    /// Browsers never asked for Apple Events consent. Nothing has gone wrong
+    /// yet, so this is not one of the attention row's conditions.
+    var tabsAwaitingRequest: [String] = []
     /// Whether the running copy has an updater at all; the development copy
     /// has none, and an item that cannot work is worse than no item.
-    var updatesAvailable = false { didSet { rebuild() } }
+    var hasUpdater = false
     /// The updater's own gate: false while a check or an install is running.
-    var canCheckForUpdates = true { didSet { rebuild() } }
+    var canCheckForUpdates = true
     /// Hiding the icon is a setting; the settings window stays reachable by
     /// launching the app again, which reopens it.
     var isIconVisible = true { didSet { item.isVisible = isIconVisible } }
-    var onOpenSettings: (() -> Void)?
-    var onToggleFaviconRemote: ((Bool) -> Void)?
-    var onGrantSafariCache: (() -> Void)?
+    /// Read when the menu opens, so the shortcut drawn is the one bound now
+    /// rather than the one bound when the menu was last built.
+    var boundChords: () -> [HotKeyBinding] = { [] }
+
+    var onOpenSwitcher: (() -> Void)?
+    var onSearchWindows: (() -> Void)?
     var onRebuildIndex: (() -> Void)?
-    var onOpenAutomationSettings: (() -> Void)?
-    var onEnableTabs: ((String) -> Void)?
     var onCheckForUpdates: (() -> Void)?
+    var onOpenAbout: (() -> Void)?
+    var onOpenSettings: (() -> Void)?
+    var onOpenAutomationSettings: (() -> Void)?
+    var onOpenShortcutsTab: (() -> Void)?
+    var onOpenPrivacyTab: (() -> Void)?
 
     private let item: NSStatusItem
+    private let menu = NSMenu()
 
     override init() {
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
-        item.button?.image = NSImage(systemSymbolName: "macwindow.on.rectangle", accessibilityDescription: "OpenTab")
+        item.button?.image = NSImage(systemSymbolName: "macwindow.on.rectangle", accessibilityDescription: nil)
         item.button?.imagePosition = .imageLeading
-        rebuild()
-    }
-
-    private func rebuild() {
-        let degraded = !accessibilityGranted || !windowIDBridgeAvailable || secureInputActive || !tabsUnavailable.isEmpty
-        item.button?.title = degraded ? "⚠︎" : ""
-
-        let menu = NSMenu()
+        // Off, so that every `isEnabled` below is honoured rather than
+        // silently overruled by menu validation.
         menu.autoenablesItems = false
-
-        if accessibilityGranted {
-            menu.addItem(disabled("Accessibility: granted"))
-        } else {
-            let open = NSMenuItem(title: "Accessibility: NOT granted — Open System Settings…",
-                                  action: #selector(openAccessibilitySettings), keyEquivalent: "")
-            open.target = self
-            menu.addItem(open)
-        }
-        if !windowIDBridgeAvailable {
-            menu.addItem(disabled("Window ID bridge unavailable (degraded)"))
-        }
-        if secureInputActive {
-            menu.addItem(disabled("Secure Input active: hotkeys may not work"))
-        }
-        if !tabsUnavailable.isEmpty {
-            for name in tabsUnavailable {
-                menu.addItem(disabled("\(name): tabs unavailable (Automation not allowed)"))
-            }
-            let open = NSMenuItem(title: "Open Automation Settings…",
-                                  action: #selector(openAutomationSettings), keyEquivalent: "")
-            open.target = self
-            menu.addItem(open)
-        }
-        for browser in tabsAwaitingRequest {
-            let enable = NSMenuItem(title: "Enable tabs for \(browser.name)…",
-                                    action: #selector(enableTabs(_:)), keyEquivalent: "")
-            enable.target = self
-            enable.representedObject = browser.bundleID
-            menu.addItem(enable)
-        }
-        menu.addItem(.separator())
-        for item in faviconItems() { menu.addItem(item) }
-        menu.addItem(.separator())
-
-        let rebuildItem = NSMenuItem(title: "Rebuild Index", action: #selector(rebuildIndex), keyEquivalent: "")
-        rebuildItem.target = self
-        rebuildItem.toolTip = "Drop the whole list and read every window again."
-        menu.addItem(rebuildItem)
-        if updatesAvailable {
-            let check = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
-            check.target = self
-            // Auto-enabling is off for this menu, so the updater's own
-            // validation never runs and this is the only gate there is.
-            check.isEnabled = canCheckForUpdates
-            menu.addItem(check)
-        }
-        let settings = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
-        settings.target = self
-        menu.addItem(settings)
-        menu.addItem(.separator())
-
-        let quit = NSMenuItem(title: "Quit OpenTab", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        quit.target = NSApp
-        menu.addItem(quit)
-
+        menu.delegate = self
         item.menu = menu
+        refreshBadge()
     }
 
-    /// The favicon section. Tab rows fall back to the app icon when no local
-    /// cache has the site, so both items below are conveniences, not
-    /// requirements.
-    private func faviconItems() -> [NSMenuItem] {
-        var items: [NSMenuItem] = [disabled("Favicons")]
-        if safariCacheGranted {
-            items.append(disabled("  Safari cache: readable"))
-        } else {
-            let grant = NSMenuItem(title: "  Allow Reading Safari's Favicon Cache…",
-                                   action: #selector(grantSafariCache), keyEquivalent: "")
-            grant.target = self
-            items.append(grant)
-        }
-        let remote = NSMenuItem(title: "  Look Up Missing Favicons on Google",
-                                action: #selector(toggleFaviconRemote), keyEquivalent: "")
-        remote.target = self
-        remote.state = faviconRemoteEnabled ? .on : .off
-        items.append(remote)
-        if !faviconRemoteDisclosure.isEmpty {
-            items.append(disabled("  \(faviconRemoteDisclosure)"))
-        }
-        return items
+    private var inputs: StatusMenuSpec.Inputs {
+        var inputs = StatusMenuSpec.Inputs()
+        inputs.accessibilityGranted = accessibilityGranted
+        inputs.otherInstanceRunning = otherInstanceRunning
+        inputs.takeoverUnavailable = takeoverUnavailable
+        inputs.windowIDBridgeAvailable = windowIDBridgeAvailable
+        inputs.secureInputActive = secureInputActive
+        inputs.tabsUnavailable = tabsUnavailable
+        inputs.tabsAwaitingRequest = tabsAwaitingRequest
+        inputs.hasUpdater = hasUpdater
+        inputs.canCheckForUpdates = canCheckForUpdates
+        let chords = boundChords()
+        inputs.mainShortcut = chords.first.flatMap(Self.keyEquivalent)
+        inputs.searchShortcut = chords.count > 2 ? Self.keyEquivalent(chords[2]) : nil
+        return inputs
     }
 
-    private func disabled(_ title: String) -> NSMenuItem {
-        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-        item.isEnabled = false
+    /// The populate hook. Rebuilding in `menuWillOpen` instead is what drops
+    /// items under fast repeated opens: structural changes are forbidden
+    /// there.
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.removeAllItems()
+        for spec in StatusMenuSpec.items(inputs) {
+            menu.addItem(makeItem(spec))
+        }
+    }
+
+    private func makeItem(_ spec: StatusMenuSpec.Item) -> NSMenuItem {
+        switch spec {
+        case .separator:
+            return .separator()
+        case let .action(action, title, symbol, keyEquivalent, isEnabled):
+            let item = makeAction(action, title: title, symbol: symbol, keyEquivalent: keyEquivalent)
+            item.isEnabled = isEnabled
+            if action == .rebuildIndex {
+                item.toolTip = "Drop the whole list and read every window again."
+            }
+            return item
+        case let .attention(title, conditions):
+            let item: NSMenuItem
+            if conditions.count == 1 {
+                item = makeAction(conditions[0].action, title: title, symbol: Self.attentionSymbol,
+                                  keyEquivalent: nil)
+            } else {
+                item = makeAction(nil, title: title, symbol: Self.attentionSymbol, keyEquivalent: nil)
+                let submenu = NSMenu()
+                submenu.autoenablesItems = false
+                for condition in conditions {
+                    submenu.addItem(makeAction(condition.action, title: condition.title,
+                                               symbol: Self.attentionSymbol, keyEquivalent: nil))
+                }
+                item.submenu = submenu
+            }
+            // The plain title stays set: accessibility and key-equivalent
+            // matching read it. The attributed one colours the dot alone, so
+            // AppKit still inverts the text on the highlighted row; a
+            // foreground colour on the title would stay dark there.
+            item.attributedTitle = Self.markedTitle(title)
+            return item
+        }
+    }
+
+    private static let attentionSymbol = "exclamationmark.circle"
+
+    private func makeAction(_ action: StatusMenuSpec.Action?, title: String, symbol: String,
+                            keyEquivalent: StatusMenuSpec.KeyEquivalent?) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: keyEquivalent?.key ?? "")
+        item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
+        item.keyEquivalentModifierMask = Self.modifierMask(keyEquivalent)
+        if let action {
+            let (selector, target) = handler(for: action)
+            item.action = selector
+            item.target = target
+        }
         return item
     }
 
-    @objc private func openAccessibilitySettings() {
-        NSWorkspace.shared.open(SystemSettingsLinks.accessibility)
+    private static func modifierMask(_ keyEquivalent: StatusMenuSpec.KeyEquivalent?) -> NSEvent.ModifierFlags {
+        guard let keyEquivalent else { return [] }
+        var mask: NSEvent.ModifierFlags = []
+        if keyEquivalent.command { mask.insert(.command) }
+        if keyEquivalent.option { mask.insert(.option) }
+        if keyEquivalent.shift { mask.insert(.shift) }
+        if keyEquivalent.control { mask.insert(.control) }
+        return mask
     }
 
-    @objc private func openSettings() {
-        onOpenSettings?()
+    /// The chord as a menu key equivalent. In a status-item menu this fires
+    /// only while the menu is open; the chord's real delivery stays with the
+    /// Carbon registration.
+    private static func keyEquivalent(_ binding: HotKeyBinding) -> StatusMenuSpec.KeyEquivalent? {
+        let key: String
+        if binding.keyCode == UInt32(kVK_Tab) {
+            key = "\t"
+        } else {
+            let label = KeyCodeNames.label(for: binding.keyCode)
+            guard label.count == 1 else { return nil }
+            // An uppercase letter would draw a Shift glyph the chord has not
+            // got.
+            key = label.lowercased()
+        }
+        return StatusMenuSpec.KeyEquivalent(key: key,
+                                            command: binding.carbonModifiers & UInt32(cmdKey) != 0,
+                                            option: binding.carbonModifiers & UInt32(optionKey) != 0,
+                                            shift: binding.carbonModifiers & UInt32(shiftKey) != 0,
+                                            control: binding.carbonModifiers & UInt32(controlKey) != 0)
+    }
+
+    private static func markedTitle(_ title: String) -> NSAttributedString {
+        let font = NSFont.menuFont(ofSize: 0)
+        let marked = NSMutableAttributedString(string: "\u{25CF}",
+                                               attributes: [.font: font, .foregroundColor: NSColor.systemOrange])
+        marked.append(NSAttributedString(string: "\u{2009}\(title)", attributes: [.font: font]))
+        return marked
+    }
+
+    /// The same marker the attention row carries, on the item itself. The
+    /// icon stays a template symbol: a composite image would lose the menu
+    /// bar's own tinting.
+    private func refreshBadge() {
+        guard let button = item.button else { return }
+        let degraded = !StatusMenuSpec.conditions(inputs).isEmpty
+        if degraded {
+            button.attributedTitle = NSAttributedString(string: "\u{25CF}",
+                                                        attributes: [.foregroundColor: NSColor.systemOrange])
+        } else {
+            button.title = ""
+        }
+        button.setAccessibilityLabel(degraded ? "OpenTab, needs attention" : "OpenTab")
+    }
+
+    private func handler(for action: StatusMenuSpec.Action) -> (Selector, AnyObject?) {
+        switch action {
+        case .openSwitcher: (#selector(openSwitcher), self)
+        case .searchWindows: (#selector(searchWindows), self)
+        case .rebuildIndex: (#selector(rebuildIndex), self)
+        case .checkForUpdates: (#selector(checkForUpdates), self)
+        case .about: (#selector(openAbout), self)
+        case .settings: (#selector(openSettings), self)
+        case .quit: (#selector(NSApplication.terminate(_:)), NSApp)
+        case .openAccessibilitySettings: (#selector(openAccessibilitySettings), self)
+        case .openAutomationSettings: (#selector(openAutomationSettings), self)
+        case .openShortcutsTab: (#selector(openShortcutsTab), self)
+        case .openPrivacyTab: (#selector(openPrivacyTab), self)
+        }
+    }
+
+    @objc private func openSwitcher() {
+        onOpenSwitcher?()
+    }
+
+    @objc private func searchWindows() {
+        onSearchWindows?()
     }
 
     @objc private func rebuildIndex() {
@@ -157,20 +221,27 @@ final class StatusMenuController: NSObject {
         onCheckForUpdates?()
     }
 
+    @objc private func openAbout() {
+        onOpenAbout?()
+    }
+
+    @objc private func openSettings() {
+        onOpenSettings?()
+    }
+
+    @objc private func openAccessibilitySettings() {
+        NSWorkspace.shared.open(SystemSettingsLinks.accessibility)
+    }
+
     @objc private func openAutomationSettings() {
         onOpenAutomationSettings?()
     }
 
-    @objc private func toggleFaviconRemote() {
-        onToggleFaviconRemote?(!faviconRemoteEnabled)
+    @objc private func openShortcutsTab() {
+        onOpenShortcutsTab?()
     }
 
-    @objc private func grantSafariCache() {
-        onGrantSafariCache?()
-    }
-
-    @objc private func enableTabs(_ sender: NSMenuItem) {
-        guard let bundleID = sender.representedObject as? String else { return }
-        onEnableTabs?(bundleID)
+    @objc private func openPrivacyTab() {
+        onOpenPrivacyTab?()
     }
 }
