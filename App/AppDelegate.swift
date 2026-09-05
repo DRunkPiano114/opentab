@@ -101,7 +101,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Off-space windows (remote tokens + CGS Space queries) and the
         // Cmd+Tab takeover sit on top of the pure-AX source; every missing
         // private symbol degrades back to it.
-        offSpace = OffSpaceSupport(base: source)
+        offSpace = OffSpaceSupport(base: source,
+                                   takeoverEnabled: !CommandLine.arguments.contains(CmdTabTakeover.disableArgument))
         directory = WorkspaceAppDirectory(ignoreRules: rules)
         trigger = AXRefreshTrigger()
 
@@ -126,7 +127,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel = PanelController(model: model)
         panel.screenPosition = settings.panelPosition
         hotKeys = HotKeyCenter()
-        hotKeys.configure(main: settings.mainHotKey, reverse: settings.reverseHotKey,
+        // Nothing has evaluated the grant yet, and Cmd-Tab registered while
+        // the system still owns it reports success and never fires; the
+        // fallback chords are the safe registration until the policy runs.
+        hotKeys.configure(main: settings.mainHotKey.withoutTakeover(), reverse: settings.reverseHotKey.withoutTakeover(),
                           search: settings.searchHotKey)
         session = SwitcherSession(coordinator: coordinator, panel: panel, hotKeys: hotKeys, model: model)
         session.frontmostApp = { Self.frontmostAppInfo() }
@@ -190,11 +194,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.prewarm()
         session.start()
         offSpace.presentDegradationIfNeeded()
-        // Registering Cmd+Tab while the system still owns it succeeds and
-        // then never delivers an event, so the takeover goes first.
-        if offSpace.enableCmdTabIfConfigured() {
-            hotKeys.registerCommandTab()
-        }
 
         settingsModel.windowIDBridgeAvailable = source.isWindowIDBridgeAvailable
         settingsModel.cmdTabTakeoverAvailable = CmdTabTakeover.isAvailable
@@ -246,6 +245,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settingsModel.accessibilityGranted = true
         onboarding?.accessibilityChanged(true)
         session.accessibilityGranted()
+        applyCmdTabTakeover()
         resume(reason: "accessibility")
         IconCache.shared.prewarm(apps: directory.runningApps())
     }
@@ -259,6 +259,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settingsModel.accessibilityGranted = false
         onboarding?.accessibilityChanged(false)
         session.accessibilityRevoked()
+        applyCmdTabTakeover()
         suspend(reason: "accessibility")
     }
 
@@ -340,6 +341,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func otherInstancesChanged(_ others: [InstanceWatch.OtherInstance]) {
         otherInstances = others
         guard announcesOtherInstances else { return }
+        // Both directions matter: a copy appearing must not be taken over
+        // underneath, and a copy quitting is what hands this one the chords.
+        applyCmdTabTakeover()
         guard let other = others.first else {
             settingsModel.otherInstance = nil
             return
@@ -449,11 +453,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             FaviconStore.shared.isRemoteLookupEnabled = settings.remoteFavicons
             statusMenu.faviconRemoteEnabled = settings.remoteFavicons
             log.notice("favicon remote lookup enabled=\(self.settings.remoteFavicons, privacy: .public)")
-        case .cmdTabTakeover:
-            applyCmdTabTakeover()
         case .hotKeys:
-            hotKeys.configure(main: settings.mainHotKey, reverse: settings.reverseHotKey,
-                              search: settings.searchHotKey)
+            applyCmdTabTakeover()
         case .ignoreTitlePatterns:
             coordinator.setIgnoreTitlePatterns(settings.ignoreTitlePatterns)
             rebuildIndex()
@@ -465,21 +466,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { await coordinator.rebuild() }
     }
 
-    /// The app's own chords must be bound only while the system ones are off,
-    /// and released before they go back: a registration made while the system
-    /// owns the chord returns success and receives nothing.
+    /// The one place the takeover is switched on or off, and the one place
+    /// the persistent chords are bound after launch. The app's own Cmd-Tab
+    /// must be registered only while the system chord is off, and released
+    /// before it goes back: a registration made while the system owns the
+    /// chord returns success and receives nothing. So enabling precedes
+    /// `configure` (which registers) and `configure` (which unregisters)
+    /// precedes disabling. Both takeover calls are idempotent, so this may
+    /// run whenever an input changes.
     private func applyCmdTabTakeover() {
-        if settings.cmdTabTakeover {
-            guard offSpace.cmdTab.enable() else {
-                log.error("Cmd+Tab takeover unavailable")
-                settingsModel.cmdTabTakeoverAvailable = false
-                return
-            }
-            hotKeys.registerCommandTab()
+        let wanted = settings.mainHotKey.needsSymbolicHotKeyTakeover
+            || settings.reverseHotKey.needsSymbolicHotKeyTakeover
+        let policy = TakeoverPolicy.resolve(wanted: wanted, trusted: AXTrust.isTrusted,
+                                            available: CmdTabTakeover.isAvailable,
+                                            otherInstanceRunning: !instances.others.isEmpty)
+        settingsModel.takeoverPolicy = policy
+        if policy.isEnabled, offSpace.cmdTab.enable() {
+            hotKeys.configure(main: settings.mainHotKey, reverse: settings.reverseHotKey,
+                              search: settings.searchHotKey)
         } else {
-            hotKeys.unregisterCommandTab()
+            hotKeys.configure(main: settings.mainHotKey.withoutTakeover(),
+                              reverse: settings.reverseHotKey.withoutTakeover(),
+                              search: settings.searchHotKey)
             offSpace.cmdTab.disable()
         }
+        let bound = hotKeys.persistentChords.map(\.displayString).joined(separator: " ")
+        log.notice("takeover policy=\(String(describing: policy), privacy: .public) bound=\(bound, privacy: .public)")
     }
 
     // MARK: - First run

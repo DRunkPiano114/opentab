@@ -14,9 +14,9 @@ enum KeyPhase {
 }
 
 /// The modifier the user holds while the panel is up; releasing it commits
-/// the selection. Option is the app's own default chord and Command is the
-/// Cmd+Tab takeover; a recorded chord may use any of the
-/// three, and the monitors track all of them.
+/// the selection. Command is the hold when the main chord is Cmd-Tab and
+/// Option when it is Option-Tab; a recorded chord may use any of the three,
+/// and the monitors track all of them.
 ///
 /// Shift is deliberately not one: it is the reverse-direction modifier, so
 /// holding it could not be told apart from asking to go backwards.
@@ -72,6 +72,8 @@ final class HotKeyCenter {
 
     /// The chords registered for the whole process lifetime. Replaced when
     /// the user records new ones; the defaults live on `HotKeyBinding`.
+    /// Starts on the fallback pair, never on Cmd-Tab: a center registered
+    /// before anything configured it must still bind chords that fire.
     private static func persistent(main: HotKeyBinding, reverse: HotKeyBinding,
                                    search: HotKeyBinding) -> [Binding] {
         [
@@ -81,14 +83,6 @@ final class HotKeyCenter {
             Binding(id: 3, keyCode: search.keyCode, modifiers: search.carbonModifiers, key: .search),
         ]
     }
-
-    /// The Cmd+Tab takeover. Registered only while `CmdTabTakeover` has the
-    /// system chords disabled: registered earlier they report success and
-    /// never fire.
-    private static let commandTab: [Binding] = [
-        Binding(id: 4, keyCode: UInt32(kVK_Tab), modifiers: UInt32(cmdKey), key: .next, hold: .command),
-        Binding(id: 5, keyCode: UInt32(kVK_Tab), modifiers: UInt32(cmdKey | shiftKey), key: .previous, hold: .command),
-    ]
 
     /// Registered only while the panel is visible: these steal plain keys
     /// from every app. Each key is registered both unmodified and with the
@@ -118,10 +112,9 @@ final class HotKeyCenter {
     }
 
     private var handlerRef: EventHandlerRef?
-    private var persistentBindings: [Binding] = HotKeyCenter.persistent(main: .mainDefault, reverse: .reverseDefault,
+    private var persistentBindings: [Binding] = HotKeyCenter.persistent(main: .optionTab, reverse: .optionShiftTab,
                                                                         search: .searchDefault)
     private var persistentRefs: [EventHotKeyRef] = []
-    private var commandTabRefs: [EventHotKeyRef] = []
     private var navigationRefs: [EventHotKeyRef] = []
     private var navigationBindings: [Binding] = []
     private var globalMonitor: Any?
@@ -151,12 +144,13 @@ final class HotKeyCenter {
     }
 
     /// Applies recorded chords, re-registering if the hotkeys are live. A
-    /// main or reverse chord with no hold modifier is rejected and the
-    /// default kept: the session waits for a release that would never come
-    /// and would commit the panel the instant it opened.
+    /// main or reverse chord with no hold modifier is rejected and Option-Tab
+    /// bound instead: the session waits for a release that would never come
+    /// and would commit the panel the instant it opened. The substitute is
+    /// never Cmd-Tab, which only fires while the system chord is off.
     func configure(main: HotKeyBinding, reverse: HotKeyBinding, search: HotKeyBinding) {
-        let main = main.isUsableAsHoldChord ? main : .mainDefault
-        let reverse = reverse.isUsableAsHoldChord ? reverse : .reverseDefault
+        let main = main.isUsableAsHoldChord ? main : .optionTab
+        let reverse = reverse.isUsableAsHoldChord ? reverse : .optionShiftTab
         let bindings = Self.persistent(main: main, reverse: reverse, search: search)
         guard bindings != persistentBindings else { return }
         let wasRegistered = !persistentRefs.isEmpty
@@ -164,18 +158,6 @@ final class HotKeyCenter {
         persistentBindings = bindings
         if wasRegistered { registerPersistent() }
         log.notice("hotkeys configured main=\(main.displayString, privacy: .public) reverse=\(reverse.displayString, privacy: .public) search=\(search.displayString, privacy: .public)")
-    }
-
-    func registerCommandTab() {
-        guard commandTabRefs.isEmpty else { return }
-        commandTabRefs = register(Self.commandTab)
-    }
-
-    func unregisterCommandTab() {
-        for ref in commandTabRefs {
-            UnregisterEventHotKey(ref)
-        }
-        commandTabRefs = []
     }
 
     func registerNavigationKeys(for hold: HoldModifier) {
@@ -247,7 +229,7 @@ final class HotKeyCenter {
     }
 
     private func dispatch(_ hotKeyID: EventHotKeyID, kind: UInt32) {
-        guard let binding = (persistentBindings + Self.commandTab + navigationBindings).first(where: { $0.id == hotKeyID.id })
+        guard let binding = (persistentBindings + navigationBindings).first(where: { $0.id == hotKeyID.id })
         else { return }
         let phase: KeyPhase = kind == UInt32(kEventHotKeyPressed) ? .pressed : .released
         onNavigationKey?(binding.key, phase, binding.hold)

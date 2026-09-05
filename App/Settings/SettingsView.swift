@@ -129,8 +129,6 @@ private struct HotKeySettingsView: View {
                 Button("Reset to Defaults", action: store.resetHotKeys)
             }
             Section("Replace the system \u{2318}\u{21E5}") {
-                Toggle("Use OpenTab for \u{2318}\u{21E5}", isOn: $store.cmdTabTakeover)
-                    .disabled(!model.cmdTabTakeoverAvailable)
                 Text("""
                     OpenTab switches off the system's own \u{2318}\u{21E5} in the window server for as long as it \
                     runs, and puts it back when it quits. If OpenTab is force quit or crashes instead, \

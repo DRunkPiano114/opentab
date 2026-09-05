@@ -48,13 +48,37 @@ final class HotKeyBindingTests: XCTestCase {
                        "\u{2318}\u{2009}Space")
     }
 
-    /// An unusable chord must not reach the Carbon layer: `configure` keeps
-    /// the default instead of binding something that cannot work.
+    /// Only the two chords the window server owns need it taken over; a chord
+    /// that merely contains Command is an ordinary global hotkey.
+    func testCmdTabChordsAreTheOnesTheTakeoverCovers() {
+        XCTAssertTrue(HotKeyBinding.cmdTab.needsSymbolicHotKeyTakeover)
+        XCTAssertTrue(HotKeyBinding.cmdShiftTab.needsSymbolicHotKeyTakeover)
+        XCTAssertFalse(HotKeyBinding.optionTab.needsSymbolicHotKeyTakeover)
+        XCTAssertFalse(HotKeyBinding.searchDefault.needsSymbolicHotKeyTakeover)
+        XCTAssertFalse(HotKeyBinding(keyCode: UInt32(kVK_Space), carbonModifiers: UInt32(cmdKey)).needsSymbolicHotKeyTakeover)
+        XCTAssertFalse(HotKeyBinding(keyCode: UInt32(kVK_Tab), carbonModifiers: UInt32(controlKey | cmdKey))
+            .needsSymbolicHotKeyTakeover)
+        XCTAssertFalse(HotKeyBinding(keyCode: UInt32(kVK_Tab), carbonModifiers: UInt32(optionKey | cmdKey))
+            .needsSymbolicHotKeyTakeover)
+    }
+
+    func testFallbackSwapsCommandForOptionAndKeepsShift() {
+        XCTAssertEqual(HotKeyBinding.cmdTab.withoutTakeover(), .optionTab)
+        XCTAssertEqual(HotKeyBinding.cmdShiftTab.withoutTakeover(), .optionShiftTab)
+        XCTAssertEqual(HotKeyBinding.optionTab.withoutTakeover(), .optionTab)
+        let cmdShiftL = HotKeyBinding(keyCode: UInt32(kVK_ANSI_L), carbonModifiers: UInt32(cmdKey | shiftKey))
+        XCTAssertEqual(cmdShiftL.withoutTakeover(), cmdShiftL)
+        let controlCmdTab = HotKeyBinding(keyCode: UInt32(kVK_Tab), carbonModifiers: UInt32(controlKey | cmdKey))
+        XCTAssertEqual(controlCmdTab.withoutTakeover(), controlCmdTab)
+    }
+
+    /// An unusable chord must not reach the Carbon layer: `configure` binds
+    /// Option-Tab instead of something that cannot work.
     func testCentreRejectsAChordWithNoHoldModifier() {
         let centre = HotKeyCenter()
         let unusable = HotKeyBinding(keyCode: UInt32(kVK_F13), carbonModifiers: 0)
         centre.configure(main: unusable, reverse: .reverseDefault, search: .searchDefault)
-        XCTAssertEqual(centre.persistentChords.first, HotKeyBinding.mainDefault)
+        XCTAssertEqual(centre.persistentChords.first, HotKeyBinding.optionTab)
 
         let usable = HotKeyBinding(keyCode: UInt32(kVK_Space), carbonModifiers: UInt32(controlKey))
         centre.configure(main: usable, reverse: .reverseDefault, search: .searchDefault)

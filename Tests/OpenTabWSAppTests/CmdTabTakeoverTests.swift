@@ -74,10 +74,6 @@ final class CmdTabTakeoverTests: XCTestCase {
         takeover.disable()
     }
 
-    func testDefaultIsOff() {
-        XCTAssertFalse(CmdTabTakeover.isConfigured(defaults))
-    }
-
     private func readSymbolicHotKeys(_ ids: [Int32]) -> [Int32: Bool] {
         var array: Unmanaged<CFArray>?
         guard CopySymbolicHotKeys(&array) == noErr,

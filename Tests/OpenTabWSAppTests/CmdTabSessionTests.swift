@@ -67,6 +67,9 @@ final class CmdTabSessionTests: XCTestCase {
         session = SwitcherSession(coordinator: coordinator, panel: panel, hotKeys: hotKeys, model: model)
         session.frontmostApp = { AppDelegate.frontmostAppInfo() }
         panel.prewarm()
+        // Bound before the takeover the way the app does it: a Cmd-Tab
+        // registered while the system still owns the chord never fires.
+        hotKeys.configure(main: .optionTab, reverse: .optionShiftTab, search: .searchDefault)
         session.start()
         try await poll("calculator indexed", timeout: .seconds(5)) {
             await self.coordinator.refreshAll(seedFocus: true)
@@ -76,7 +79,7 @@ final class CmdTabSessionTests: XCTestCase {
         takeover = CmdTabTakeover(defaults: defaults)
         XCTAssertTrue(takeover.enable())
         XCTAssertEqual(CmdTabTakeover.systemState(), [1: false, 2: false])
-        hotKeys.registerCommandTab()
+        hotKeys.configure(main: .cmdTab, reverse: .cmdShiftTab, search: .searchDefault)
     }
 
     override func tearDown() async throws {
@@ -87,7 +90,7 @@ final class CmdTabSessionTests: XCTestCase {
         if panel?.isVisible == true {
             panel.hide()
         }
-        hotKeys?.unregisterCommandTab()
+        hotKeys?.unregisterPersistent()
         hotKeys?.unregisterNavigationKeys()
         takeover?.disable()
         CmdTabTakeover.setSystemState(original)
@@ -122,7 +125,7 @@ final class CmdTabSessionTests: XCTestCase {
         try wait("panel opened on Cmd+Tab", 1.5) { self.panel.isVisible }
         XCTAssertEqual(model.mode, .navigating)
         XCTAssertFalse(NSApp.isActive, "navigation must not activate the app")
-        XCTAssertEqual(model.selectedIndex, 1, "opens on the second row like Option+Tab")
+        XCTAssertEqual(model.selectedIndex, 1, "opens on the second row")
 
         post(Key.tab, flags: .maskCommand)
         try wait("Cmd+Tab moved down", 1.0) { self.model.selectedIndex == 2 % max(self.model.rows.count, 1) }
@@ -151,7 +154,7 @@ final class CmdTabSessionTests: XCTestCase {
 
     func testDisableRestoresTheSystemChords() {
         XCTAssertEqual(CmdTabTakeover.systemState(), [1: false, 2: false])
-        hotKeys.unregisterCommandTab()
+        hotKeys.unregisterPersistent()
         takeover.disable()
         XCTAssertEqual(CmdTabTakeover.systemState(), original)
     }

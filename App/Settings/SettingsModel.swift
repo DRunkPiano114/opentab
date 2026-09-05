@@ -1,5 +1,6 @@
 import AppKit
 import Observation
+import OpenTabWS
 
 /// Live state the settings window shows but does not own: permission
 /// verdicts, degraded modes and the health read-out. The app delegate keeps
@@ -11,6 +12,8 @@ final class SettingsModel {
     var windowIDBridgeAvailable = true
     var secureInputActive = false
     var cmdTabTakeoverAvailable = true
+    /// The app's current verdict on the Cmd-Tab takeover.
+    var takeoverPolicy: TakeoverPolicy = .notWanted
     var safariCacheGranted = false
     /// Whether this copy has an updater at all; the development copy has none.
     var updatesAvailable = false

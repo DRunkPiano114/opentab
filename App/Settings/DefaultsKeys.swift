@@ -30,7 +30,8 @@ enum DefaultsKey {
     /// `FaviconSafariBookmark.defaultsKey`, a security-scoped bookmark.
     static let safariFaviconBookmark = "favicons.safariBookmark"
     /// `CmdTabTakeover.defaultsKey`, whose own constant is main-actor
-    /// isolated. `SettingsKeyTests` asserts the two agree.
+    /// isolated. Derived from the bound chords by `SettingsStore` and read
+    /// back only by `OpenTabWS`. `SettingsStoreTests` asserts the two agree.
     static let cmdTabTakeover = "ws.cmdTabTakeover"
     /// `DefaultsAutomationRequestLog`. Non-empty means some browser has been
     /// put through the consent prompt, which is when the Automation pane

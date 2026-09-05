@@ -57,9 +57,10 @@ private final class RestoreGuard: Sendable {
 
 /// The system side of the Cmd+Tab takeover: disables symbolic hotkeys 1 and 2
 /// in the WindowServer so the app's own Carbon bindings for the same chords
-/// receive the keys, and puts them back. Off by default; `ws.cmdTabTakeover`
-/// turns it on. The chords themselves are bound by the app's `HotKeyCenter`,
-/// which also reports the Cmd release from its `flagsChanged` monitors.
+/// receive the keys, and puts them back. The app derives `ws.cmdTabTakeover`
+/// from its bound chord and decides with `TakeoverPolicy` whether to enable
+/// it. The chords themselves are bound by the app's `HotKeyCenter`, which
+/// also reports the Cmd release from its `flagsChanged` monitors.
 ///
 /// The state read before the change is what gets written back, from every
 /// exit path plus a marker replayed at the next launch.
@@ -70,11 +71,16 @@ public final class CmdTabTakeover {
     /// `open` hands arguments only to a process it launches, never to one
     /// already running (which would have replayed the marker itself).
     public static let restoreArgument = "--restore-cmd-tab"
+    /// Makes `isAvailable` report false for this process, so the fallback the
+    /// app takes on a Mac without the window-server call can be exercised
+    /// on one that has it.
+    public static let disableArgument = "--disable-cmd-tab-takeover"
+    public internal(set) static var isDisabledForThisProcess = false
 
     public private(set) var isEnabled = false
     public private(set) var originalState: [Int32: Bool] = [:]
 
-    public static var isAvailable: Bool { SymbolicHotKeys.canSet }
+    public static var isAvailable: Bool { !isDisabledForThisProcess && SymbolicHotKeys.canSet }
 
     private let recovery: CmdTabRecovery
     private let log = Log.make("cmdtab")

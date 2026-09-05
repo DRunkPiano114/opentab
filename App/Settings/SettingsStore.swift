@@ -46,7 +46,6 @@ enum Setting: Sendable {
     case sortMode
     case includesPrivateTabs
     case remoteFavicons
-    case cmdTabTakeover
     case hotKeys
     case ignoreTitlePatterns
 }
@@ -76,11 +75,15 @@ final class SettingsStore {
         isAlphabetical = defaults.string(forKey: DefaultsKey.sortMode) == "alphabetical"
         includesPrivateTabs = defaults.bool(forKey: DefaultsKey.includesPrivateTabs)
         remoteFavicons = defaults.bool(forKey: DefaultsKey.remoteFavicons)
-        cmdTabTakeover = defaults.bool(forKey: DefaultsKey.cmdTabTakeover)
         mainHotKey = HotKeyBinding(stored: defaults.object(forKey: DefaultsKey.mainHotKey)) ?? .mainDefault
         reverseHotKey = HotKeyBinding(stored: defaults.object(forKey: DefaultsKey.reverseHotKey)) ?? .reverseDefault
         searchHotKey = HotKeyBinding(stored: defaults.object(forKey: DefaultsKey.searchHotKey)) ?? .searchDefault
         ignoreTitlePatterns = defaults.stringArray(forKey: DefaultsKey.ignoreTitlePatterns) ?? []
+        // A domain that never stored a chord must read the same as one that
+        // did, for the component that reads the flag without the chords.
+        if defaults.bool(forKey: DefaultsKey.cmdTabTakeover) != cmdTabTakeover {
+            defaults.set(cmdTabTakeover, forKey: DefaultsKey.cmdTabTakeover)
+        }
     }
 
     // MARK: General
@@ -169,9 +172,10 @@ final class SettingsStore {
 
     // MARK: Hotkeys
 
-    var cmdTabTakeover: Bool {
-        didSet { write(cmdTabTakeover, DefaultsKey.cmdTabTakeover, .cmdTabTakeover, from: oldValue) }
-    }
+    /// Whether a bound chord asks for the Cmd-Tab takeover. Derived, and
+    /// persisted alongside the chords for the component that applies it and
+    /// knows nothing about chords.
+    var cmdTabTakeover: Bool { mainHotKey.needsSymbolicHotKeyTakeover || reverseHotKey.needsSymbolicHotKeyTakeover }
 
     var mainHotKey: HotKeyBinding {
         didSet { writeHotKey(mainHotKey, DefaultsKey.mainHotKey, from: oldValue) }
@@ -217,6 +221,7 @@ final class SettingsStore {
     private func writeHotKey(_ binding: HotKeyBinding, _ key: String, from oldValue: HotKeyBinding) {
         guard binding != oldValue else { return }
         defaults.set(binding.stored, forKey: key)
+        defaults.set(cmdTabTakeover, forKey: DefaultsKey.cmdTabTakeover)
         log.notice("setting \(key, privacy: .public) changed")
         onChange?(.hotKeys)
     }

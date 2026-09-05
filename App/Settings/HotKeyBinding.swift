@@ -9,9 +9,13 @@ struct HotKeyBinding: Equatable, Sendable {
     var keyCode: UInt32
     var carbonModifiers: UInt32
 
-    static let mainDefault = HotKeyBinding(keyCode: UInt32(kVK_Tab), carbonModifiers: UInt32(optionKey))
-    static let reverseDefault = HotKeyBinding(keyCode: UInt32(kVK_Tab),
-                                             carbonModifiers: UInt32(optionKey | shiftKey))
+    static let optionTab = HotKeyBinding(keyCode: UInt32(kVK_Tab), carbonModifiers: UInt32(optionKey))
+    static let optionShiftTab = HotKeyBinding(keyCode: UInt32(kVK_Tab), carbonModifiers: UInt32(optionKey | shiftKey))
+    static let cmdTab = HotKeyBinding(keyCode: UInt32(kVK_Tab), carbonModifiers: UInt32(cmdKey))
+    static let cmdShiftTab = HotKeyBinding(keyCode: UInt32(kVK_Tab), carbonModifiers: UInt32(cmdKey | shiftKey))
+
+    static let mainDefault = HotKeyBinding.optionTab
+    static let reverseDefault = HotKeyBinding.optionShiftTab
     static let searchDefault = HotKeyBinding(keyCode: UInt32(kVK_ANSI_L),
                                             carbonModifiers: UInt32(cmdKey | shiftKey))
 
@@ -26,6 +30,22 @@ struct HotKeyBinding: Equatable, Sendable {
     /// session waits for a modifier release that never arrives and commits
     /// the moment it opens.
     var isUsableAsHoldChord: Bool { hold != nil }
+
+    /// Whether binding this chord means taking Cmd-Tab away from the system.
+    /// Exactly the two chords the window server owns: a chord that merely
+    /// contains Command, such as Control-Command-Tab, is an ordinary global
+    /// hotkey and must not switch the system's own Cmd-Tab off.
+    var needsSymbolicHotKeyTakeover: Bool { self == .cmdTab || self == .cmdShiftTab }
+
+    /// The chord bound in place of this one while the takeover is off:
+    /// Option-Tab for Cmd-Tab, keeping Shift; anything else is itself.
+    func withoutTakeover() -> HotKeyBinding {
+        switch self {
+        case .cmdTab: .optionTab
+        case .cmdShiftTab: .optionShiftTab
+        default: self
+        }
+    }
 
     // MARK: Persistence
 

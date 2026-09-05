@@ -42,9 +42,26 @@ final class SettingsStoreTests: XCTestCase {
         let store = SettingsStore(defaults: defaults)
         XCTAssertFalse(store.includesPrivateTabs)
         XCTAssertFalse(store.remoteFavicons)
-        XCTAssertFalse(store.cmdTabTakeover)
         XCTAssertTrue(store.showMenuBarIcon)
         XCTAssertEqual(store.sortMode, .recency)
+    }
+
+    /// The flag is derived from the chords and persisted next to them, for
+    /// the component that reads the flag and knows nothing about chords.
+    func testTakeoverFlagFollowsTheBoundChords() {
+        let store = SettingsStore(defaults: defaults)
+        store.mainHotKey = .optionTab
+        store.reverseHotKey = .optionShiftTab
+        XCTAssertFalse(store.cmdTabTakeover)
+        XCTAssertFalse(defaults.bool(forKey: DefaultsKey.cmdTabTakeover))
+
+        store.mainHotKey = .cmdTab
+        XCTAssertTrue(store.cmdTabTakeover)
+        XCTAssertTrue(defaults.bool(forKey: DefaultsKey.cmdTabTakeover))
+
+        store.mainHotKey = .optionTab
+        XCTAssertFalse(store.cmdTabTakeover)
+        XCTAssertFalse(defaults.bool(forKey: DefaultsKey.cmdTabTakeover))
     }
 
     func testValuesSurviveARelaunch() {

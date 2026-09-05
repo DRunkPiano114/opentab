@@ -22,8 +22,9 @@ public final class OffSpaceSupport {
         return true
     }
 
-    public init(base: AXWindowSource, defaults: UserDefaults = .standard) {
+    public init(base: AXWindowSource, defaults: UserDefaults = .standard, takeoverEnabled: Bool = true) {
         self.defaults = defaults
+        CmdTabTakeover.isDisabledForThisProcess = !takeoverEnabled
         for line in OffSpaceDiagnostics.symbolTable() {
             log.notice("symbol \(line, privacy: .public)")
         }
@@ -49,22 +50,11 @@ public final class OffSpaceSupport {
         }
     }
 
-    /// `true` when the system chords are now disabled and the app should
-    /// bind Cmd+Tab / Cmd+Shift+Tab itself.
-    @discardableResult
-    public func enableCmdTabIfConfigured() -> Bool {
-        guard CmdTabTakeover.isConfigured(defaults) else { return false }
-        return cmdTab.enable()
-    }
-
     /// A missing symbol is shown to the user, not only logged. Deferred a
     /// turn so the rest of launch is not held behind the modal.
     public func presentDegradationIfNeeded() {
         var messages: [String] = []
         if let summary = windowSource.availability.userVisibleSummary { messages.append(summary) }
-        if CmdTabTakeover.isConfigured(defaults), !CmdTabTakeover.isAvailable {
-            messages.append("Cmd+Tab takeover is configured but unavailable on this system (\(WSPrivateSymbols.Name.setSymbolicHotKeyEnabled) is missing).")
-        }
         guard !messages.isEmpty else { return }
         DispatchQueue.main.async {
             let alert = NSAlert()
