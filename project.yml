@@ -105,7 +105,7 @@ targets:
         # Sparkle's EdDSA public key, base64, the same in every
         # configuration. Empty until the key exists; the app treats an
         # empty key like an empty feed and starts no updater.
-        OPENTAB_SPARKLE_PUBLIC_KEY: ""
+        OPENTAB_SPARKLE_PUBLIC_KEY: jKM6wAMes4FHKOgWkD0oC0jPE0vdXvA+Nbn6RjMl4rA=
         INFOPLIST_FILE: Support/Info.plist
         CODE_SIGN_ENTITLEMENTS: Support/OpenTab.entitlements
         CODE_SIGN_STYLE: Manual
