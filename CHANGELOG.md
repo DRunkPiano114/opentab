@@ -6,6 +6,12 @@ New / Changed / Improved / Fixed / Security.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-05
+
+### New
+
+- OpenTab checks for a newer version once a day and offers to install it with one click; the check tells GitHub your IP address, OpenTab's name and version, and nothing about you or your windows. Turn it off under Settings › General, or check by hand with "Check for Updates…" from the menu bar icon.
+
 ## [0.1.1] - 2026-09-05
 
 ### New
