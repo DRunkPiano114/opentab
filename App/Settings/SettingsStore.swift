@@ -50,6 +50,26 @@ enum Setting: Sendable {
     case ignoreTitlePatterns
 }
 
+/// Where "open at login" is registered. A seam, so a test can set the
+/// property without registering a real login item for the test host.
+protocol LoginItemService {
+    var isEnabled: Bool { get }
+    func setEnabled(_ enabled: Bool) throws
+}
+
+/// The running bundle's own login item.
+struct MainAppLoginItem: LoginItemService {
+    var isEnabled: Bool { SMAppService.mainApp.status == .enabled }
+
+    func setEnabled(_ enabled: Bool) throws {
+        if enabled {
+            try SMAppService.mainApp.register()
+        } else {
+            try SMAppService.mainApp.unregister()
+        }
+    }
+}
+
 /// The settings surface. Reads and writes `UserDefaults` under the keys in
 /// `DefaultsKey`, and reports each change so the running app can apply it
 /// without a relaunch.
@@ -62,11 +82,14 @@ final class SettingsStore {
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let log = Log.make("settings")
     @ObservationIgnored private let updates: UpdateController?
+    @ObservationIgnored private let loginItems: any LoginItemService
 
-    init(defaults: UserDefaults = .standard, updates: UpdateController? = nil) {
+    init(defaults: UserDefaults = .standard, updates: UpdateController? = nil,
+         loginItems: any LoginItemService = MainAppLoginItem()) {
         self.defaults = defaults
         self.updates = updates
-        launchesAtLogin = SMAppService.mainApp.status == .enabled
+        self.loginItems = loginItems
+        launchesAtLogin = loginItems.isEnabled
         automaticUpdateChecks = updates?.automaticallyChecksForUpdates ?? false
         showMenuBarIcon = defaults.object(forKey: DefaultsKey.showMenuBarIcon) as? Bool ?? true
         panelPosition = PanelPosition(rawValue: defaults.string(forKey: DefaultsKey.panelPosition) ?? "") ?? .left
@@ -88,21 +111,17 @@ final class SettingsStore {
 
     // MARK: General
 
-    /// `SMAppService` owns this state; there is no default of our own that
-    /// could disagree with it. Mirrored into a stored property so the toggle
-    /// can show a registration that failed as not having happened.
+    /// The login item service owns this state; there is no default of our
+    /// own that could disagree with it. Mirrored into a stored property so
+    /// the toggle can show a registration that failed as not having happened.
     var launchesAtLogin: Bool {
         didSet {
             guard launchesAtLogin != oldValue else { return }
             do {
-                if launchesAtLogin {
-                    try SMAppService.mainApp.register()
-                } else {
-                    try SMAppService.mainApp.unregister()
-                }
+                try loginItems.setEnabled(launchesAtLogin)
             } catch {
                 log.error("launch at login \(self.launchesAtLogin, privacy: .public) failed: \(String(describing: error), privacy: .public)")
-                launchesAtLogin = SMAppService.mainApp.status == .enabled
+                launchesAtLogin = loginItems.isEnabled
                 return
             }
             onChange?(.launchAtLogin)

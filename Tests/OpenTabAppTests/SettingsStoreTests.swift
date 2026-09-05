@@ -111,6 +111,27 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(reported, [.appearance, .includesPrivateTabs, .hotKeys])
     }
 
+    /// The toggle drives the login item through the seam, once per change,
+    /// and a failed registration shows as not having happened.
+    func testLoginItemWritesGoThroughTheService() {
+        let service = FakeLoginItem()
+        let store = SettingsStore(defaults: defaults, loginItems: service)
+        var reported: [Setting] = []
+        store.onChange = { reported.append($0) }
+
+        store.launchesAtLogin = true
+        XCTAssertEqual(service.calls, [true])
+        XCTAssertEqual(reported, [.launchAtLogin])
+
+        store.launchesAtLogin = true
+        XCTAssertEqual(service.calls, [true], "writing the same value again is not a change")
+
+        service.error = FakeLoginItem.Failure()
+        store.launchesAtLogin = false
+        XCTAssertTrue(store.launchesAtLogin, "a failed write reverts to what the service reports")
+        XCTAssertEqual(reported, [.launchAtLogin], "a failed write is not reported")
+    }
+
     /// A default that is missing must not read as "off" for a setting whose
     /// default is on.
     func testMenuBarIconDefaultsOnAndCanBeTurnedOff() {

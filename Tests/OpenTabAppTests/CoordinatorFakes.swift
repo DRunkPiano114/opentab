@@ -154,6 +154,22 @@ final class FakeAutomationGate: AutomationGate {
     }
 }
 
+/// Records what the store asks of the login item and never touches the
+/// real one; `isEnabled` follows the last call that did not throw.
+final class FakeLoginItem: LoginItemService {
+    struct Failure: Error {}
+
+    private(set) var isEnabled = false
+    private(set) var calls: [Bool] = []
+    var error: (any Error)?
+
+    func setEnabled(_ enabled: Bool) throws {
+        calls.append(enabled)
+        if let error { throw error }
+        isEnabled = enabled
+    }
+}
+
 // MARK: - Fixtures
 
 let chrome = AppInfo(bundleID: "com.google.Chrome", pid: 300, localizedName: "Google Chrome")
