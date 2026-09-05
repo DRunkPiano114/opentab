@@ -60,10 +60,17 @@ jobs:
       # run here, before the certificate and the notarization key exist on
       # this runner; nothing after this step needs the tool. GITHUB_PATH only
       # reaches later steps, so the bin directory goes into this step's PATH.
+      # Sparkle's generate_appcast runs later, next to the EdDSA key, so its
+      # download is verified here too: the binary that runs is one whose hash
+      # was checked before any secret existed. The assignment is its own line
+      # so a failed download stops the step here; inside `echo "X=$(...)"`
+      # the exit status would be echo's.
       - name: Generate the Xcode project
         run: |
           BIN="$(Scripts/install-xcodegen.sh "$RUNNER_TEMP")"
           PATH="$BIN:$PATH" make project
+          SPARKLE_BIN="$(Scripts/install-sparkle-tools.sh "$RUNNER_TEMP")"
+          echo "SPARKLE_BIN=$SPARKLE_BIN" >> "$GITHUB_ENV"
       # xcodebuild resolves the "Developer ID Application" identity through
       # the keychain search list, so the certificate has to sit in a
       # search-listed keychain before the build runs.
