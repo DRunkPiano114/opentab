@@ -114,7 +114,12 @@ cmd_verify_signature() {
   # notarization then rejects.
   local frameworks="$APP/Contents/Frameworks/Sparkle.framework"
   for nested in "$frameworks" "$frameworks/Versions/B/Autoupdate" "$frameworks/Versions/B/Updater.app"; do
-    codesign -d -vv "$nested" 2>&1 | grep -q "TeamIdentifier=$TEAM_ID" \
+    # Captured rather than piped into grep -q: under pipefail a grep that
+    # exits on its first match kills codesign with SIGPIPE and the pipeline
+    # fails at random.
+    local details
+    details="$(codesign -d --verbose=2 "$nested" 2>&1)"
+    [[ "$details" == *"TeamIdentifier=$TEAM_ID"* ]] \
       || die "$nested is not signed by team $TEAM_ID"
   done
   [[ ! -e "$frameworks/Versions/B/XPCServices" ]] \
