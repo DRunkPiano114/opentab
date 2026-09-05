@@ -115,11 +115,15 @@ public final class AppleScriptEngine: @unchecked Sendable {
         let leftovers = owner.retire().filter { !$0.box.isSettled }
         let replacement = makeWorker(lane: lane)
         for job in leftovers { job.owner = replacement }
-        lock.unlock()
-
+        // Submitted before the lock is released: a leftover whose deadline
+        // passes right now is abandoned as soon as the lock is free, and its
+        // `withdraw` against a replacement that does not hold it yet reports
+        // the job as finished. It would then be submitted anyway and run on a
+        // worker nobody retires.
         for job in leftovers where !replacement.submit(job) {
             job.box.settle(.delivered(.failure(.timedOut)))
         }
+        lock.unlock()
     }
 
     /// Callers hold `lock`.
