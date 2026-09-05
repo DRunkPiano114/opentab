@@ -1,27 +1,9 @@
 import SwiftUI
 
-/// The settings window's content: three pages, every control writing straight
-/// through to `SettingsStore`, which applies the change to the running app.
-struct SettingsView: View {
-    @Bindable var store: SettingsStore
-    let model: SettingsModel
-    let actions: SettingsActions
-
-    var body: some View {
-        TabView {
-            GeneralSettingsView(store: store, model: model, actions: actions)
-                .tabItem { Label("General", systemImage: "gearshape") }
-            HotKeySettingsView(store: store, model: model, actions: actions)
-                .tabItem { Label("Shortcuts", systemImage: "keyboard") }
-            PrivacySettingsView(store: store, model: model, actions: actions)
-                .tabItem { Label("Privacy", systemImage: "hand.raised") }
-        }
-        .frame(width: 520)
-        .scenePadding()
-    }
-}
-
-private struct GeneralSettingsView: View {
+/// The settings window's pages. Every control writes straight through to
+/// `SettingsStore`, which applies the change to the running app. The pages are
+/// hosted one per tab by `SettingsTabController`.
+struct GeneralSettingsView: View {
     @Bindable var store: SettingsStore
     let model: SettingsModel
     let actions: SettingsActions
@@ -85,11 +67,12 @@ private struct GeneralSettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .frame(width: 520)
         .onAppear(perform: actions.refreshHealth)
     }
 }
 
-private struct HotKeySettingsView: View {
+struct HotKeySettingsView: View {
     @Bindable var store: SettingsStore
     let model: SettingsModel
     let actions: SettingsActions
@@ -167,10 +150,11 @@ private struct HotKeySettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .frame(width: 520)
     }
 }
 
-private struct PrivacySettingsView: View {
+struct PrivacySettingsView: View {
     @Bindable var store: SettingsStore
     let model: SettingsModel
     let actions: SettingsActions
@@ -226,6 +210,7 @@ private struct PrivacySettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .frame(width: 520)
     }
 
     @ViewBuilder

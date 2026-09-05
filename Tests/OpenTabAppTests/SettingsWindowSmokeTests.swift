@@ -34,8 +34,9 @@ final class SettingsWindowSmokeTests: XCTestCase {
         return controller.view
     }
 
-    func testEverySettingsPageLaysOut() {
-        let store = SettingsStore(defaults: defaults)
+    /// Every row a page can grow is present, so a page only ever lays out
+    /// fewer views in the running app than it does here.
+    private func degradedModel() -> SettingsModel {
         let model = SettingsModel()
         model.tabsUnavailable = ["Safari"]
         model.tabsAwaitingRequest = [(bundleID: "com.google.Chrome", name: "Google Chrome")]
@@ -43,9 +44,68 @@ final class SettingsWindowSmokeTests: XCTestCase {
         model.secureInputActive = true
         model.cmdTabTakeoverAvailable = false
         model.takeoverPolicy = .unavailable
-        let view = layout(SettingsView(store: store, model: model, actions: SettingsActions()))
-        XCTAssertGreaterThan(view.fittingSize.width, 0)
-        XCTAssertGreaterThan(view.fittingSize.height, 0)
+        model.updatesAvailable = true
+        return model
+    }
+
+    private func assertLaysOut(_ view: some View, _ message: String) {
+        let laid = layout(view)
+        XCTAssertGreaterThan(laid.fittingSize.width, 0, message)
+        XCTAssertGreaterThan(laid.fittingSize.height, 0, message)
+    }
+
+    func testGeneralPageLaysOut() {
+        assertLaysOut(GeneralSettingsView(store: SettingsStore(defaults: defaults), model: degradedModel(),
+                                          actions: SettingsActions()), "General")
+    }
+
+    func testShortcutsPageLaysOut() {
+        assertLaysOut(HotKeySettingsView(store: SettingsStore(defaults: defaults), model: degradedModel(),
+                                         actions: SettingsActions()), "Shortcuts")
+    }
+
+    func testPrivacyPageLaysOut() {
+        assertLaysOut(PrivacySettingsView(store: SettingsStore(defaults: defaults), model: degradedModel(),
+                                          actions: SettingsActions()), "Privacy")
+    }
+
+    func testAboutPageLaysOut() {
+        assertLaysOut(AboutSettingsView(store: SettingsStore(defaults: defaults), model: degradedModel(),
+                                        actions: SettingsActions()), "About")
+    }
+
+    /// Switching away from the Shortcuts page no longer takes the field out of
+    /// the view hierarchy, so the tab switch is the only thing left that can
+    /// end a capture.
+    func testTabSwitchEndsRecording() {
+        var recording: [Bool] = []
+        var actions = SettingsActions()
+        actions.setRecording = { recording.append($0) }
+        let controller = SettingsTabController(store: SettingsStore(defaults: defaults),
+                                               model: SettingsModel(), actions: actions)
+        let window = NSWindow(contentViewController: controller)
+        window.layoutIfNeeded()
+        for tab in [SettingsTabController.Tab.shortcuts, .general] {
+            recording.removeAll()
+            controller.select(tab)
+            window.layoutIfNeeded()
+            XCTAssertTrue(recording.contains(false), "switching to \(tab) must end any capture")
+            XCTAssertFalse(recording.contains(true), "a tab switch must not start one")
+        }
+    }
+
+    /// The window height is driven from these, and a page never shown reports
+    /// nothing at all.
+    func testEachPageDeclaresAPreferredContentSize() {
+        let controller = SettingsTabController(store: SettingsStore(defaults: defaults),
+                                               model: degradedModel(), actions: SettingsActions())
+        let window = NSWindow(contentViewController: controller)
+        for tab in SettingsTabController.Tab.allCases {
+            controller.select(tab)
+            window.layoutIfNeeded()
+            let page = controller.tabViewItems[tab.rawValue].viewController
+            XCTAssertGreaterThan(page?.preferredContentSize.height ?? 0, 0, "\(tab)")
+        }
     }
 
     func testEveryOnboardingStepLaysOut() {

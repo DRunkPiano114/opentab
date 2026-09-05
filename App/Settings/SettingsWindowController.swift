@@ -1,5 +1,4 @@
 import AppKit
-import SwiftUI
 
 /// The settings window.
 ///
@@ -12,6 +11,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private let model: SettingsModel
     private let actions: SettingsActions
     private var window: NSWindow?
+    private var tabs: SettingsTabController?
 
     init(store: SettingsStore, model: SettingsModel, actions: SettingsActions) {
         self.store = store
@@ -29,7 +29,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 
     var isVisible: Bool { window?.isVisible ?? false }
 
-    func show() {
+    func show(tab: SettingsTabController.Tab? = nil) {
         actions.refreshHealth()
         let existing = window
         let window = existing ?? makeWindow()
@@ -38,17 +38,23 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         // an inactive window would take no keystrokes.
         NSApp.activate()
         if existing == nil { window.center() }
+        if let tab { tabs?.select(tab) }
         window.makeKeyAndOrderFront(nil)
     }
 
     private func makeWindow() -> NSWindow {
-        let controller = NSHostingController(rootView: SettingsView(store: store, model: model, actions: actions))
+        let controller = SettingsTabController(store: store, model: model, actions: actions)
+        tabs = controller
         let window = NSWindow(contentViewController: controller)
-        window.title = "OpenTab Settings"
+        // Until the first selection propagates a page title.
+        window.title = "Settings"
         window.styleMask = [.titled, .closable, .miniaturizable]
+        // A preference window is fixed-width and its height follows the page,
+        // which is why it is not resizable.
+        window.toolbarStyle = .preference
         window.isReleasedWhenClosed = false
         window.delegate = self
-        window.setContentSize(controller.view.fittingSize)
+        window.setContentSize(controller.initialContentSize)
         return window
     }
 }

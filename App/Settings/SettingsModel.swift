@@ -39,6 +39,9 @@ struct SettingsActions {
     var requestAutomation: (String) -> Void = { _ in }
     var grantSafariCacheAccess: () -> Void = {}
     var refreshHealth: () -> Void = {}
+    /// Asks the updater to look now. Inert in a build that has no updater,
+    /// where the About page draws no update controls either.
+    var checkForUpdates: () -> Void = {}
     /// True while a shortcut field is capturing; the global chords are
     /// released so the field can see them.
     var setRecording: (Bool) -> Void = { _ in }

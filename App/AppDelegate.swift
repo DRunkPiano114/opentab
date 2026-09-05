@@ -151,9 +151,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusMenu.onOpenSwitcher = { [weak self] in self?.session.openFromMenu(search: false) }
         statusMenu.onSearchWindows = { [weak self] in self?.session.openFromMenu(search: true) }
         statusMenu.onOpenSettings = { [weak self] in self?.showSettings() }
-        statusMenu.onOpenAbout = { [weak self] in self?.showSettings() }
-        statusMenu.onOpenShortcutsTab = { [weak self] in self?.showSettings() }
-        statusMenu.onOpenPrivacyTab = { [weak self] in self?.showSettings() }
+        statusMenu.onOpenAbout = { [weak self] in self?.settingsWindow?.show(tab: .about) }
+        statusMenu.onOpenShortcutsTab = { [weak self] in self?.settingsWindow?.show(tab: .shortcuts) }
+        statusMenu.onOpenPrivacyTab = { [weak self] in self?.settingsWindow?.show(tab: .privacy) }
         statusMenu.onRebuildIndex = { [weak self] in
             guard let self else { return }
             Task { await self.coordinator.rebuild() }
@@ -400,6 +400,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let granted = FaviconStore.shared.requestSafariCacheAccess()
             self.settingsModel.safariCacheGranted = granted
         }
+        actions.checkForUpdates = { [weak self] in self?.updates?.checkForUpdates() }
         actions.refreshHealth = { [weak self] in
             guard let self else { return }
             self.settingsModel.health = self.health.snapshot()
