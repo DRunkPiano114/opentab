@@ -56,11 +56,14 @@ jobs:
       - name: Unit tests
         run: make test
       # OpenTab.xcodeproj is generated from project.yml rather than committed,
-      # so xcodegen decides what gets signed. The version is pinned because
-      # drift would make the notarized bundle come out of a different project
-      # from the one tested locally.
-      - name: Install xcodegen
-        run: Scripts/install-xcodegen.sh "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      # so xcodegen decides what gets signed. It is downloaded, verified and
+      # run here, before the certificate and the notarization key exist on
+      # this runner; nothing after this step needs the tool. GITHUB_PATH only
+      # reaches later steps, so the bin directory goes into this step's PATH.
+      - name: Generate the Xcode project
+        run: |
+          BIN="$(Scripts/install-xcodegen.sh "$RUNNER_TEMP")"
+          PATH="$BIN:$PATH" make project
       # xcodebuild resolves the "Developer ID Application" identity through
       # the keychain search list, so the certificate has to sit in a
       # search-listed keychain before the build runs.

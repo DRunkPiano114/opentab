@@ -111,7 +111,7 @@ ci-build: project
 ## Credentials: see the header of Scripts/release.sh.
 ## The unit tests run first, so a build whose tests fail never gets signed. They also
 ## run before the VERSION check, which costs a few seconds on a typo.
-release: test
+release: test project
 	@test -n "$(VERSION)" || { echo "usage: make release VERSION=x.y.z"; exit 2; }
 	@VERSION="$(VERSION)" bash "$(HERE)/Scripts/release.sh" all
 

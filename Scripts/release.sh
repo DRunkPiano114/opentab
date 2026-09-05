@@ -10,6 +10,8 @@
 #   BUILD     CURRENT_PROJECT_VERSION (CFBundleVersion); defaults to the commit
 #             count of HEAD so it increases monotonically along main
 #
+# Expects OpenTab.xcodeproj to exist already (run `make project` first).
+#
 # Notarization credentials, one of:
 #   CI:     ASC_KEY_PATH (path to the .p8), ASC_KEY_ID, ASC_ISSUER_ID
 #   local:  a notarytool keychain profile named "opentab-notary", created once
@@ -42,11 +44,15 @@ require_app() {
   [[ -d "$APP" ]] || die "no Release build at $APP; run 'build' first"
 }
 
+require_project() {
+  [[ -d "$HERE/$APP_NAME.xcodeproj" ]] || die "no generated project at $HERE/$APP_NAME.xcodeproj; run 'make project' first"
+}
+
 cmd_build() {
   require_version
+  require_project
   local build="${BUILD:-$(git -C "$HERE" rev-list --count HEAD)}"
   mkdir -p "$HERE/build"
-  (cd "$HERE" && xcodegen generate --quiet)
   echo "building $APP_NAME $VERSION ($build) into $DERIVED"
   if ! (cd "$HERE" && xcodebuild -project "$APP_NAME.xcodeproj" -scheme "$APP_NAME" \
       -configuration Release -derivedDataPath "$DERIVED" \
