@@ -118,3 +118,15 @@ jobs:
             dist/OpenTab-*.zip dist/*.sha256 \
             --title "OpenTab $VERSION" \
             --notes-file release-notes.md
+      # The runner is ephemeral, so this bounds the exposure of the signing
+      # material to the steps that need it rather than to the rest of the job.
+      # KEYCHAIN_PATH never left the step that created it, so the path is
+      # spelled out again here. Every command is guarded: a job that died
+      # before the keychain existed must not turn red here and hide the real
+      # failure.
+      - name: Remove the build keychain and the App Store Connect key
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/asc-key.p8" "$RUNNER_TEMP/devid.p12"
+          security list-keychains -d user -s login.keychain-db || true
+          security delete-keychain "$RUNNER_TEMP/release.keychain-db" || true
