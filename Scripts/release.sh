@@ -26,6 +26,8 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_NAME="OpenTab"
 TEAM_ID="5RV9PT7PK4"
+# Baked into every shipped build (project.yml, Release configuration).
+FEED_URL="https://github.com/DRunkPiano114/opentab/releases/latest/download/appcast.xml"
 NOTARY_PROFILE="opentab-notary"
 DERIVED="$HERE/build/DerivedData-release"
 APP="$DERIVED/Build/Products/Release/$APP_NAME.app"
@@ -93,6 +95,25 @@ cmd_verify_signature() {
   echo "$dr"
   grep -q "subject.OU\] = \"$TEAM_ID\"" <<<"$dr" \
     || die "designated requirement is not anchored to team $TEAM_ID"
+
+  # The deep verify above validates every nested signature but does not say
+  # who signed it, so it passes on the ad-hoc helpers Sparkle ships, which
+  # notarization then rejects.
+  local frameworks="$APP/Contents/Frameworks/Sparkle.framework"
+  for nested in "$frameworks" "$frameworks/Versions/B/Autoupdate" "$frameworks/Versions/B/Updater.app"; do
+    codesign -d -vv "$nested" 2>&1 | grep -q "TeamIdentifier=$TEAM_ID" \
+      || die "$nested is not signed by team $TEAM_ID"
+  done
+  [[ ! -e "$frameworks/Versions/B/XPCServices" ]] \
+    || die "Sparkle XPC services are still in the bundle"
+
+  local feed key
+  feed="$(/usr/libexec/PlistBuddy -c 'Print :SUFeedURL' "$APP/Contents/Info.plist")"
+  [[ "$feed" == "$FEED_URL" ]] \
+    || die "SUFeedURL is '$feed'"
+  key="$(/usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' "$APP/Contents/Info.plist")"
+  [[ "$key" =~ ^[A-Za-z0-9+/]{43}=$ ]] \
+    || die "SUPublicEDKey is not a base64 EdDSA public key (got '${key:-empty}')"
 }
 
 notarytool_credentials() {
@@ -139,7 +160,7 @@ cmd_package() {
   mkdir -p "$DIST"
   local zip="$DIST/$APP_NAME-$VERSION.zip"
   rm -f "$zip" "$zip.sha256"
-  ditto -c -k --keepParent "$APP" "$zip"
+  ditto -c -k --keepParent --sequesterRsrc "$APP" "$zip"
   (cd "$DIST" && shasum -a 256 "$(basename "$zip")" > "$(basename "$zip").sha256")
   cat "$zip.sha256"
 
