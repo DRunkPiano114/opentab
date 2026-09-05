@@ -3,12 +3,22 @@
 #
 #   Scripts/release.sh <subcommand>...      subcommands run in the order given
 #   Scripts/release.sh all                  build verify-signature notarize staple package
+#   Scripts/release.sh appcast              sign dist/OpenTab-$VERSION.zip with the
+#                                           Sparkle key and write dist/appcast.xml
+#                                           (release workflow only; not part of all)
 #
 # Environment:
 #   VERSION   required; becomes MARKETING_VERSION (CFBundleShortVersionString)
 #             and names the zip, e.g. VERSION=0.1.0 -> dist/OpenTab-0.1.0.zip
 #   BUILD     CURRENT_PROJECT_VERSION (CFBundleVersion); defaults to the commit
 #             count of HEAD so it increases monotonically along main
+#
+# appcast only:
+#   SPARKLE_BIN             directory holding generate_appcast and sign_update
+#   SPARKLE_ED_PRIVATE_KEY  the EdDSA private key (base64 seed); it reaches the
+#                           tools on stdin and is never written to a file
+#   RELEASE_NOTES_FILE      Markdown embedded into the appcast item; defaults
+#                           to release-notes.md at the repository root
 #
 # Expects OpenTab.xcodeproj to exist already (run `make project` first).
 #
@@ -37,6 +47,9 @@ NOTARY_TMP=""
 trap '[[ -n "$NOTARY_TMP" ]] && rm -rf "$NOTARY_TMP"' EXIT
 
 die() { echo "release.sh: $*" >&2; exit 1; }
+
+# A refused feed must not survive for a later step to upload.
+refuse_appcast() { rm -f "$DIST/appcast.xml"; die "$@"; }
 
 require_version() {
   [[ -n "${VERSION:-}" ]] || die "VERSION is required (e.g. VERSION=0.1.0)"
@@ -171,13 +184,70 @@ cmd_package() {
     || die "Gatekeeper does not see a notarized Developer ID app"
 }
 
-[[ $# -gt 0 ]] || die "usage: $0 build|verify-signature|notarize|staple|package|all ..."
+cmd_appcast() {
+  require_version
+  [[ -n "${SPARKLE_BIN:-}" && -x "$SPARKLE_BIN/generate_appcast" && -x "$SPARKLE_BIN/sign_update" ]] \
+    || die "SPARKLE_BIN must name a directory holding generate_appcast and sign_update"
+  [[ -n "${SPARKLE_ED_PRIVATE_KEY:-}" ]] || die "SPARKLE_ED_PRIVATE_KEY is empty"
+  local notes="${RELEASE_NOTES_FILE:-$HERE/release-notes.md}"
+  [[ -f "$notes" ]] || die "no release notes at $notes"
+  local zip="$DIST/$APP_NAME-$VERSION.zip"
+  [[ -f "$zip" ]] || die "no release archive at $zip; run 'package' first"
+
+  # generate_appcast reads a whole directory, re-uses any appcast it finds
+  # there and moves superseded archives aside, so it gets a directory holding
+  # exactly the one zip and its notes. The notes are matched to the archive
+  # by basename; with any other name the item ships without notes and
+  # nothing warns.
+  local appcast="$DIST/appcast.xml"
+  local work="$DIST/appcast"
+  rm -rf "$work" "$appcast" && mkdir -p "$work"
+  cp "$zip" "$work/"
+  cp "$notes" "$work/$APP_NAME-$VERSION.md"
+
+  local output
+  output="$(printf '%s' "$SPARKLE_ED_PRIVATE_KEY" | "$SPARKLE_BIN/generate_appcast" \
+    --ed-key-file - \
+    --download-url-prefix "https://github.com/DRunkPiano114/opentab/releases/download/v$VERSION/" \
+    --link "https://github.com/DRunkPiano114/opentab" \
+    --full-release-notes-url "https://github.com/DRunkPiano114/opentab/releases/tag/v$VERSION" \
+    --embed-release-notes \
+    -o "$appcast" \
+    "$work" 2>&1)" || { echo "$output"; refuse_appcast "generate_appcast failed"; }
+  echo "$output"
+  # A private key that does not match the bundle's SUPublicEDKey is only a
+  # warning to generate_appcast, and a feed signed by the wrong key is one
+  # every installed copy rejects for good.
+  ! grep -q '^Warning:' <<<"$output" || refuse_appcast "generate_appcast warned; refusing to publish"
+
+  grep -q 'sparkle:edSignature="' "$appcast" || refuse_appcast "appcast carries no EdDSA signature"
+  grep -q "releases/download/v$VERSION/$APP_NAME-$VERSION.zip" "$appcast" \
+    || refuse_appcast "appcast enclosure does not point at the release asset"
+  # SURequireSignedFeed in the bundle makes generate_appcast sign the feed
+  # itself, as a comment after </rss>; every installed copy demands it.
+  grep -q '<!-- sparkle-signatures:' "$appcast" || refuse_appcast "appcast feed is not signed"
+
+  # sign_update verifies with the key it is given, so these prove the feed
+  # describes this archive's bytes under the key that signed it; that the key
+  # matches the bundle's SUPublicEDKey is the warning check above.
+  local signature
+  signature="$(sed -n '/sparkle:edSignature=/{s/.*sparkle:edSignature="\([^"]*\)".*/\1/p;q;}' "$appcast")"
+  printf '%s' "$SPARKLE_ED_PRIVATE_KEY" | "$SPARKLE_BIN/sign_update" --verify --ed-key-file - "$zip" "$signature" \
+    || refuse_appcast "sign_update cannot verify $zip against the appcast signature"
+  echo "verified $zip against the appcast signature"
+  printf '%s' "$SPARKLE_ED_PRIVATE_KEY" | "$SPARKLE_BIN/sign_update" --verify --ed-key-file - "$appcast" \
+    || refuse_appcast "sign_update cannot verify the feed signature of $appcast"
+  echo "verified the feed signature of $appcast"
+  cat "$appcast"
+}
+
+[[ $# -gt 0 ]] || die "usage: $0 build|verify-signature|notarize|staple|package|appcast|all ..."
 
 steps=()
 for arg in "$@"; do
   case "$arg" in
     all) steps+=(build verify-signature notarize staple package) ;;
-    build|verify-signature|notarize|staple|package) steps+=("$arg") ;;
+    build|verify-signature|notarize|staple|package|appcast) steps+=("$arg") ;;
     *) die "unknown subcommand: $arg" ;;
   esac
 done
