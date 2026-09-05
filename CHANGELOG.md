@@ -6,6 +6,26 @@ New / Changed / Improved / Fixed / Security.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-05
+
+### New
+
+- The first-run guide asks which shortcut you want. Choosing Command-Tab turns on "Open OpenTab at login" with it, so a crash cannot leave you without an app switcher until the next login.
+- Every shortcut field has a × that puts its default back.
+
+### Changed
+
+- Command-Tab opens OpenTab by default, including on existing installs that never changed the shortcut; the system app switcher comes back when OpenTab quits. Option-Tab is one click away in Settings › Shortcuts, is offered at first run, and OpenTab falls back to it on its own before Accessibility is granted, while another copy of OpenTab is running, and on a Mac where Command-Tab cannot be taken over. An install where you chose Option-Tab yourself keeps it.
+- The menu bar menu is a short list of actions: Open Switcher, Search Windows, Rebuild Index, Check for Updates…, About OpenTab, Settings… and Quit OpenTab. A single attention row appears at the top only when something needs fixing, and the menu bar icon carries an orange dot while it is there.
+- Settings has four tabs, General, Shortcuts, Privacy and About. About holds the version, the update controls and the memory and uptime line.
+- Shortcuts are written with the key's name, "⌘ Tab" rather than "⌘⇥", everywhere OpenTab shows one.
+
+### Fixed
+
+- The search shortcut can no longer be set to Command-Tab, which registered and never fired.
+- A shortcut already used by one of OpenTab's other fields is refused when you record it.
+- Turning Accessibility off while OpenTab is running gives the system Command-Tab back at once.
+
 ## [0.2.0] - 2026-09-05
 
 ### New
