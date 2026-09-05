@@ -62,10 +62,13 @@ final class SettingsStore {
 
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let log = Log.make("settings")
+    @ObservationIgnored private let updates: UpdateController?
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard, updates: UpdateController? = nil) {
         self.defaults = defaults
+        self.updates = updates
         launchesAtLogin = SMAppService.mainApp.status == .enabled
+        automaticUpdateChecks = updates?.automaticallyChecksForUpdates ?? false
         showMenuBarIcon = defaults.object(forKey: DefaultsKey.showMenuBarIcon) as? Bool ?? true
         panelPosition = PanelPosition(rawValue: defaults.string(forKey: DefaultsKey.panelPosition) ?? "") ?? .left
         textSize = PanelTextSize(rawValue: defaults.string(forKey: DefaultsKey.panelTextSize) ?? "") ?? .medium
@@ -100,6 +103,17 @@ final class SettingsStore {
                 return
             }
             onChange?(.launchAtLogin)
+        }
+    }
+
+    /// The updater owns this state and stores it in the app's own defaults
+    /// domain, so there is no default of our own that could disagree with it.
+    /// False and inert in a build that has no updater.
+    var automaticUpdateChecks: Bool {
+        didSet {
+            guard automaticUpdateChecks != oldValue else { return }
+            updates?.automaticallyChecksForUpdates = automaticUpdateChecks
+            log.notice("setting update checks changed")
         }
     }
 

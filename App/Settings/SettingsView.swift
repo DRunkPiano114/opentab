@@ -36,6 +36,15 @@ private struct GeneralSettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+                if model.updatesAvailable {
+                    Toggle("Check for updates automatically", isOn: $store.automaticUpdateChecks)
+                    Text("""
+                        Once a day OpenTab asks GitHub whether a newer version exists; an update \
+                        installs only after you click Install.
+                        """)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
             }
             Section("Panel") {
                 Picker("Position", selection: $store.panelPosition) {

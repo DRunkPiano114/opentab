@@ -12,6 +12,8 @@ final class SettingsModel {
     var secureInputActive = false
     var cmdTabTakeoverAvailable = true
     var safariCacheGranted = false
+    /// Whether this copy has an updater at all; the development copy has none.
+    var updatesAvailable = false
     /// Set while another copy of OpenTab is running, which makes every press
     /// of the shortcut open two panels.
     var otherInstance: String?

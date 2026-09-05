@@ -89,7 +89,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // app-hosted suite never starts an updater.
         updates = UpdateController()
 
-        settings = SettingsStore()
+        settings = SettingsStore(updates: updates)
         settingsModel = SettingsModel()
         health = HealthMonitor()
         Theme.apply(Theme.Style(textScale: settings.textSize.scale, isWide: settings.widePanel))
@@ -199,6 +199,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settingsModel.windowIDBridgeAvailable = source.isWindowIDBridgeAvailable
         settingsModel.cmdTabTakeoverAvailable = CmdTabTakeover.isAvailable
         settingsModel.safariCacheGranted = FaviconStore.shared.hasSafariCacheAccess
+        settingsModel.updatesAvailable = updates != nil
         // The scan at the top ran before there was a settings window to show
         // its verdict in, and before the copy running now was the one staying.
         announcesOtherInstances = true
