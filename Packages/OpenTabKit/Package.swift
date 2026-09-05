@@ -3,6 +3,8 @@ import PackageDescription
 
 // Every product is a static library: a dynamic framework inside the app bundle
 // would carry its own signature and break the stable designated requirement.
+// The embedded Sparkle framework is re-signed by the app target's build phase
+// and does not enter the app's designated requirement.
 let package = Package(
     name: "OpenTabKit",
     platforms: [.macOS(.v26)],

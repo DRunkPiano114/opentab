@@ -32,6 +32,9 @@ settings:
 packages:
   OpenTabKit:
     path: Packages/OpenTabKit
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    exactVersion: 2.9.6
 
 targets:
   OpenTab:
@@ -48,6 +51,7 @@ targets:
         product: OpenTabWS
       - package: OpenTabKit
         product: OpenTabScript
+      - package: Sparkle
     info:
       path: Support/Info.plist
       properties:
@@ -66,6 +70,11 @@ targets:
         NSAccessibilityUsageDescription: "OpenTab uses the Accessibility API to list open windows and switch between them."
         NSSupportsAutomaticTermination: false
         NSSupportsSuddenTermination: false
+        SUFeedURL: $(OPENTAB_FEED_URL)
+        SUPublicEDKey: $(OPENTAB_SPARKLE_PUBLIC_KEY)
+        SUEnableAutomaticChecks: true
+        SURequireSignedFeed: true
+        SUVerifyUpdateBeforeExtraction: true
     # Debug entitlements, generated into Support/OpenTab.entitlements.
     # get-task-allow and disable-library-validation exist for the app-hosted
     # test bundles: they are signed with the same team-less self-signed
@@ -89,6 +98,14 @@ targets:
         # stays OpenTab in every configuration: the executable name is what
         # TEST_HOST keys on.
         OPENTAB_BUNDLE_NAME: OpenTab
+        # Empty in Debug: with no feed the app never constructs the
+        # updater, so the development copy cannot replace itself with
+        # the release build. Release sets the URL below.
+        OPENTAB_FEED_URL: ""
+        # Sparkle's EdDSA public key, base64, the same in every
+        # configuration. Empty until the key exists; the app treats an
+        # empty key like an empty feed and starts no updater.
+        OPENTAB_SPARKLE_PUBLIC_KEY: ""
         INFOPLIST_FILE: Support/Info.plist
         CODE_SIGN_ENTITLEMENTS: Support/OpenTab.entitlements
         CODE_SIGN_STYLE: Manual
@@ -119,6 +136,7 @@ targets:
           CODE_SIGN_IDENTITY: "Developer ID Application"
           DEVELOPMENT_TEAM: 5RV9PT7PK4
           OTHER_CODE_SIGN_FLAGS: "--timestamp"
+          OPENTAB_FEED_URL: https://github.com/DRunkPiano114/opentab/releases/latest/download/appcast.xml
           # The plain `xcodebuild build` action injects get-task-allow into
           # every configuration (only `archive` leaves it out), and
           # notarization rejects it.
@@ -128,6 +146,24 @@ targets:
           # CODE_SIGN_ENTITLEMENTS here would be overwritten; the conditional
           # form survives and wins for Release.
           "CODE_SIGN_ENTITLEMENTS[config=Release]": Support/OpenTab-Release.entitlements
+    postBuildScripts:
+      # A plain `xcodebuild build` re-signs Sparkle.framework on copy and
+      # nothing inside it: Autoupdate, Updater.app and the XPC services keep
+      # their ad-hoc signatures, which notarization rejects. The helpers are
+      # signed one by one, framework last because its seal covers them, with
+      # the identity and flags of the configuration being built, never
+      # deep-signed. The XPC services exist for sandboxed hosts only.
+      - name: Re-sign Sparkle helpers
+        shell: /bin/bash
+        basedOnDependencyAnalysis: false
+        script: |
+          set -euo pipefail
+          FW="$TARGET_BUILD_DIR/$FRAMEWORKS_FOLDER_PATH/Sparkle.framework"
+          [[ -d "$FW" ]] || { echo "error: Sparkle.framework missing at $FW" >&2; exit 1; }
+          rm -rf "$FW/Versions/B/XPCServices"
+          for item in "$FW/Versions/B/Autoupdate" "$FW/Versions/B/Updater.app" "$FW/Versions/B"; do
+            codesign -f -s "$EXPANDED_CODE_SIGN_IDENTITY" -o runtime $OTHER_CODE_SIGN_FLAGS "$item"
+          done
 
   OpenTabAppTests:
     type: bundle.unit-test
