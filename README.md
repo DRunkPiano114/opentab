@@ -1,6 +1,6 @@
 # OpenTab
 
-Option-Tab window and tab switcher for macOS. Hold Option, tap Tab, and every open window and every browser tab is in one list, searchable in English, Chinese or pinyin.
+Command-Tab window and tab switcher for macOS. Hold Command, tap Tab, and every open window and every browser tab is in one list, searchable in English, Chinese or pinyin.
 
 ## Requirements
 
@@ -15,33 +15,39 @@ Option-Tab window and tab switcher for macOS. Hold Option, tap Tab, and every op
 4. Grant the two permissions the first-run guide asks for:
    - **Accessibility** is required. It is how OpenTab lists windows and brings the one you pick to the front.
    - **Automation** is asked per browser, the first time OpenTab lists that browser's tabs. Declining it for a browser only removes that browser's tabs from the list; its windows stay.
-5. From then on OpenTab checks once a day for a newer version and offers to install it with one click. Turn that off under Settings › General if you would rather update by hand from the release page.
+5. Choose your shortcut when the guide asks for it: Command-Tab, which is the default and turns on "Open OpenTab at login" along with it, or Option-Tab.
+6. From then on OpenTab checks once a day for a newer version and offers to install it with one click. Turn that off under Settings › About if you would rather update by hand from the release page.
 
 ## Use
 
 | Keys | Action |
 |---|---|
-| Option-Tab | Open the list and step forward; release Option to switch |
-| Option-Shift-Tab | Same, stepping backward |
-| Return (in the list) or Command-Shift-L | Search by app, window title, tab title or address |
-| Right arrow / Left arrow | Open a window's tabs in a side pane / go back |
-| Command-W (while searching) | Close the selected tab |
-| Escape | Clear the search, leave the side pane, then dismiss |
+| `⌘ Tab` | Open the list and step forward; release ⌘ to switch |
+| `⇧ ⌘ Tab` | Same, stepping backward |
+| `⌥ Tab` / `⇧ ⌥ Tab` | The same two actions when OpenTab is set to Option-Tab |
+| `Return` (in the list) or `⇧ ⌘ L` | Search by app, window title, tab title or address |
+| `Right Arrow` / `Left Arrow` | Open a window's tabs in a side pane / go back |
+| `⌘ W` (while searching) | Close the selected tab |
+| `Escape` | Clear the search, leave the side pane, then dismiss |
 
 Search is forgiving: a few characters in the right order match. Chinese titles match by character, by full pinyin or by initials.
 
-**Settings** (from the menu bar icon) cover panel position, text size and width, sort order, the three shortcuts, launch at login, title patterns to hide, and privacy.
+**Settings** (from the menu bar icon) has four tabs: General (open at login, menu bar icon, panel position, text size and width, sort order, title patterns to hide), Shortcuts (the three shortcuts; a shortcut field's × puts its default back), Privacy (private windows, icons, permissions), About (version, updates, a link to this page, memory and uptime).
 
-**Command-Tab takeover** is optional and off by default. When on, Command-Tab opens OpenTab instead of the system switcher; the system switcher comes back when OpenTab quits. If OpenTab is ever killed while the takeover is on and Command-Tab stays dead, run:
+**Command-Tab** opens OpenTab instead of the system app switcher while OpenTab runs, and the system switcher comes back when OpenTab quits. If OpenTab is force quit and Command-Tab stays dead, the next launch of OpenTab puts it back, or you can put it back right away with:
 
 ```bash
 /Applications/OpenTab.app/Contents/MacOS/OpenTab --restore-cmd-tab
 ```
 
+Launching OpenTab with `--disable-cmd-tab-takeover` makes it behave as if the takeover were unavailable, which is how the Option-Tab fallback can be tried on a Mac that supports Command-Tab.
+
+Where the takeover is unavailable, before you grant Accessibility, or while another copy of OpenTab is running, OpenTab uses Option-Tab instead and says so in Settings and in the menu bar.
+
 ## Privacy
 
 - No telemetry. OpenTab sends nothing about you or your windows anywhere, and its logs and diagnostic dumps never contain window titles.
-- Once a day OpenTab asks GitHub whether a newer version exists. That request carries your IP address, OpenTab's name and version, and nothing about you or your windows. An update is shown to you and installs when you click Install; the first update alert also offers a box to install future updates automatically, which stays unticked unless you tick it. Switch the check off under Settings › General, or check by hand with "Check for Updates…" from the menu bar icon. The only other network request is the optional "Look up missing icons on Google" under Settings › Privacy, off by default; with it on, the domain of each tab is sent to Google to fetch a favicon.
+- Once a day OpenTab asks GitHub whether a newer version exists. That request carries your IP address, OpenTab's name and version, and nothing about you or your windows. An update is shown to you and installs when you click Install; the first update alert also offers a box to install future updates automatically, which stays unticked unless you tick it. Switch the check off under Settings › About, or check by hand with "Check for Updates…" from the menu bar icon. The only other network request is the optional "Look up missing icons on Google" under Settings › Privacy, which stays off until you turn it on; with it on, the domain of each tab is sent to Google to fetch a favicon.
 - Private and incognito windows are left out of the list unless you opt in under Settings › Privacy. Safari exposes no private-window flag to other apps, so with the opt-in off Safari is listed by window and never by tab.
 
 ## How it works
