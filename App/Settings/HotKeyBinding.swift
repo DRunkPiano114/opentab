@@ -14,8 +14,8 @@ struct HotKeyBinding: Equatable, Sendable {
     static let cmdTab = HotKeyBinding(keyCode: UInt32(kVK_Tab), carbonModifiers: UInt32(cmdKey))
     static let cmdShiftTab = HotKeyBinding(keyCode: UInt32(kVK_Tab), carbonModifiers: UInt32(cmdKey | shiftKey))
 
-    static let mainDefault = HotKeyBinding.optionTab
-    static let reverseDefault = HotKeyBinding.optionShiftTab
+    static let mainDefault = HotKeyBinding.cmdTab
+    static let reverseDefault = HotKeyBinding.cmdShiftTab
     static let searchDefault = HotKeyBinding(keyCode: UInt32(kVK_ANSI_L),
                                             carbonModifiers: UInt32(cmdKey | shiftKey))
 

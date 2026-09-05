@@ -46,6 +46,17 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(store.sortMode, .recency)
     }
 
+    /// A domain that never stored a chord wants the takeover, and says so
+    /// on disk from the first read, for the component that reads the flag
+    /// without the chords.
+    func testFreshStoreWantsTheTakeover() {
+        let store = SettingsStore(defaults: defaults)
+        XCTAssertEqual(store.mainHotKey, .cmdTab)
+        XCTAssertEqual(store.reverseHotKey, .cmdShiftTab)
+        XCTAssertTrue(store.cmdTabTakeover)
+        XCTAssertTrue(defaults.bool(forKey: DefaultsKey.cmdTabTakeover))
+    }
+
     /// The flag is derived from the chords and persisted next to them, for
     /// the component that reads the flag and knows nothing about chords.
     func testTakeoverFlagFollowsTheBoundChords() {

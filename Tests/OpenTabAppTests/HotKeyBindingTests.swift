@@ -8,7 +8,7 @@ final class HotKeyBindingTests: XCTestCase {
     /// A chord with none of the modifiers the monitors watch would open the
     /// panel and commit it in the same instant.
     func testHoldModifierIsTheOneTheMonitorsWatch() {
-        XCTAssertEqual(HotKeyBinding.mainDefault.hold, .option)
+        XCTAssertEqual(HotKeyBinding.mainDefault.hold, .command)
         XCTAssertEqual(HotKeyBinding(keyCode: UInt32(kVK_Tab), carbonModifiers: UInt32(cmdKey)).hold, .command)
         XCTAssertEqual(HotKeyBinding(keyCode: UInt32(kVK_Space), carbonModifiers: UInt32(controlKey)).hold, .control)
         XCTAssertNil(HotKeyBinding(keyCode: UInt32(kVK_Tab), carbonModifiers: UInt32(shiftKey)).hold,
@@ -24,12 +24,14 @@ final class HotKeyBindingTests: XCTestCase {
         XCTAssertNil(HotKeyBinding(stored: "48"))
     }
 
-    /// These are the shipped defaults; the recorder writes the same shape, so
-    /// a drift here is a silently different default hotkey.
+    /// These are the shipped defaults, Cmd-Tab / Cmd-Shift-Tab / Cmd-Shift-L
+    /// as raw key codes and Carbon masks; the recorder writes the same shape,
+    /// so a drift here is a silently different default hotkey.
     func testDefaultsAreTheMeasuredValues() {
         XCTAssertEqual(HotKeyBinding.mainDefault.keyCode, 48)
-        XCTAssertEqual(HotKeyBinding.mainDefault.carbonModifiers, 2048)
-        XCTAssertEqual(HotKeyBinding.reverseDefault.carbonModifiers, 2560)
+        XCTAssertEqual(HotKeyBinding.mainDefault.carbonModifiers, 256)
+        XCTAssertEqual(HotKeyBinding.reverseDefault.keyCode, 48)
+        XCTAssertEqual(HotKeyBinding.reverseDefault.carbonModifiers, 768)
         XCTAssertEqual(HotKeyBinding.searchDefault.keyCode, 37)
         XCTAssertEqual(HotKeyBinding.searchDefault.carbonModifiers, 768)
     }
@@ -46,6 +48,8 @@ final class HotKeyBindingTests: XCTestCase {
                        "\u{21E7}\u{2009}\u{2318}\u{2009}Tab")
         XCTAssertEqual(HotKeyBinding(keyCode: UInt32(kVK_Space), carbonModifiers: UInt32(cmdKey)).displayString,
                        "\u{2318}\u{2009}Space")
+        XCTAssertEqual(HotKeyBinding.mainDefault.displayString, "\u{2318}\u{2009}Tab")
+        XCTAssertEqual(HotKeyBinding.reverseDefault.displayString, "\u{21E7}\u{2009}\u{2318}\u{2009}Tab")
     }
 
     /// Only the two chords the window server owns need it taken over; a chord
