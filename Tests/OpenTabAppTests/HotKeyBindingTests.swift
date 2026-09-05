@@ -34,11 +34,18 @@ final class HotKeyBindingTests: XCTestCase {
         XCTAssertEqual(HotKeyBinding.searchDefault.carbonModifiers, 768)
     }
 
-    func testDisplayStringOrdersModifiersLikeTheSystemDoes() {
+    /// Modifier glyphs in the system's order, the key as a word where it has
+    /// one, and one thin space between every pair of tokens.
+    func testDisplayStringOrdersModifiersLikeTheSystemAndSeparatesTokensWithThinSpaces() {
         let all = HotKeyBinding(keyCode: UInt32(kVK_ANSI_L),
                                 carbonModifiers: UInt32(cmdKey | shiftKey | optionKey | controlKey))
-        XCTAssertEqual(all.displayString, "\u{2303}\u{2325}\u{21E7}\u{2318}L")
-        XCTAssertEqual(HotKeyBinding.mainDefault.displayString, "\u{2325}\u{21E5}")
+        XCTAssertEqual(all.displayString, "\u{2303}\u{2009}\u{2325}\u{2009}\u{21E7}\u{2009}\u{2318}\u{2009}L")
+        XCTAssertEqual(HotKeyBinding(keyCode: UInt32(kVK_Tab), carbonModifiers: UInt32(optionKey)).displayString,
+                       "\u{2325}\u{2009}Tab")
+        XCTAssertEqual(HotKeyBinding(keyCode: UInt32(kVK_Tab), carbonModifiers: UInt32(cmdKey | shiftKey)).displayString,
+                       "\u{21E7}\u{2009}\u{2318}\u{2009}Tab")
+        XCTAssertEqual(HotKeyBinding(keyCode: UInt32(kVK_Space), carbonModifiers: UInt32(cmdKey)).displayString,
+                       "\u{2318}\u{2009}Space")
     }
 
     /// An unusable chord must not reach the Carbon layer: `configure` keeps

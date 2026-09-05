@@ -66,13 +66,16 @@ struct HotKeyBinding: Equatable, Sendable {
 
     // MARK: Display
 
+    /// Modifier glyphs in the order the system draws them, then the key as a
+    /// word when it has a name, every token separated by a thin space.
     var displayString: String {
-        var out = ""
-        if carbonModifiers & UInt32(controlKey) != 0 { out += "\u{2303}" }
-        if carbonModifiers & UInt32(optionKey) != 0 { out += "\u{2325}" }
-        if carbonModifiers & UInt32(shiftKey) != 0 { out += "\u{21E7}" }
-        if carbonModifiers & UInt32(cmdKey) != 0 { out += "\u{2318}" }
-        return out + KeyCodeNames.label(for: keyCode)
+        var tokens: [String] = []
+        if carbonModifiers & UInt32(controlKey) != 0 { tokens.append("\u{2303}") }
+        if carbonModifiers & UInt32(optionKey) != 0 { tokens.append("\u{2325}") }
+        if carbonModifiers & UInt32(shiftKey) != 0 { tokens.append("\u{21E7}") }
+        if carbonModifiers & UInt32(cmdKey) != 0 { tokens.append("\u{2318}") }
+        tokens.append(KeyCodeNames.label(for: keyCode))
+        return tokens.joined(separator: "\u{2009}")
     }
 }
 
@@ -81,10 +84,10 @@ struct HotKeyBinding: Equatable, Sendable {
 /// their key actually produces rather than the ANSI one.
 enum KeyCodeNames {
     private static let named: [Int: String] = [
-        kVK_Tab: "\u{21E5}", kVK_Space: "Space", kVK_Return: "\u{21A9}", kVK_Escape: "\u{238B}",
-        kVK_Delete: "\u{232B}", kVK_ForwardDelete: "\u{2326}", kVK_ANSI_KeypadEnter: "\u{2324}",
-        kVK_LeftArrow: "\u{2190}", kVK_RightArrow: "\u{2192}", kVK_UpArrow: "\u{2191}", kVK_DownArrow: "\u{2193}",
-        kVK_Home: "\u{2196}", kVK_End: "\u{2198}", kVK_PageUp: "\u{21DE}", kVK_PageDown: "\u{21DF}",
+        kVK_Tab: "Tab", kVK_Space: "Space", kVK_Return: "Return", kVK_Escape: "Escape",
+        kVK_Delete: "Delete", kVK_ForwardDelete: "Forward Delete", kVK_ANSI_KeypadEnter: "Enter",
+        kVK_LeftArrow: "Left Arrow", kVK_RightArrow: "Right Arrow", kVK_UpArrow: "Up Arrow", kVK_DownArrow: "Down Arrow",
+        kVK_Home: "Home", kVK_End: "End", kVK_PageUp: "Page Up", kVK_PageDown: "Page Down",
         kVK_F1: "F1", kVK_F2: "F2", kVK_F3: "F3", kVK_F4: "F4", kVK_F5: "F5", kVK_F6: "F6",
         kVK_F7: "F7", kVK_F8: "F8", kVK_F9: "F9", kVK_F10: "F10", kVK_F11: "F11", kVK_F12: "F12",
         kVK_F13: "F13", kVK_F14: "F14", kVK_F15: "F15", kVK_F16: "F16", kVK_F17: "F17",
