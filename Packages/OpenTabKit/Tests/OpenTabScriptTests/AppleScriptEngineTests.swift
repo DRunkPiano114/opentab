@@ -79,10 +79,14 @@ final class AppleScriptEngineTests: XCTestCase {
         blockUntilSignalled(entered)
         await second
 
-        let third = engine.workerIdentity(lane: "chrome")
+        // A worker counts as created once its thread has started, which is
+        // later than its registration in the lane table. Running a job on the
+        // lane makes the count read after the third thread is up, and proves
+        // the lane is serviceable again.
+        let after = try? await engine.run("after", lane: "chrome", deadline: deadline(1000))
+        XCTAssertEqual(after, .text("after"), "the lane must be serviceable after the second timeout")
         XCTAssertEqual(recorder.executorsCreated, 3,
                        "the re-homed job's timeout must retire its new worker too")
-        XCTAssertNotNil(third)
         gate.signal()
         gate.signal()
     }
