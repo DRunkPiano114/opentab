@@ -10,6 +10,9 @@ import SwiftUI
 /// `onRecordingChanged` is for.
 final class HotKeyRecorderView: NSView {
     var binding: HotKeyBinding { didSet { needsDisplay = true } }
+    /// What the clear affordance writes back. There is no empty chord: every
+    /// binding is required, so clearing means going back to the default.
+    var defaultBinding: HotKeyBinding
     /// Main and reverse chords must carry a modifier whose release can be
     /// observed, or the panel commits the instant it opens.
     var requiresHoldModifier: Bool
@@ -29,14 +32,17 @@ final class HotKeyRecorderView: NSView {
     private var isRecording = false { didSet { needsDisplay = true } }
     private var message: String?
 
-    init(binding: HotKeyBinding, requiresHoldModifier: Bool, acceptsCmdTab: Bool = true,
-         takeoverAvailable: Bool = true, reservedChords: [HotKeyBinding] = []) {
+    init(binding: HotKeyBinding, defaultBinding: HotKeyBinding, requiresHoldModifier: Bool,
+         acceptsCmdTab: Bool = true, takeoverAvailable: Bool = true, reservedChords: [HotKeyBinding] = []) {
         self.binding = binding
+        self.defaultBinding = defaultBinding
         self.requiresHoldModifier = requiresHoldModifier
         self.acceptsCmdTab = acceptsCmdTab
         self.takeoverAvailable = takeoverAvailable
         self.reservedChords = reservedChords
         super.init(frame: .zero)
+        focusRingType = .exterior
+        setAccessibilityHelp("Click to record a shortcut, or click the \u{00D7} to reset it to the default.")
     }
 
     @available(*, unavailable)
@@ -45,9 +51,37 @@ final class HotKeyRecorderView: NSView {
     override var acceptsFirstResponder: Bool { true }
     override var intrinsicContentSize: NSSize { NSSize(width: 130, height: 24) }
 
+    private static let resetHelp = "Reset to the default shortcut"
+    private static let cornerRadius: CGFloat = 5
+
+    /// `focusRingType` alone draws nothing, and the default mask bounds are
+    /// empty, which leaves Accessibility zoom unable to find the control.
+    override func drawFocusRingMask() {
+        NSBezierPath(roundedRect: bounds, xRadius: Self.cornerRadius, yRadius: Self.cornerRadius).fill()
+    }
+
+    override var focusRingMaskBounds: NSRect { bounds }
+
+    private var clearRect: NSRect {
+        NSRect(x: bounds.maxX - 17, y: bounds.midY - 6.5, width: 13, height: 13)
+    }
+
+    /// Scoped to the affordance: on the rest of the field a click records.
+    override func layout() {
+        super.layout()
+        removeAllToolTips()
+        addToolTip(clearRect, owner: Self.resetHelp as NSString, userData: nil)
+    }
+
     override func mouseDown(with event: NSEvent) {
         if isRecording {
             stopRecording()
+        } else if clearRect.contains(convert(event.locationInWindow, from: nil)) {
+            // On a Mac without the window-server write the default is a chord
+            // the rules two lines down refuse, so the twin goes in instead.
+            let reset = takeoverAvailable ? defaultBinding : defaultBinding.withoutTakeover()
+            binding = reset
+            onRecord?(reset)
         } else {
             window?.makeFirstResponder(self)
             startRecording()
@@ -128,12 +162,21 @@ final class HotKeyRecorderView: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        let shape = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: 5, yRadius: 5)
+        let shape = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5),
+                                 xRadius: Self.cornerRadius, yRadius: Self.cornerRadius)
         (isRecording ? NSColor.controlAccentColor.withAlphaComponent(0.12) : NSColor.controlBackgroundColor).setFill()
         shape.fill()
         (isRecording ? NSColor.controlAccentColor : NSColor.separatorColor).setStroke()
         shape.lineWidth = 1
         shape.stroke()
+
+        var textArea = bounds
+        if !isRecording, let symbol = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: nil) {
+            let configuration = NSImage.SymbolConfiguration(pointSize: 13, weight: .regular)
+                .applying(NSImage.SymbolConfiguration(paletteColors: [.tertiaryLabelColor]))
+            (symbol.withSymbolConfiguration(configuration) ?? symbol).draw(in: clearRect)
+            textArea.size.width = clearRect.minX - bounds.minX
+        }
 
         let text = message ?? (isRecording ? "Type a shortcut" : binding.displayString)
         let colour: NSColor = message != nil ? .systemRed : (isRecording ? .secondaryLabelColor : .labelColor)
@@ -141,13 +184,14 @@ final class HotKeyRecorderView: NSView {
             .font: NSFont.systemFont(ofSize: 12), .foregroundColor: colour,
         ]
         let size = (text as NSString).size(withAttributes: attributes)
-        (text as NSString).draw(at: NSPoint(x: bounds.midX - size.width / 2, y: bounds.midY - size.height / 2),
+        (text as NSString).draw(at: NSPoint(x: textArea.midX - size.width / 2, y: bounds.midY - size.height / 2),
                                 withAttributes: attributes)
     }
 }
 
 struct HotKeyRecorder: NSViewRepresentable {
     let binding: HotKeyBinding
+    let defaultBinding: HotKeyBinding
     var requiresHoldModifier = true
     var acceptsCmdTab = true
     let takeoverAvailable: Bool
@@ -156,7 +200,8 @@ struct HotKeyRecorder: NSViewRepresentable {
     let onRecordingChanged: (Bool) -> Void
 
     func makeNSView(context: Context) -> HotKeyRecorderView {
-        let view = HotKeyRecorderView(binding: binding, requiresHoldModifier: requiresHoldModifier,
+        let view = HotKeyRecorderView(binding: binding, defaultBinding: defaultBinding,
+                                      requiresHoldModifier: requiresHoldModifier,
                                       acceptsCmdTab: acceptsCmdTab, takeoverAvailable: takeoverAvailable,
                                       reservedChords: reservedChords)
         view.onRecord = onRecord
@@ -166,6 +211,7 @@ struct HotKeyRecorder: NSViewRepresentable {
 
     func updateNSView(_ view: HotKeyRecorderView, context: Context) {
         view.binding = binding
+        view.defaultBinding = defaultBinding
         view.requiresHoldModifier = requiresHoldModifier
         view.acceptsCmdTab = acceptsCmdTab
         view.takeoverAvailable = takeoverAvailable

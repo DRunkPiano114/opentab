@@ -69,7 +69,7 @@ struct HotKeySettingsView: View {
         Form {
             Section {
                 LabeledContent("Open the switcher") {
-                    HotKeyRecorder(binding: store.mainHotKey,
+                    HotKeyRecorder(binding: store.mainHotKey, defaultBinding: .mainDefault,
                                    takeoverAvailable: model.cmdTabTakeoverAvailable,
                                    reservedChords: [store.reverseHotKey, store.searchHotKey],
                                    onRecord: { store.mainHotKey = $0 },
@@ -77,7 +77,7 @@ struct HotKeySettingsView: View {
                         .frame(width: 130, height: 24)
                 }
                 LabeledContent("Open the switcher backwards") {
-                    HotKeyRecorder(binding: store.reverseHotKey,
+                    HotKeyRecorder(binding: store.reverseHotKey, defaultBinding: .reverseDefault,
                                    takeoverAvailable: model.cmdTabTakeoverAvailable,
                                    reservedChords: [store.mainHotKey, store.searchHotKey],
                                    onRecord: { store.reverseHotKey = $0 },
@@ -85,7 +85,8 @@ struct HotKeySettingsView: View {
                         .frame(width: 130, height: 24)
                 }
                 LabeledContent("Open search") {
-                    HotKeyRecorder(binding: store.searchHotKey, requiresHoldModifier: false, acceptsCmdTab: false,
+                    HotKeyRecorder(binding: store.searchHotKey, defaultBinding: .searchDefault,
+                                   requiresHoldModifier: false, acceptsCmdTab: false,
                                    takeoverAvailable: model.cmdTabTakeoverAvailable,
                                    reservedChords: [store.mainHotKey, store.reverseHotKey],
                                    onRecord: { store.searchHotKey = $0 },
