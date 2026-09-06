@@ -114,9 +114,22 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         }
     }
 
+    /// A row that stays text-only. macOS 26 fills in a default image for
+    /// items whose selector it recognises — `openSettings` gets a gear,
+    /// `terminate:` a kit image — and the opt-out property arrives in macOS
+    /// 27. Assigning `nil` at construction does not hold, because the default
+    /// is materialised on the first read of `image`, so the getter is the only
+    /// place that can refuse it.
+    private final class ImagelessMenuItem: NSMenuItem {
+        override var image: NSImage? {
+            get { nil }
+            set {}
+        }
+    }
+
     private func makeAction(_ action: StatusMenuSpec.Action?, title: String,
                             keyEquivalent: StatusMenuSpec.KeyEquivalent?) -> NSMenuItem {
-        let item = NSMenuItem(title: title, action: nil, keyEquivalent: keyEquivalent?.key ?? "")
+        let item = ImagelessMenuItem(title: title, action: nil, keyEquivalent: keyEquivalent?.key ?? "")
         item.keyEquivalentModifierMask = Self.modifierMask(keyEquivalent)
         if let action {
             let (selector, target) = handler(for: action)
