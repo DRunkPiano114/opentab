@@ -4,7 +4,7 @@ import SwiftUI
 /// The idle search control: a centred, content-fitting pill. Pressing Enter
 /// swaps it for `SearchFieldBackdrop` with the real text field on top.
 struct SearchCapsule: View {
-    var text = "Search"
+    var text = "Enter to search"
 
     var body: some View {
         Text(text)
