@@ -5,8 +5,8 @@ import Foundation
 /// The default list holds bundle ids only: display names localise and the
 /// original product's mixed list had both spellings of "Notification Centre"
 /// in it for exactly that reason. Title patterns are the one sanctioned
-/// exception: they are explicit user configuration, so string matching is the
-/// requested behaviour.
+/// exception: the caller supplies the expressions and the default is empty, so
+/// a localised string is matched only where one was asked for.
 public struct IgnoreRules: Sendable {
     public static let defaultBundleIDs: Set<String> = [
         "com.apple.loginwindow",
