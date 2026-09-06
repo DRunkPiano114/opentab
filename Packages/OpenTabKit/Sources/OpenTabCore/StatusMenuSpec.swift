@@ -3,8 +3,9 @@ import Foundation
 /// What the menu bar menu contains, as data.
 ///
 /// The menu itself is AppKit and can only be checked by a human opening it,
-/// so everything decidable — the order, which rows appear while something is
-/// degraded — lives here instead, where the pure-logic suite reaches it.
+/// so everything decidable — the order, the grouping, which rows appear while
+/// something is degraded — lives here instead, where the pure-logic suite
+/// reaches it.
 public enum StatusMenuSpec {
     /// A menu key equivalent, as the four modifiers AppKit draws plus the
     /// character itself.
@@ -28,7 +29,7 @@ public enum StatusMenuSpec {
     }
 
     public enum Action: Equatable, Sendable {
-        case openSwitcher, searchWindows, checkForUpdates, settings, quit
+        case openSwitcher, searchWindows, about, checkForUpdates, settings, quit
         case openAccessibilitySettings, openAutomationSettings, openShortcutsTab, openPrivacyTab
     }
 
@@ -110,11 +111,15 @@ public enum StatusMenuSpec {
         items.append(.action(.searchWindows, title: "Search Windows",
                              keyEquivalent: inputs.searchShortcut, isEnabled: true))
         items.append(.separator)
+        // About keeps this group non-empty on a copy built without an updater.
+        items.append(.action(.about, title: "About OpenTab", keyEquivalent: nil, isEnabled: true))
         if inputs.hasUpdater {
             items.append(.action(.checkForUpdates, title: "Check for Updates\u{2026}",
                                  keyEquivalent: nil, isEnabled: inputs.canCheckForUpdates))
         }
+        items.append(.separator)
         items.append(.action(.settings, title: "Settings\u{2026}", keyEquivalent: nil, isEnabled: true))
+        items.append(.separator)
         items.append(.action(.quit, title: "Quit", keyEquivalent: nil, isEnabled: true))
         return items
     }

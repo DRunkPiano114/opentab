@@ -2,7 +2,7 @@ import AppKit
 import Carbon
 import OpenTabCore
 
-/// Menu bar item. The menu is a short list of verbs, rebuilt from the spec
+/// Menu bar item. The menu is a short list of rows, rebuilt from the spec
 /// every time it opens; anything degraded is folded into one attention row at
 /// the top and marked on the status item itself.
 @MainActor
@@ -35,6 +35,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     var onOpenSwitcher: (() -> Void)?
     var onSearchWindows: (() -> Void)?
     var onCheckForUpdates: (() -> Void)?
+    var onOpenAbout: (() -> Void)?
     var onOpenSettings: (() -> Void)?
     var onOpenAutomationSettings: (() -> Void)?
     var onOpenShortcutsTab: (() -> Void)?
@@ -184,6 +185,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         case .openSwitcher: (#selector(openSwitcher), self)
         case .searchWindows: (#selector(searchWindows), self)
         case .checkForUpdates: (#selector(checkForUpdates), self)
+        case .about: (#selector(openAbout), self)
         case .settings: (#selector(openSettings), self)
         case .quit: (#selector(NSApplication.terminate(_:)), NSApp)
         case .openAccessibilitySettings: (#selector(openAccessibilitySettings), self)
@@ -203,6 +205,10 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
 
     @objc private func checkForUpdates() {
         onCheckForUpdates?()
+    }
+
+    @objc private func openAbout() {
+        onOpenAbout?()
     }
 
     @objc private func openSettings() {

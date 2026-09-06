@@ -151,6 +151,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusMenu.onOpenSwitcher = { [weak self] in self?.session.openFromMenu(search: false) }
         statusMenu.onSearchWindows = { [weak self] in self?.session.openFromMenu(search: true) }
         statusMenu.onOpenSettings = { [weak self] in self?.showSettings() }
+        statusMenu.onOpenAbout = { [weak self] in self?.settingsWindow?.show(tab: .about) }
         statusMenu.onOpenShortcutsTab = { [weak self] in self?.settingsWindow?.show(tab: .shortcuts) }
         statusMenu.onOpenPrivacyTab = { [weak self] in self?.settingsWindow?.show(tab: .privacy) }
         statusMenu.onOpenAutomationSettings = { [weak self] in self?.automation.openSettings() }

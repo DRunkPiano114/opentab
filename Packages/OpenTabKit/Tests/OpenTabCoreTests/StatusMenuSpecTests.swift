@@ -38,8 +38,11 @@ final class StatusMenuSpecTests: XCTestCase {
             .action(.openSwitcher, title: "Open Switcher", keyEquivalent: nil, isEnabled: true),
             .action(.searchWindows, title: "Search Windows", keyEquivalent: nil, isEnabled: true),
             .separator,
+            .action(.about, title: "About OpenTab", keyEquivalent: nil, isEnabled: true),
             .action(.checkForUpdates, title: "Check for Updates\u{2026}", keyEquivalent: nil, isEnabled: true),
+            .separator,
             .action(.settings, title: "Settings\u{2026}", keyEquivalent: nil, isEnabled: true),
+            .separator,
             .action(.quit, title: "Quit", keyEquivalent: nil, isEnabled: true),
         ]
         XCTAssertEqual(StatusMenuSpec.items(healthy()), expected)
@@ -92,12 +95,16 @@ final class StatusMenuSpecTests: XCTestCase {
         XCTAssertFalse(hasAttentionRow(StatusMenuSpec.items(inputs)))
     }
 
-    func testNoUpdaterOmitsCheckForUpdates() {
+    func testNoUpdaterOmitsCheckForUpdatesAndLeavesNoEmptyGroup() {
         var inputs = healthy()
         inputs.hasUpdater = false
-        XCTAssertFalse(StatusMenuSpec.items(inputs).contains { item in
+        let items = StatusMenuSpec.items(inputs)
+        XCTAssertFalse(items.contains { item in
             if case let .action(action, _, _, _) = item { action == .checkForUpdates } else { false }
         })
+        for (first, second) in zip(items, items.dropFirst()) {
+            XCTAssertFalse(first == .separator && second == .separator, "a group with no rows draws two rules")
+        }
     }
 
     func testCheckForUpdatesIsDisabledWhileACheckIsRunning() {
