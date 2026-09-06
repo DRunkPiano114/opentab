@@ -39,7 +39,7 @@ final class SettingsTabController: NSTabViewController {
         for tab in Tab.allCases {
             let controller: NSViewController
             switch tab {
-            case .general: controller = page(GeneralSettingsView(store: store, model: model, actions: actions))
+            case .general: controller = page(GeneralSettingsView(store: store))
             case .shortcuts: controller = page(HotKeySettingsView(store: store, model: model, actions: actions))
             case .privacy: controller = page(PrivacySettingsView(store: store, model: model, actions: actions))
             case .about: controller = page(AboutSettingsView(store: store, model: model, actions: actions))

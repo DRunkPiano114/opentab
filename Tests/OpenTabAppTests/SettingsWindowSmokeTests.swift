@@ -55,8 +55,7 @@ final class SettingsWindowSmokeTests: XCTestCase {
     }
 
     func testGeneralPageLaysOut() {
-        assertLaysOut(GeneralSettingsView(store: SettingsStore(defaults: defaults), model: degradedModel(),
-                                          actions: SettingsActions()), "General")
+        assertLaysOut(GeneralSettingsView(store: SettingsStore(defaults: defaults)), "General")
     }
 
     func testShortcutsPageLaysOut() {

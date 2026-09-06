@@ -383,14 +383,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func settingsActions() -> SettingsActions {
         var actions = SettingsActions()
-        actions.rebuildIndex = { [weak self] in
-            guard let self else { return }
-            let coordinator = self.coordinator!
-            Task {
-                await coordinator.rebuild()
-                self.settingsModel.health = self.health.snapshot()
-            }
-        }
         actions.openAccessibilitySettings = { NSWorkspace.shared.open(SystemSettingsLinks.accessibility) }
         actions.openAutomationSettings = { [weak self] in self?.automation.openSettings() }
         actions.requestAutomation = { [weak self] bundleID in self?.offerTabs(for: bundleID) }

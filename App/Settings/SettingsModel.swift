@@ -31,7 +31,6 @@ final class SettingsModel {
 /// reference to the delegate so the window can be driven from a test.
 @MainActor
 struct SettingsActions {
-    var rebuildIndex: () -> Void = {}
     var openAccessibilitySettings: () -> Void = {}
     var openAutomationSettings: () -> Void = {}
     /// Runs the guided Apple Events request for one browser. Never reached

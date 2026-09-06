@@ -5,8 +5,6 @@ import SwiftUI
 /// hosted one per tab by `SettingsTabController`.
 struct GeneralSettingsView: View {
     @Bindable var store: SettingsStore
-    let model: SettingsModel
-    let actions: SettingsActions
 
     var body: some View {
         Form {
@@ -33,19 +31,6 @@ struct GeneralSettingsView: View {
                     Text("Alphabetical").tag(true)
                 }
                 .pickerStyle(.radioGroup)
-            }
-            Section("Index") {
-                LabeledContent("Windows and tabs") {
-                    HStack {
-                        Text("\(model.health.entryCount)")
-                        Button("Rebuild Index", action: actions.rebuildIndex)
-                    }
-                }
-                Text("""
-                    Rebuilding drops the whole list and reads every window again, which clears rows left \
-                    behind by a window that closed while its app was not answering.
-                    """)
-                .settingsHelp()
             }
         }
         .formStyle(.grouped)
