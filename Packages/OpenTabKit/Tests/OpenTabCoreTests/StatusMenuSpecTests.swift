@@ -21,7 +21,7 @@ final class StatusMenuSpecTests: XCTestCase {
         var titles: [String] = []
         for item in items {
             switch item {
-            case let .action(_, title, _, _, _):
+            case let .action(_, title, _, _):
                 titles.append(title)
             case let .attention(title, conditions):
                 titles.append(title)
@@ -35,22 +35,12 @@ final class StatusMenuSpecTests: XCTestCase {
 
     func testHealthyMenuIsTheFixedListInOrder() {
         let expected: [Item] = [
-            .action(.openSwitcher, title: "Open Switcher", symbol: "macwindow.on.rectangle",
-                    keyEquivalent: nil, isEnabled: true),
-            .action(.searchWindows, title: "Search Windows", symbol: "magnifyingglass",
-                    keyEquivalent: nil, isEnabled: true),
+            .action(.openSwitcher, title: "Open Switcher", keyEquivalent: nil, isEnabled: true),
+            .action(.searchWindows, title: "Search Windows", keyEquivalent: nil, isEnabled: true),
             .separator,
-            .action(.rebuildIndex, title: "Rebuild Index", symbol: "arrow.clockwise",
-                    keyEquivalent: nil, isEnabled: true),
-            .action(.checkForUpdates, title: "Check for Updates\u{2026}", symbol: "arrow.down.circle",
-                    keyEquivalent: nil, isEnabled: true),
-            .action(.about, title: "About OpenTab", symbol: "info.circle",
-                    keyEquivalent: nil, isEnabled: true),
-            .separator,
-            .action(.settings, title: "Settings\u{2026}", symbol: "gearshape",
-                    keyEquivalent: KeyEquivalent(key: ",", command: true), isEnabled: true),
-            .action(.quit, title: "Quit OpenTab", symbol: "power",
-                    keyEquivalent: KeyEquivalent(key: "q", command: true), isEnabled: true),
+            .action(.checkForUpdates, title: "Check for Updates\u{2026}", keyEquivalent: nil, isEnabled: true),
+            .action(.settings, title: "Settings\u{2026}", keyEquivalent: nil, isEnabled: true),
+            .action(.quit, title: "Quit", keyEquivalent: nil, isEnabled: true),
         ]
         XCTAssertEqual(StatusMenuSpec.items(healthy()), expected)
     }
@@ -58,17 +48,8 @@ final class StatusMenuSpecTests: XCTestCase {
     func testHealthyMenuHasNoAttentionRowAndNoLeadingSeparator() {
         let items = StatusMenuSpec.items(healthy())
         XCTAssertEqual(items.first, .action(.openSwitcher, title: "Open Switcher",
-                                            symbol: "macwindow.on.rectangle", keyEquivalent: nil, isEnabled: true))
+                                            keyEquivalent: nil, isEnabled: true))
         XCTAssertFalse(hasAttentionRow(items))
-    }
-
-    func testEveryActionItemCarriesASymbol() {
-        var symbols: [String] = []
-        for case let .action(_, _, symbol, _, _) in StatusMenuSpec.items(healthy()) {
-            XCTAssertFalse(symbol.isEmpty)
-            symbols.append(symbol)
-        }
-        XCTAssertEqual(Set(symbols).count, symbols.count, "two rows sharing a symbol read as the same action")
     }
 
     func testEachConditionAloneMakesOneClickableRow() {
@@ -115,7 +96,7 @@ final class StatusMenuSpecTests: XCTestCase {
         var inputs = healthy()
         inputs.hasUpdater = false
         XCTAssertFalse(StatusMenuSpec.items(inputs).contains { item in
-            if case let .action(action, _, _, _, _) = item { action == .checkForUpdates } else { false }
+            if case let .action(action, _, _, _) = item { action == .checkForUpdates } else { false }
         })
     }
 
@@ -123,9 +104,8 @@ final class StatusMenuSpecTests: XCTestCase {
         var inputs = healthy()
         inputs.canCheckForUpdates = false
         XCTAssertEqual(StatusMenuSpec.items(inputs).first { item in
-            if case let .action(action, _, _, _, _) = item { action == .checkForUpdates } else { false }
-        }, .action(.checkForUpdates, title: "Check for Updates\u{2026}", symbol: "arrow.down.circle",
-                   keyEquivalent: nil, isEnabled: false))
+            if case let .action(action, _, _, _) = item { action == .checkForUpdates } else { false }
+        }, .action(.checkForUpdates, title: "Check for Updates\u{2026}", keyEquivalent: nil, isEnabled: false))
     }
 
     func testSwitcherItemsCarryTheBoundChords() {
@@ -135,15 +115,15 @@ final class StatusMenuSpecTests: XCTestCase {
         inputs.mainShortcut = main
         inputs.searchShortcut = search
         let items = StatusMenuSpec.items(inputs)
-        XCTAssertEqual(items[0], .action(.openSwitcher, title: "Open Switcher", symbol: "macwindow.on.rectangle",
+        XCTAssertEqual(items[0], .action(.openSwitcher, title: "Open Switcher",
                                          keyEquivalent: main, isEnabled: true))
-        XCTAssertEqual(items[1], .action(.searchWindows, title: "Search Windows", symbol: "magnifyingglass",
+        XCTAssertEqual(items[1], .action(.searchWindows, title: "Search Windows",
                                          keyEquivalent: search, isEnabled: true))
 
         let unbound = StatusMenuSpec.items(healthy())
-        XCTAssertEqual(unbound[0], .action(.openSwitcher, title: "Open Switcher", symbol: "macwindow.on.rectangle",
+        XCTAssertEqual(unbound[0], .action(.openSwitcher, title: "Open Switcher",
                                            keyEquivalent: nil, isEnabled: true))
-        XCTAssertEqual(unbound[1], .action(.searchWindows, title: "Search Windows", symbol: "magnifyingglass",
+        XCTAssertEqual(unbound[1], .action(.searchWindows, title: "Search Windows",
                                            keyEquivalent: nil, isEnabled: true))
     }
 

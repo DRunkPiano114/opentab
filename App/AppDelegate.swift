@@ -151,13 +151,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusMenu.onOpenSwitcher = { [weak self] in self?.session.openFromMenu(search: false) }
         statusMenu.onSearchWindows = { [weak self] in self?.session.openFromMenu(search: true) }
         statusMenu.onOpenSettings = { [weak self] in self?.showSettings() }
-        statusMenu.onOpenAbout = { [weak self] in self?.settingsWindow?.show(tab: .about) }
         statusMenu.onOpenShortcutsTab = { [weak self] in self?.settingsWindow?.show(tab: .shortcuts) }
         statusMenu.onOpenPrivacyTab = { [weak self] in self?.settingsWindow?.show(tab: .privacy) }
-        statusMenu.onRebuildIndex = { [weak self] in
-            guard let self else { return }
-            Task { await self.coordinator.rebuild() }
-        }
         statusMenu.onOpenAutomationSettings = { [weak self] in self?.automation.openSettings() }
         statusMenu.boundChords = { [weak self] in self?.hotKeys.persistentChords ?? [] }
         if !source.isWindowIDBridgeAvailable {
@@ -436,21 +431,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .sortMode:
             coordinator.sortMode = settings.sortMode
         case .includesPrivateTabs:
+            let coordinator = coordinator!
             let includes = settings.includesPrivateTabs
             providers.includesPrivate = includes
             coordinator.setIncludesPrivateTabs(includes)
-            rebuildIndex()
+            Task { await coordinator.rebuild() }
         case .remoteFavicons:
             FaviconStore.shared.isRemoteLookupEnabled = settings.remoteFavicons
             log.notice("favicon remote lookup enabled=\(self.settings.remoteFavicons, privacy: .public)")
         case .hotKeys:
             applyCmdTabTakeover()
         }
-    }
-
-    private func rebuildIndex() {
-        let coordinator = coordinator!
-        Task { await coordinator.rebuild() }
     }
 
     /// The one place the takeover is switched on or off, and the one place

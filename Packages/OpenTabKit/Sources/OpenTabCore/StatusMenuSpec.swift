@@ -3,9 +3,8 @@ import Foundation
 /// What the menu bar menu contains, as data.
 ///
 /// The menu itself is AppKit and can only be checked by a human opening it,
-/// so everything decidable — the order, the symbols, which rows appear while
-/// something is degraded — lives here instead, where the pure-logic suite
-/// reaches it.
+/// so everything decidable — the order, which rows appear while something is
+/// degraded — lives here instead, where the pure-logic suite reaches it.
 public enum StatusMenuSpec {
     /// A menu key equivalent, as the four modifiers AppKit draws plus the
     /// character itself.
@@ -29,7 +28,7 @@ public enum StatusMenuSpec {
     }
 
     public enum Action: Equatable, Sendable {
-        case openSwitcher, searchWindows, rebuildIndex, checkForUpdates, about, settings, quit
+        case openSwitcher, searchWindows, checkForUpdates, settings, quit
         case openAccessibilitySettings, openAutomationSettings, openShortcutsTab, openPrivacyTab
     }
 
@@ -40,7 +39,7 @@ public enum StatusMenuSpec {
     }
 
     public enum Item: Equatable, Sendable {
-        case action(Action, title: String, symbol: String, keyEquivalent: KeyEquivalent?, isEnabled: Bool)
+        case action(Action, title: String, keyEquivalent: KeyEquivalent?, isEnabled: Bool)
         case attention(title: String, conditions: [Condition])
         case separator
     }
@@ -106,25 +105,17 @@ public enum StatusMenuSpec {
             items.append(.attention(title: worst.title, conditions: conditions))
             items.append(.separator)
         }
-        items.append(.action(.openSwitcher, title: "Open Switcher", symbol: "macwindow.on.rectangle",
+        items.append(.action(.openSwitcher, title: "Open Switcher",
                              keyEquivalent: inputs.mainShortcut, isEnabled: true))
-        items.append(.action(.searchWindows, title: "Search Windows", symbol: "magnifyingglass",
+        items.append(.action(.searchWindows, title: "Search Windows",
                              keyEquivalent: inputs.searchShortcut, isEnabled: true))
         items.append(.separator)
-        items.append(.action(.rebuildIndex, title: "Rebuild Index", symbol: "arrow.clockwise",
-                             keyEquivalent: nil, isEnabled: true))
         if inputs.hasUpdater {
-            items.append(.action(.checkForUpdates, title: "Check for Updates\u{2026}", symbol: "arrow.down.circle",
+            items.append(.action(.checkForUpdates, title: "Check for Updates\u{2026}",
                                  keyEquivalent: nil, isEnabled: inputs.canCheckForUpdates))
         }
-        items.append(.action(.about, title: "About OpenTab", symbol: "info.circle",
-                             keyEquivalent: nil, isEnabled: true))
-        items.append(.separator)
-        items.append(.action(.settings, title: "Settings\u{2026}", symbol: "gearshape",
-                             keyEquivalent: KeyEquivalent(key: ",", command: true), isEnabled: true))
-        // Lowercase: an uppercase letter draws a Shift glyph next to it.
-        items.append(.action(.quit, title: "Quit OpenTab", symbol: "power",
-                             keyEquivalent: KeyEquivalent(key: "q", command: true), isEnabled: true))
+        items.append(.action(.settings, title: "Settings\u{2026}", keyEquivalent: nil, isEnabled: true))
+        items.append(.action(.quit, title: "Quit", keyEquivalent: nil, isEnabled: true))
         return items
     }
 }

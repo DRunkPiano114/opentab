@@ -34,9 +34,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
 
     var onOpenSwitcher: (() -> Void)?
     var onSearchWindows: (() -> Void)?
-    var onRebuildIndex: (() -> Void)?
     var onCheckForUpdates: (() -> Void)?
-    var onOpenAbout: (() -> Void)?
     var onOpenSettings: (() -> Void)?
     var onOpenAutomationSettings: (() -> Void)?
     var onOpenShortcutsTab: (() -> Void)?
@@ -89,25 +87,20 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         switch spec {
         case .separator:
             return .separator()
-        case let .action(action, title, symbol, keyEquivalent, isEnabled):
-            let item = makeAction(action, title: title, symbol: symbol, keyEquivalent: keyEquivalent)
+        case let .action(action, title, keyEquivalent, isEnabled):
+            let item = makeAction(action, title: title, keyEquivalent: keyEquivalent)
             item.isEnabled = isEnabled
-            if action == .rebuildIndex {
-                item.toolTip = "Drop the whole list and read every window again."
-            }
             return item
         case let .attention(title, conditions):
             let item: NSMenuItem
             if conditions.count == 1 {
-                item = makeAction(conditions[0].action, title: title, symbol: Self.attentionSymbol,
-                                  keyEquivalent: nil)
+                item = makeAction(conditions[0].action, title: title, keyEquivalent: nil)
             } else {
-                item = makeAction(nil, title: title, symbol: Self.attentionSymbol, keyEquivalent: nil)
+                item = makeAction(nil, title: title, keyEquivalent: nil)
                 let submenu = NSMenu()
                 submenu.autoenablesItems = false
                 for condition in conditions {
-                    submenu.addItem(makeAction(condition.action, title: condition.title,
-                                               symbol: Self.attentionSymbol, keyEquivalent: nil))
+                    submenu.addItem(makeAction(condition.action, title: condition.title, keyEquivalent: nil))
                 }
                 item.submenu = submenu
             }
@@ -120,12 +113,9 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         }
     }
 
-    private static let attentionSymbol = "exclamationmark.circle"
-
-    private func makeAction(_ action: StatusMenuSpec.Action?, title: String, symbol: String,
+    private func makeAction(_ action: StatusMenuSpec.Action?, title: String,
                             keyEquivalent: StatusMenuSpec.KeyEquivalent?) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: keyEquivalent?.key ?? "")
-        item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
         item.keyEquivalentModifierMask = Self.modifierMask(keyEquivalent)
         if let action {
             let (selector, target) = handler(for: action)
@@ -193,9 +183,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         switch action {
         case .openSwitcher: (#selector(openSwitcher), self)
         case .searchWindows: (#selector(searchWindows), self)
-        case .rebuildIndex: (#selector(rebuildIndex), self)
         case .checkForUpdates: (#selector(checkForUpdates), self)
-        case .about: (#selector(openAbout), self)
         case .settings: (#selector(openSettings), self)
         case .quit: (#selector(NSApplication.terminate(_:)), NSApp)
         case .openAccessibilitySettings: (#selector(openAccessibilitySettings), self)
@@ -213,16 +201,8 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         onSearchWindows?()
     }
 
-    @objc private func rebuildIndex() {
-        onRebuildIndex?()
-    }
-
     @objc private func checkForUpdates() {
         onCheckForUpdates?()
-    }
-
-    @objc private func openAbout() {
-        onOpenAbout?()
     }
 
     @objc private func openSettings() {

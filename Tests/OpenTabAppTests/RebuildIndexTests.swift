@@ -5,8 +5,8 @@ import XCTest
 
 /// A row is never removed on an empty read, which is what keeps the list from
 /// flickering and also what guarantees rows will eventually be left behind.
-/// "Rebuild Index" is the way out, so these tests manufacture the two rows
-/// nothing else can reach and prove it clears them.
+/// A rebuild is the way out, so these tests manufacture the two rows nothing
+/// else can reach and prove it clears them.
 @MainActor
 final class RebuildIndexTests: XCTestCase {
     private var harness: CoordinatorHarness!
@@ -35,7 +35,7 @@ final class RebuildIndexTests: XCTestCase {
         XCTAssertEqual(harness.entries.count, 2, "an empty read must not remove a row")
 
         await harness.coordinator.rebuild()
-        XCTAssertTrue(harness.entries.isEmpty, "Rebuild Index must clear rows the reads no longer list")
+        XCTAssertTrue(harness.entries.isEmpty, "a rebuild must clear rows the reads no longer list")
     }
 
     /// The harder one: a window the source once reported off the active Space.
@@ -59,7 +59,7 @@ final class RebuildIndexTests: XCTestCase {
 
         await harness.coordinator.rebuild()
         XCTAssertEqual(harness.entries.map(\.title), ["Groceries"],
-                       "Rebuild Index must drop the stale row and keep the live one")
+                       "a rebuild must drop the stale row and keep the live one")
     }
 
     /// Rebuilding also clears the coordinator's own per-app marks, so a
