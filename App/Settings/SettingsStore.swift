@@ -47,7 +47,6 @@ enum Setting: Sendable {
     case includesPrivateTabs
     case remoteFavicons
     case hotKeys
-    case ignoreTitlePatterns
 }
 
 /// Where "open at login" is registered. A seam, so a test can set the
@@ -101,7 +100,6 @@ final class SettingsStore {
         mainHotKey = HotKeyBinding(stored: defaults.object(forKey: DefaultsKey.mainHotKey)) ?? .mainDefault
         reverseHotKey = HotKeyBinding(stored: defaults.object(forKey: DefaultsKey.reverseHotKey)) ?? .reverseDefault
         searchHotKey = HotKeyBinding(stored: defaults.object(forKey: DefaultsKey.searchHotKey)) ?? .searchDefault
-        ignoreTitlePatterns = defaults.stringArray(forKey: DefaultsKey.ignoreTitlePatterns) ?? []
         // A domain that never stored a chord must read the same as one that
         // did, for the component that reads the flag without the chords.
         if defaults.bool(forKey: DefaultsKey.cmdTabTakeover) != cmdTabTakeover {
@@ -172,21 +170,6 @@ final class SettingsStore {
     /// value so it can drop the misses it cached while the tier was off.
     var remoteFavicons: Bool {
         didSet { write(remoteFavicons, DefaultsKey.remoteFavicons, .remoteFavicons, from: oldValue) }
-    }
-
-    var ignoreTitlePatterns: [String] {
-        didSet {
-            guard ignoreTitlePatterns != oldValue else { return }
-            defaults.set(ignoreTitlePatterns, forKey: DefaultsKey.ignoreTitlePatterns)
-            onChange?(.ignoreTitlePatterns)
-        }
-    }
-
-    /// Patterns that do not compile, so the settings window can say which
-    /// line is wrong instead of silently dropping it (`IgnoreRules` compiles
-    /// with `try?`).
-    static func invalidPatterns(in patterns: [String]) -> [String] {
-        patterns.filter { (try? NSRegularExpression(pattern: $0)) == nil }
     }
 
     // MARK: Hotkeys

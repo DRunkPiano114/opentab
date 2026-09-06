@@ -214,14 +214,6 @@ final class SwitcherCoordinator {
         store.configuration.includesPrivateTabs = includes
     }
 
-    /// The user's own title regexes: the one place a rule is allowed to match
-    /// on a displayed string, sanctioned because the user asked for it. The
-    /// caller rebuilds afterwards: rows already in the store were admitted
-    /// under the previous patterns.
-    func setIgnoreTitlePatterns(_ patterns: [String]) {
-        store.ignoreRules = IgnoreRules(bundleIDs: store.ignoreRules.bundleIDs, titlePatterns: patterns)
-    }
-
     /// Drops everything and re-reads. Refusing to delete a row on an empty
     /// read lets zombie rows accumulate, so the user needs an escape hatch
     /// that is not "restart the app".

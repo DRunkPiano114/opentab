@@ -22,9 +22,6 @@ enum DefaultsKey {
 
     /// `AppDelegate`, `TabStore.Configuration`, `TabProviderRegistry`.
     static let includesPrivateTabs = "tabs.includePrivate"
-    /// `IgnoreRules`. User-authored regexes, the one sanctioned exception to
-    /// the rule against matching on display strings.
-    static let ignoreTitlePatterns = "ignoreTitlePatterns"
     /// `FaviconStore.remoteLookupDefaultsKey`.
     static let remoteFavicons = "favicons.allowRemoteLookup"
     /// `FaviconSafariBookmark.defaultsKey`, a security-scoped bookmark.

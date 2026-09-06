@@ -32,7 +32,7 @@ Command-Tab window and tab switcher for macOS. Hold Command, tap Tab, and every 
 
 Search is forgiving: a few characters in the right order match. Chinese titles match by character, by full pinyin or by initials.
 
-**Settings** (from the menu bar icon) has four tabs: General (open at login, menu bar icon, panel position, text size and width, sort order, title patterns to hide), Shortcuts (the three shortcuts; a shortcut field's × puts its default back), Privacy (private windows, icons, permissions), About (version, updates, a link to this page, memory and uptime).
+**Settings** (from the menu bar icon) has four tabs: General (open at login, menu bar icon, panel position, text size and width, sort order), Shortcuts (the three shortcuts; a shortcut field's × puts its default back), Privacy (private windows, icons, permissions), About (version, updates, a link to this page, memory and uptime).
 
 **Command-Tab** opens OpenTab instead of the system app switcher while OpenTab runs, and the system switcher comes back when OpenTab quits. If OpenTab is force quit and Command-Tab stays dead, the next launch of OpenTab puts it back, or you can put it back right away with:
 

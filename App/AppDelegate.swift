@@ -93,7 +93,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settingsModel = SettingsModel()
         health = HealthMonitor()
         Theme.apply(Theme.Style(textScale: settings.textSize.scale, isWide: settings.widePanel))
-        let rules = IgnoreRules(titlePatterns: settings.ignoreTitlePatterns)
+        let rules = IgnoreRules()
         // A launch flag rather than an environment variable, because `open`
         // cannot pass one: this is how the fallback taken when the private
         // window-id symbol is missing gets exercised deliberately.
@@ -453,9 +453,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             log.notice("favicon remote lookup enabled=\(self.settings.remoteFavicons, privacy: .public)")
         case .hotKeys:
             applyCmdTabTakeover()
-        case .ignoreTitlePatterns:
-            coordinator.setIgnoreTitlePatterns(settings.ignoreTitlePatterns)
-            rebuildIndex()
         }
     }
 

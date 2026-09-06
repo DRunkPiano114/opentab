@@ -140,13 +140,6 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertFalse(SettingsStore(defaults: defaults).showMenuBarIcon)
     }
 
-    /// `IgnoreRules` compiles patterns with `try?`, so a broken one silently
-    /// does nothing; the settings window has to be able to say which.
-    func testInvalidPatternsAreReportable() {
-        XCTAssertEqual(SettingsStore.invalidPatterns(in: ["^Untitled", "*bad("]), ["*bad("])
-        XCTAssertTrue(SettingsStore.invalidPatterns(in: ["^Untitled$"]).isEmpty)
-    }
-
     func testAutomationPaneIsOnlyOfferedAfterARequest() {
         let store = SettingsStore(defaults: defaults)
         XCTAssertFalse(store.hasRequestedAutomation)

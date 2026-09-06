@@ -34,9 +34,6 @@ struct GeneralSettingsView: View {
                 }
                 .pickerStyle(.radioGroup)
             }
-            Section("Hidden windows") {
-                IgnorePatternsEditor(store: store)
-            }
             Section("Index") {
                 LabeledContent("Windows and tabs") {
                     HStack {
@@ -212,41 +209,5 @@ struct PrivacySettingsView: View {
         ForEach(model.tabsAwaitingRequest, id: \.bundleID) { browser in
             Button("Enable Tabs for \(browser.name)\u{2026}") { actions.requestAutomation(browser.bundleID) }
         }
-    }
-}
-
-
-/// The user's own title regexes. One per line, applied as they are typed and
-/// reported when one does not compile: `IgnoreRules` drops an uncompilable
-/// pattern silently, which would otherwise look like a rule that does nothing.
-private struct IgnorePatternsEditor: View {
-    @Bindable var store: SettingsStore
-    @State private var text = ""
-    @State private var pending: Task<Void, Never>?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            TextEditor(text: $text)
-                .font(.system(size: 12, design: .monospaced))
-                .frame(height: 56)
-                .onChange(of: text) { _, new in
-                    // Applying a change rebuilds the whole index, so a line
-                    // being typed is not applied one character at a time.
-                    pending?.cancel()
-                    pending = Task {
-                        try? await Task.sleep(for: .milliseconds(500))
-                        guard !Task.isCancelled else { return }
-                        store.ignoreTitlePatterns = new.split(separator: "\n", omittingEmptySubsequences: true)
-                            .map(String.init).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-                    }
-                }
-            let invalid = SettingsStore.invalidPatterns(in: store.ignoreTitlePatterns)
-            Text(invalid.isEmpty
-                 ? "One regular expression per line, matched against window titles."
-                 : "Not a valid expression: \(invalid.joined(separator: ", "))")
-                .font(.caption)
-                .foregroundStyle(invalid.isEmpty ? AnyShapeStyle(.secondary) : AnyShapeStyle(.red))
-        }
-        .onAppear { text = store.ignoreTitlePatterns.joined(separator: "\n") }
     }
 }
