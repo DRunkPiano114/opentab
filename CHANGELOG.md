@@ -6,6 +6,13 @@ New / Changed / Improved / Fixed / Security.
 
 ## [Unreleased]
 
+### Changed
+
+- The search pill in the switcher reads "Enter to search", and the first-run guide, the shortcut fields and the README call the key Enter. The numeric keypad's key is "Keypad Enter".
+- The menu bar menu no longer shows icons or Rebuild Index. About OpenTab sits with Check for Updates…, and Settings… and Quit each stand in their own group.
+- Settings › General no longer has the Hidden windows list; window titles are no longer filtered by patterns you typed.
+- Settings › General no longer has the Index section with its row count and Rebuild Index button; the list refreshes itself every few seconds.
+
 ## [0.3.0] - 2026-09-05
 
 ### New
