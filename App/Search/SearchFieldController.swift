@@ -29,7 +29,7 @@ final class SearchFieldController: NSObject, NSTextFieldDelegate {
     /// Identical consecutive values are reported once.
     var onTextChange: ((String) -> Void)?
     /// Fired for navigation keys the IME did not consume. Never fires for
-    /// Return/Escape while marked text is pending.
+    /// Enter/Escape while marked text is pending.
     var onCommand: ((Command) -> Void)?
 
     /// The field, for the owner to place in the panel. The owner sets the
@@ -174,17 +174,17 @@ final class SearchFieldController: NSObject, NSTextFieldDelegate {
             command = .leaveDetail
         default: return false
         }
-        // While marked text is pending, Return commits the composition and
+        // While marked text is pending, Enter commits the composition and
         // Escape discards it: both belong to the IME. With Pinyin - Simplified
         // the input method consumes both inside `NSTextInputContext.handleEvent`
-        // and this method is never reached (Return committed the raw letters,
+        // and this method is never reached (Enter committed the raw letters,
         // Escape emptied the field, no log line below in any run). The guard
         // stays for input methods that pass the key through instead.
         if textView.hasMarkedText(), command == .commit || command == .cancel {
             log.notice("doCommandBy \(NSStringFromSelector(selector), privacy: .public) while composing: deferred to IME")
             return false
         }
-        // The Return that entered search mode may still be held when the field
+        // The Enter that entered search mode may still be held when the field
         // becomes first responder; its auto-repeat must not commit a row.
         if command == .commit, let event = NSApp.currentEvent, event.type == .keyDown, event.isARepeat {
             return true

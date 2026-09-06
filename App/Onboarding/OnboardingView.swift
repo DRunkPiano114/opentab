@@ -59,7 +59,7 @@ struct OnboardingView: View {
         case .what:
             VStack(alignment: .leading, spacing: 10) {
                 bullet("Hold the shortcut and tap to move down the list; let go to switch.")
-                bullet("Press Return to start typing. Search matches app names, window titles and pinyin.")
+                bullet("Press Enter to start typing. Search matches app names, window titles and pinyin.")
                 bullet("Press \u{2192} on a browser window to see its tabs.")
             }
         case .accessibility:

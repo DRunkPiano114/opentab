@@ -25,7 +25,7 @@ Command-Tab window and tab switcher for macOS. Hold Command, tap Tab, and every 
 | `⌘ Tab` | Open the list and step forward; release ⌘ to switch |
 | `⇧ ⌘ Tab` | Same, stepping backward |
 | `⌥ Tab` / `⇧ ⌥ Tab` | The same two actions when OpenTab is set to Option-Tab |
-| `Return` (in the list) or `⇧ ⌘ L` | Search by app, window title, tab title or address |
+| `Enter` (in the list) or `⇧ ⌘ L` | Search by app, window title, tab title or address |
 | `Right Arrow` / `Left Arrow` | Open a window's tabs in a side pane / go back |
 | `⌘ W` (while searching) | Close the selected tab |
 | `Escape` | Clear the search, leave the side pane, then dismiss |

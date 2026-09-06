@@ -118,7 +118,7 @@ final class SwitcherSession {
     }
 
     /// A click has no modifier held, so the panel must not commit on the
-    /// release it would otherwise wait for; Return, Escape and the navigation
+    /// release it would otherwise wait for; Enter, Escape and the navigation
     /// keys are registered as they are for the search hotkey.
     func openFromMenu(search: Bool) {
         guard state == .idle else { return }
@@ -223,7 +223,7 @@ final class SwitcherSession {
     /// Navigation to search: record who has focus, activate
     /// ourselves and hand the keyboard to the text field. The navigation
     /// hotkeys are released first: they are consumed system-wide and would
-    /// otherwise starve the field of Return, Escape, Tab and the arrows.
+    /// otherwise starve the field of Enter, Escape, Tab and the arrows.
     private func enterSearch() {
         guard state == .engaged else { return }
         let frontmost = NSWorkspace.shared.frontmostApplication

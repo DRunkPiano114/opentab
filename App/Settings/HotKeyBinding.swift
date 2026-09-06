@@ -104,8 +104,8 @@ struct HotKeyBinding: Equatable, Sendable {
 /// their key actually produces rather than the ANSI one.
 enum KeyCodeNames {
     private static let named: [Int: String] = [
-        kVK_Tab: "Tab", kVK_Space: "Space", kVK_Return: "Return", kVK_Escape: "Escape",
-        kVK_Delete: "Delete", kVK_ForwardDelete: "Forward Delete", kVK_ANSI_KeypadEnter: "Enter",
+        kVK_Tab: "Tab", kVK_Space: "Space", kVK_Return: "Enter", kVK_Escape: "Escape",
+        kVK_Delete: "Delete", kVK_ForwardDelete: "Forward Delete", kVK_ANSI_KeypadEnter: "Keypad Enter",
         kVK_LeftArrow: "Left Arrow", kVK_RightArrow: "Right Arrow", kVK_UpArrow: "Up Arrow", kVK_DownArrow: "Down Arrow",
         kVK_Home: "Home", kVK_End: "End", kVK_PageUp: "Page Up", kVK_PageDown: "Page Down",
         kVK_F1: "F1", kVK_F2: "F2", kVK_F3: "F3", kVK_F4: "F4", kVK_F5: "F5", kVK_F6: "F6",
