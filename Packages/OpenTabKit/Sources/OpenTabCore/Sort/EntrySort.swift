@@ -32,23 +32,12 @@ public enum EntrySort {
 /// Precomputed group sizes; never derive these during rendering.
 public struct GroupCounts: Sendable, Equatable {
     public let byWindowKey: [WindowKey: Int]
-    public let byAppKey: [AppKey: Int]
 
     public init<S: Sequence>(entries: S) where S.Element == Entry {
         var windows: [WindowKey: Int] = [:]
-        var apps: [AppKey: Int] = [:]
         for entry in entries {
             windows[entry.key, default: 0] += 1
-            apps[entry.app.key, default: 0] += 1
         }
         byWindowKey = windows
-        byAppKey = apps
-    }
-
-    /// The number shown in the row's count column, or `nil` when the group has
-    /// a single member (the count is omitted then).
-    public func displayCount(forApp key: AppKey) -> Int? {
-        guard let count = byAppKey[key], count > 1 else { return nil }
-        return count
     }
 }

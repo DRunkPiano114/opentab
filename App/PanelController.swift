@@ -248,8 +248,8 @@ final class PanelController {
         panel.orderOut(nil)
     }
 
-    /// A window row counts its app's windows; a tab row counts the tabs of
-    /// its window. Either count is omitted for a group of one.
+    /// Only a tab row carries a count: the tabs of its window, omitted when
+    /// the window holds a single tab. A window row carries none.
     static func rows(for entries: [Entry], counts: GroupCounts,
                      status: (Entry) -> PanelViewModel.Row.Status = { _ in .normal }) -> [PanelViewModel.Row] {
         entries.map { entry in
@@ -266,7 +266,7 @@ final class PanelController {
     private static func count(for entry: Entry, counts: GroupCounts) -> Int? {
         switch entry.kind {
         case .window:
-            return counts.displayCount(forApp: entry.app.key)
+            return nil
         case .tab:
             guard let tabs = counts.byWindowKey[entry.key], tabs > 1 else { return nil }
             return tabs

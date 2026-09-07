@@ -89,15 +89,6 @@ final class EntryStoreTests: XCTestCase {
         XCTAssertFalse(store.setHidden(true, for: safari.key))
     }
 
-    func testGroupCountsOmitSingletons() {
-        var store = EntryStore()
-        store.applyWindows([window(1, safari), window(2, safari)], for: safari, isHidden: false)
-        store.applyWindows([window(3, xcode)], for: xcode, isHidden: false)
-        let counts = store.groupCounts()
-        XCTAssertEqual(counts.displayCount(forApp: safari.key), 2)
-        XCTAssertNil(counts.displayCount(forApp: xcode.key))
-    }
-
     func testAlphabeticalSort() {
         var store = EntryStore()
         store.applyWindows([window(3, xcode, title: "b"), window(4, xcode, title: "a")], for: xcode, isHidden: false)

@@ -288,7 +288,6 @@ final class TabStorePropertyTests: XCTestCase {
                 }
             }
             XCTAssertTrue(h.store.groupCounts().byWindowKey.values.allSatisfy { $0 >= 1 }, file: file, line: line)
-            XCTAssertTrue(h.store.groupCounts().byAppKey.values.allSatisfy { $0 >= 1 }, file: file, line: line)
         }
 
         /// After a full truthful read with the panel closed, exactly one row

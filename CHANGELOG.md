@@ -13,6 +13,10 @@ New / Changed / Improved / Fixed / Security.
 - Settings › General no longer has the Hidden windows list; window titles are no longer filtered by patterns you typed.
 - Settings › General no longer has the Index section with its row count and Rebuild Index button; the list refreshes itself every few seconds.
 
+### Fixed
+
+- The number beside a row now means only the tabs behind that row. A window row shows no number, so an app with two windows no longer shows "2" on each of them.
+
 ## [0.3.0] - 2026-09-05
 
 ### New

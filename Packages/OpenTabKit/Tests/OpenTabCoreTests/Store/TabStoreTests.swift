@@ -370,7 +370,6 @@ final class TabStoreTests: XCTestCase {
         let result = h.tabs(tabs, for: chrome)
         XCTAssertEqual(result.claims.count, 3)
         XCTAssertEqual(h.shownKeys.count, 3)
-        XCTAssertEqual(h.store.groupCounts().displayCount(forApp: chrome.key), 3)
         XCTAssertEqual(h.store.groupCounts().byWindowKey[scripted(chrome, "w1")], 2)
         for _ in 0..<3 {
             h.windows(pages.enumerated().map { chromeWindow(UInt32($0 + 1), $1) }, for: chrome)
@@ -546,7 +545,7 @@ final class TabStoreTests: XCTestCase {
 
     // MARK: Group counts
 
-    func testGroupCountsCountTabsPerScriptWindowAndRowsPerApp() {
+    func testGroupCountsCountTabsPerScriptWindow() {
         var h = StoreHarness()
         h.windows([chromeWindow(1, "GitHub"), chromeWindow(2, "Plain")], for: chrome)
         h.tabs([tab(github, "t1", "GitHub", active: true), tab(github, "t2", "Issues"), tab(github, "t3", "PRs")],
@@ -555,7 +554,6 @@ final class TabStoreTests: XCTestCase {
         XCTAssertEqual(counts.byWindowKey[github], 3)
         XCTAssertEqual(counts.byWindowKey[.cg(2)], 1)
         XCTAssertNil(counts.byWindowKey[.cg(1)], "a claimed window entry is not a row")
-        XCTAssertEqual(counts.displayCount(forApp: chrome.key), 2)
     }
 
     func testIgnoredAppsNeverEnterTheStore() {
@@ -581,7 +579,9 @@ final class TabStoreTests: XCTestCase {
         XCTAssertEqual(h.store.privateWindowCount, 1)
         XCTAssertEqual(h.store.unattributedPrivateWindowCount, 0)
         XCTAssertEqual(h.store.privateAttributionMissCount, 0)
-        XCTAssertEqual(h.store.groupCounts().byAppKey[chrome.key], 1)
+        let counts = h.store.groupCounts()
+        XCTAssertNil(counts.byWindowKey[.cg(2)], "a window proven private is not a row")
+        XCTAssertEqual(counts.byWindowKey[github], 1)
     }
 
     func testAWindowReadDoesNotGiveAPrivateWindowItsTitleBack() {

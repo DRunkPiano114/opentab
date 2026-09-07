@@ -941,17 +941,15 @@ public struct TabStore: Sendable {
     }
 
     /// Window rows count 1 under their key; script windows count their tabs.
-    /// App counts are main-list rows, one per window.
     public func groupCounts() -> GroupCounts {
         var byWindow: [WindowKey: Int] = [:]
-        var byApp: [AppKey: Int] = [:]
         let suppressed = suppressedBundleIDs()
         for entry in entries.values {
-            let shown = isShown(entry, suppressed: suppressed)
-            if entry.kind == .tab || shown { byWindow[entry.key, default: 0] += 1 }
-            if shown { byApp[entry.app.key, default: 0] += 1 }
+            if entry.kind == .tab || isShown(entry, suppressed: suppressed) {
+                byWindow[entry.key, default: 0] += 1
+            }
         }
-        return GroupCounts(byWindowKey: byWindow, byAppKey: byApp)
+        return GroupCounts(byWindowKey: byWindow)
     }
 
     private func isShown(_ entry: Entry, suppressed: Set<String>) -> Bool {
@@ -985,8 +983,7 @@ public struct TabStore: Sendable {
 }
 
 extension GroupCounts {
-    init(byWindowKey: [WindowKey: Int], byAppKey: [AppKey: Int]) {
+    init(byWindowKey: [WindowKey: Int]) {
         self.byWindowKey = byWindowKey
-        self.byAppKey = byAppKey
     }
 }

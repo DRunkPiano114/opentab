@@ -144,6 +144,16 @@ final class CoordinatorTests: XCTestCase {
         XCTAssertEqual(chromeRows.first { $0.title == "GitHub" }?.count, 2)
     }
 
+    func testWindowRowsOfAPlainAppCarryNoCount() async {
+        harness.source.set([window(9, notes, title: "Groceries", focused: true), window(10, notes, title: "Todo")], for: notes)
+        await harness.coordinator.handle(.appActivated(notes, FocusGeneration(raw: 1)))
+
+        let rows = harness.rows.filter { $0.appName == notes.localizedName }
+        XCTAssertEqual(rows.count, 2, "\(rows.map(\.title))")
+        XCTAssertEqual(Set(rows.map(\.title)), ["Groceries", "Todo"])
+        XCTAssertTrue(rows.allSatisfy { $0.count == nil }, "\(rows.map(\.count))")
+    }
+
     func testClosedWindowLeavesTheListAfterTheNextRead() async {
         await activateChrome()
         harness.source.set([chromeWindow(1, "GitHub", focused: true), chromeWindow(2, "Docs")], for: chrome)
@@ -166,7 +176,7 @@ final class CoordinatorTests: XCTestCase {
         XCTAssertEqual(rows.count, 3)
         XCTAssertEqual(harness.entries.filter { $0.app.key == chrome.key }.map(\.kind), [.window, .window, .window])
         XCTAssertEqual(rows.map(\.status), [.tabsUnavailable, .tabsUnavailable, .tabsUnavailable])
-        XCTAssertEqual(rows.map(\.count), [3, 3, 3], "window rows count the app's windows again")
+        XCTAssertTrue(rows.allSatisfy { $0.count == nil }, "window rows carry no count: \(rows.map(\.count))")
         XCTAssertEqual(harness.gate.deniedBundleIDs, [chrome.bundleID])
 
         let reads = provider.reads
