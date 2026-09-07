@@ -4,7 +4,7 @@ What's new in each release of OpenTab, written for the people who use it.
 Version headings and dates follow Keep a Changelog; categories are
 New / Changed / Improved / Fixed / Security.
 
-## [Unreleased]
+## [0.3.1] - 2026-09-08
 
 ### Changed
 
