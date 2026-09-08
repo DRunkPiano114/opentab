@@ -25,7 +25,6 @@ final class SwitcherPanel: NSPanel {
         hasShadow = true
         isFloatingPanel = true
         worksWhenModal = true
-        sharingType = .none
         isMovable = false
         isMovableByWindowBackground = false
         appearance = NSAppearance(named: .darkAqua)
