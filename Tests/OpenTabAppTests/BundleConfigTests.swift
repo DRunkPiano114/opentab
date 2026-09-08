@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 
 /// Guards the Info.plist contract the TCC story depends on. Runs inside the
@@ -70,6 +71,26 @@ final class BundleConfigTests: XCTestCase {
     /// The XPC services serve sandboxed hosts only and the build removes them.
     func testSparkleXPCServicesAreRemoved() {
         XCTAssertFalse(FileManager.default.fileExists(atPath: sparkleContents.appending(path: "XPCServices").path))
+    }
+
+    /// Both keys come from actool, so they are absent when the catalog is
+    /// missing rather than naming an icon that is not there. Asserting the
+    /// image resolves is what separates a compiled catalog from a plist entry.
+    func testCarriesTheAppIcon() throws {
+        XCTAssertEqual(appInfo["CFBundleIconName"] as? String, "AppIcon")
+        XCTAssertNotNil(NSImage(named: "AppIcon"), "AppIcon is not in the compiled asset catalog")
+    }
+
+    /// A renamed or dropped imageset leaves the status item with no image and
+    /// nothing in the menu bar to click. Losing the catalog's template intent
+    /// is the quieter failure: the glyph is drawn as authored and disappears
+    /// against a dark bar. Nothing sets the flag in code, so this reads it
+    /// back off the compiled asset.
+    func testMenuBarGlyphIsATemplate() throws {
+        let glyph = try XCTUnwrap(NSImage(named: "MenuBarIcon"),
+                                  "MenuBarIcon is not in the compiled asset catalog")
+        XCTAssertTrue(glyph.isTemplate, "the imageset lost template-rendering-intent")
+        XCTAssertNotEqual(glyph.size, .zero)
     }
 
     func testSparkleHelpersAreEmbedded() {

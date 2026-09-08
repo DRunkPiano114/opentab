@@ -92,6 +92,7 @@ targets:
         com.apple.security.get-task-allow: true
     settings:
       base:
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         PRODUCT_BUNDLE_IDENTIFIER: im.opentab.app
         PRODUCT_NAME: OpenTab
         # The name shown in the Accessibility list and Spotlight. PRODUCT_NAME

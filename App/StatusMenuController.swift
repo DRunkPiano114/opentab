@@ -47,7 +47,10 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     override init() {
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
-        item.button?.image = NSImage(systemSymbolName: "macwindow.on.rectangle", accessibilityDescription: nil)
+        // The asset carries the template intent. macOS then keeps only its
+        // alpha, tinting for the light or dark bar and inverting it on click;
+        // a non-template image is drawn as authored and vanishes on a dark bar.
+        item.button?.image = NSImage(named: "MenuBarIcon")
         item.button?.imagePosition = .imageLeading
         // Off, so that every `isEnabled` below is honoured rather than
         // silently overruled by menu validation.
@@ -178,9 +181,9 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         return marked
     }
 
-    /// The same marker the attention row carries, on the item itself. The
-    /// icon stays a template symbol: a composite image would lose the menu
-    /// bar's own tinting.
+    /// The same marker the attention row carries, on the item itself. It goes
+    /// in the title rather than the image, because compositing it into the
+    /// icon would lose the menu bar's own tinting.
     private func refreshBadge() {
         guard let button = item.button else { return }
         let degraded = !StatusMenuSpec.conditions(inputs).isEmpty
