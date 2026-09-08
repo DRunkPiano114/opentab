@@ -4,6 +4,12 @@ What's new in each release of OpenTab, written for the people who use it.
 Version headings and dates follow Keep a Changelog; categories are
 New / Changed / Improved / Fixed / Security.
 
+## [0.3.2] - 2026-09-08
+
+### Changed
+
+- OpenTab has a new app icon and a new menu bar icon.
+
 ## [0.3.1] - 2026-09-08
 
 ### Changed
