@@ -37,7 +37,7 @@ DIST        := $(HERE)/dist
 LOG         := /usr/bin/log
 LSREGISTER  := /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister
 
-.PHONY: all project build ci-build release tag test test-app run stop sign install \
+.PHONY: all project icons build ci-build release tag test test-app run stop sign install \
         logs logs-stream reset-perms selftest clean help
 
 all: build
@@ -55,10 +55,16 @@ help:
 	@echo "make logs         Last 2 minutes of the Debug app's unified log (im.opentab.app.dev)"
 	@echo "make reset-perms  Revoke the Debug app's Accessibility and Apple Events grants"
 	@echo "make sign         Create the stable signing identity (idempotent)"
+	@echo "make icons        Redraw the app icon and menu bar glyph into App/Assets.xcassets"
 
 ## Regenerate OpenTab.xcodeproj from project.yml. Run after adding files.
 project:
 	cd "$(HERE)" && xcodegen generate --quiet
+
+## Redraw the app icon and the menu bar glyph into App/Assets.xcassets.
+## The PNGs are committed, so this only runs when the artwork changes.
+icons:
+	cd "$(HERE)" && swift Scripts/render-icons.swift "$(HERE)"
 
 ## Fast unit tests: pure logic only, no GUI, no permissions, no Xcode.
 ## Without `pipefail` the grep filter would report a green run for a failing
