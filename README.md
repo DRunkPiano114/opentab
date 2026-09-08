@@ -1,25 +1,18 @@
-# OpenTab
+<p align="center"><img src="docs/icon.png" width="128" alt=""></p>
+<h1 align="center">OpenTab</h1>
+<p align="center">Open source window and tab switcher for macOS.</p>
 
-Command-Tab window and tab switcher for macOS. Hold Command, tap Tab, and every open window and every browser tab is in one list, searchable in English, Chinese or pinyin.
-
-![OpenTab in use](docs/demo.gif)
+<p align="center"><img src="docs/demo.gif" width="800" alt="OpenTab in use"></p>
 
 ## Requirements
 
-- macOS 26 or later
-- Apple silicon
+macOS 26 or later, Apple silicon.
 
 ## Install
 
 1. Download `OpenTab-<version>.zip` from the [latest release](https://github.com/DRunkPiano114/opentab/releases/latest) and unzip it.
-2. Drag `OpenTab.app` into your Applications folder. If you launch it from Downloads instead, OpenTab offers to move itself; say yes, because macOS ties the Accessibility permission to where the app lives.
-3. Open it. The download is signed and notarized, so macOS only asks once whether you want to open an app from the internet.
-4. Grant the two permissions the first-run guide asks for:
-   - **Accessibility** is required. It is how OpenTab lists windows and brings the one you pick to the front.
-   - **Automation** is asked per browser, the first time OpenTab lists that browser's tabs. Declining it for a browser only removes that browser's tabs from the list; its windows stay.
-5. Choose your shortcut when the guide asks for it: Command-Tab, which is the default and turns on "Open OpenTab at login" along with it, or Option-Tab.
-
-From then on OpenTab checks once a day for a newer version and offers to install it with one click. Turn that off under Settings › About if you would rather update by hand from the release page.
+2. Drag `OpenTab.app` into Applications.
+3. Open it. It is signed and notarized, so macOS asks once. The first-run guide handles permissions and your shortcut.
 
 ## Use
 
