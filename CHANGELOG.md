@@ -4,6 +4,12 @@ What's new in each release of OpenTab, written for the people who use it.
 Version headings and dates follow Keep a Changelog; categories are
 New / Changed / Improved / Fixed / Security.
 
+## [Unreleased]
+
+### Changed
+
+- The switcher now appears in screen recordings, screenshots and screen shares. It was previously left out of screen capture, so a recording showed everything except the switcher.
+
 ## [0.3.2] - 2026-09-08
 
 ### Changed
