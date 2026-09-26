@@ -54,7 +54,6 @@ public enum StatusMenuSpec {
         /// have it.
         public var takeoverUnavailable = false
         public var windowIDBridgeAvailable = true
-        public var secureInputActive = false
         /// Browser display names, sorted by the caller.
         public var tabsUnavailable: [String] = []
         /// Browsers that have never been asked for Apple Events. Not a
@@ -87,10 +86,6 @@ public enum StatusMenuSpec {
         if !inputs.windowIDBridgeAvailable {
             conditions.append(Condition(title: "Some Windows Are Matched Less Precisely",
                                         action: .openPrivacyTab))
-        }
-        if inputs.secureInputActive {
-            conditions.append(Condition(title: "Secure Input Is Blocking Shortcuts",
-                                        action: .openShortcutsTab))
         }
         for name in inputs.tabsUnavailable {
             conditions.append(Condition(title: "\(name) Tabs Need Automation Access",

@@ -13,7 +13,6 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     /// The bound chord wants the window-server write and this Mac has none.
     var takeoverUnavailable = false { didSet { refreshBadge() } }
     var windowIDBridgeAvailable = true { didSet { refreshBadge() } }
-    var secureInputActive = false { didSet { refreshBadge() } }
     /// Display names of browsers listed as windows only because Apple
     /// Events were refused.
     var tabsUnavailable: [String] = [] { didSet { refreshBadge() } }
@@ -66,7 +65,6 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         inputs.otherInstanceRunning = otherInstanceRunning
         inputs.takeoverUnavailable = takeoverUnavailable
         inputs.windowIDBridgeAvailable = windowIDBridgeAvailable
-        inputs.secureInputActive = secureInputActive
         inputs.tabsUnavailable = tabsUnavailable
         inputs.tabsAwaitingRequest = tabsAwaitingRequest
         inputs.hasUpdater = hasUpdater

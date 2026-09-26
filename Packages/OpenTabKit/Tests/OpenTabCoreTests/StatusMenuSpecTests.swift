@@ -61,7 +61,6 @@ final class StatusMenuSpecTests: XCTestCase {
             ("Another Copy of OpenTab Is Running", .openShortcutsTab, { $0.otherInstanceRunning = true }),
             ("\u{2318}\u{2009}Tab Is Not Available on This Mac", .openShortcutsTab, { $0.takeoverUnavailable = true }),
             ("Some Windows Are Matched Less Precisely", .openPrivacyTab, { $0.windowIDBridgeAvailable = false }),
-            ("Secure Input Is Blocking Shortcuts", .openShortcutsTab, { $0.secureInputActive = true }),
             ("Safari Tabs Need Automation Access", .openAutomationSettings, { $0.tabsUnavailable = ["Safari"] }),
         ]
         for (title, action, degrade) in cases {
@@ -76,11 +75,11 @@ final class StatusMenuSpecTests: XCTestCase {
     func testSeveralConditionsAreListedUnderTheWorst() {
         var inputs = healthy()
         inputs.accessibilityGranted = false
-        inputs.secureInputActive = true
+        inputs.windowIDBridgeAvailable = false
         inputs.tabsUnavailable = ["Safari", "Chrome"]
         let expected = [
             Condition(title: "Accessibility Is Not Granted", action: .openAccessibilitySettings),
-            Condition(title: "Secure Input Is Blocking Shortcuts", action: .openShortcutsTab),
+            Condition(title: "Some Windows Are Matched Less Precisely", action: .openPrivacyTab),
             Condition(title: "Safari Tabs Need Automation Access", action: .openAutomationSettings),
             Condition(title: "Chrome Tabs Need Automation Access", action: .openAutomationSettings),
         ]

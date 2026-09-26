@@ -95,10 +95,6 @@ struct HotKeySettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.red)
                 }
-                if model.secureInputActive {
-                    Text("Secure Input is active, so shortcuts may not reach OpenTab.")
-                        .settingsHelp()
-                }
                 // The store cannot see availability, and a reset to a chord
                 // the recorder refuses would show Cmd-Tab over the red caption.
                 Button("Reset to Defaults") {

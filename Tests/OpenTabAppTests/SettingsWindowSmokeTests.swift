@@ -41,7 +41,6 @@ final class SettingsWindowSmokeTests: XCTestCase {
         model.tabsUnavailable = ["Safari"]
         model.tabsAwaitingRequest = [(bundleID: "com.google.Chrome", name: "Google Chrome")]
         model.windowIDBridgeAvailable = false
-        model.secureInputActive = true
         model.cmdTabTakeoverAvailable = false
         model.takeoverPolicy = .unavailable
         model.updatesAvailable = true

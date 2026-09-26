@@ -24,7 +24,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotKeys: HotKeyCenter!
     private var session: SwitcherSession!
     private var statusMenu: StatusMenuController!
-    private var secureInput: SecureInputMonitor!
     private var source: AXWindowSource!
     private var directory: WorkspaceAppDirectory!
     private var coordinator: SwitcherCoordinator!
@@ -159,14 +158,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !source.isWindowIDBridgeAvailable {
             log.error("_AXUIElementGetWindow unavailable: windows keyed by AX element only")
         }
-
-        secureInput = SecureInputMonitor()
-        secureInput.onChange = { [weak self] active in
-            self?.statusMenu.secureInputActive = active
-            self?.settingsModel.secureInputActive = active
-            self?.log.notice("secure input active=\(active, privacy: .public)")
-        }
-        secureInput.start()
 
         systemEvents = SystemEventMonitor()
         systemEvents.onWake = { [weak self] in self?.refreshEverything(reason: "wake") }

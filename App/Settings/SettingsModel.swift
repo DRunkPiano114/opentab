@@ -10,7 +10,6 @@ import OpenTabWS
 final class SettingsModel {
     var accessibilityGranted = false
     var windowIDBridgeAvailable = true
-    var secureInputActive = false
     var cmdTabTakeoverAvailable = true
     /// The app's current verdict on the Cmd-Tab takeover.
     var takeoverPolicy: TakeoverPolicy = .notWanted
