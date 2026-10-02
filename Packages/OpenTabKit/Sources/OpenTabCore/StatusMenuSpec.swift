@@ -45,6 +45,28 @@ public enum StatusMenuSpec {
         case separator
     }
 
+    /// An update a background check found and left for the user to open from
+    /// the menu.
+    public struct WaitingUpdate: Equatable, Sendable {
+        public var version: String
+        /// The user has looked at the update's own window; the item stays
+        /// until the update is installed or put off.
+        public var seen: Bool
+
+        public init(version: String, seen: Bool = false) {
+            self.version = version
+            self.seen = seen
+        }
+    }
+
+    /// The mark on the status item itself.
+    public enum Badge: Equatable, Sendable {
+        case none
+        /// Something is degraded; this wins over an update.
+        case attention
+        case update
+    }
+
     /// Everything the menu depends on. Defaults describe a healthy copy, so a
     /// test names only what it is about.
     public struct Inputs: Equatable, Sendable {
@@ -64,6 +86,7 @@ public enum StatusMenuSpec {
         /// Whether this copy has an updater at all.
         public var hasUpdater = false
         public var canCheckForUpdates = true
+        public var waitingUpdate: WaitingUpdate?
 
         public init() {}
     }
@@ -94,6 +117,12 @@ public enum StatusMenuSpec {
         return conditions
     }
 
+    public static func badge(_ inputs: Inputs) -> Badge {
+        if !conditions(inputs).isEmpty { return .attention }
+        if inputs.hasUpdater, let waiting = inputs.waitingUpdate, !waiting.seen { return .update }
+        return .none
+    }
+
     public static func items(_ inputs: Inputs) -> [Item] {
         var items: [Item] = []
         let conditions = conditions(inputs)
@@ -109,7 +138,11 @@ public enum StatusMenuSpec {
         // About keeps this group non-empty on a copy built without an updater.
         items.append(.action(.about, title: "About OpenTab", keyEquivalent: nil, isEnabled: true))
         if inputs.hasUpdater {
-            items.append(.action(.checkForUpdates, title: "Check for Updates\u{2026}",
+            // The same action brings a waiting update's window forward
+            // without fetching anything again.
+            let title = inputs.waitingUpdate.map { "Update Available: \($0.version)\u{2026}" }
+                ?? "Check for Updates\u{2026}"
+            items.append(.action(.checkForUpdates, title: title,
                                  keyEquivalent: nil, isEnabled: inputs.canCheckForUpdates))
         }
         items.append(.separator)

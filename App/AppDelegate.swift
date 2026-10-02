@@ -145,6 +145,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Assigning the closure replays the current value, so the menu is
         // right from the first draw.
         updates?.onCanCheckForUpdatesChanged = { [weak self] can in self?.statusMenu.canCheckForUpdates = can }
+        updates?.onWaitingUpdateChanged = { [weak self] waiting in self?.statusMenu.waitingUpdate = waiting }
+        updates?.isStatusItemVisible = { [weak self] in self?.statusMenu.isIconVisible ?? true }
         statusMenu.isIconVisible = settings.showMenuBarIcon
         statusMenu.windowIDBridgeAvailable = source.isWindowIDBridgeAvailable
         statusMenu.onOpenSwitcher = { [weak self] in self?.session.openFromMenu(search: false) }

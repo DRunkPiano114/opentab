@@ -114,6 +114,75 @@ final class StatusMenuSpecTests: XCTestCase {
         }, .action(.checkForUpdates, title: "Check for Updates\u{2026}", keyEquivalent: nil, isEnabled: false))
     }
 
+    private func updateItem(_ items: [Item]) -> Item? {
+        items.first { item in
+            if case let .action(action, _, _, _) = item { action == .checkForUpdates } else { false }
+        }
+    }
+
+    func testAWaitingUpdateRetitlesTheUpdateItemInPlace() {
+        var inputs = healthy()
+        inputs.waitingUpdate = StatusMenuSpec.WaitingUpdate(version: "0.4.0")
+        let items = StatusMenuSpec.items(inputs)
+        XCTAssertEqual(items[4], .action(.checkForUpdates, title: "Update Available: 0.4.0\u{2026}",
+                                         keyEquivalent: nil, isEnabled: true))
+        XCTAssertEqual(items.count, StatusMenuSpec.items(healthy()).count)
+    }
+
+    func testASeenUpdateKeepsItsItem() {
+        var inputs = healthy()
+        inputs.waitingUpdate = StatusMenuSpec.WaitingUpdate(version: "0.4.0", seen: true)
+        XCTAssertEqual(updateItem(StatusMenuSpec.items(inputs)),
+                       .action(.checkForUpdates, title: "Update Available: 0.4.0\u{2026}",
+                               keyEquivalent: nil, isEnabled: true))
+    }
+
+    func testAWaitingUpdateItemFollowsTheUpdaterGate() {
+        var inputs = healthy()
+        inputs.waitingUpdate = StatusMenuSpec.WaitingUpdate(version: "0.4.0")
+        inputs.canCheckForUpdates = false
+        XCTAssertEqual(updateItem(StatusMenuSpec.items(inputs)),
+                       .action(.checkForUpdates, title: "Update Available: 0.4.0\u{2026}",
+                               keyEquivalent: nil, isEnabled: false))
+    }
+
+    func testNoUpdaterShowsNoUpdateEvenWithAVersionSet() {
+        var inputs = healthy()
+        inputs.hasUpdater = false
+        inputs.waitingUpdate = StatusMenuSpec.WaitingUpdate(version: "0.4.0")
+        XCTAssertNil(updateItem(StatusMenuSpec.items(inputs)))
+        XCTAssertEqual(StatusMenuSpec.badge(inputs), .none)
+    }
+
+    func testHealthyWithNothingWaitingHasNoBadge() {
+        XCTAssertEqual(StatusMenuSpec.badge(healthy()), .none)
+    }
+
+    func testAnUnseenUpdateAloneMarksTheItem() {
+        var inputs = healthy()
+        inputs.waitingUpdate = StatusMenuSpec.WaitingUpdate(version: "0.4.0")
+        XCTAssertEqual(StatusMenuSpec.badge(inputs), .update)
+    }
+
+    func testASeenUpdateLeavesNoMark() {
+        var inputs = healthy()
+        inputs.waitingUpdate = StatusMenuSpec.WaitingUpdate(version: "0.4.0", seen: true)
+        XCTAssertEqual(StatusMenuSpec.badge(inputs), .none)
+    }
+
+    func testADegradationOutranksAnUnseenUpdate() {
+        var inputs = healthy()
+        inputs.accessibilityGranted = false
+        inputs.waitingUpdate = StatusMenuSpec.WaitingUpdate(version: "0.4.0")
+        XCTAssertEqual(StatusMenuSpec.badge(inputs), .attention)
+    }
+
+    func testADegradationAloneMarksTheItem() {
+        var inputs = healthy()
+        inputs.tabsUnavailable = ["Safari"]
+        XCTAssertEqual(StatusMenuSpec.badge(inputs), .attention)
+    }
+
     func testSwitcherItemsCarryTheBoundChords() {
         var inputs = healthy()
         let main = KeyEquivalent(key: "\t", command: true)

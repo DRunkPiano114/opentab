@@ -8,7 +8,7 @@ import Sparkle
 /// happily with an empty feed and then fails every check, so the guard is
 /// ours to enforce.
 ///
-/// Every mention of Sparkle in the app is inside this type.
+/// Every mention of Sparkle in the app is inside this file.
 @MainActor
 final class UpdateController {
     /// Sparkle strips quotes from the feed before using it, so a feed that is
@@ -25,6 +25,9 @@ final class UpdateController {
     }
 
     private let updaterController: SPUStandardUpdaterController
+    /// Sparkle holds its user driver delegate weakly, so this is what keeps
+    /// it alive.
+    private let reminder: ScheduledUpdateReminder
     private var observation: NSKeyValueObservation?
 
     /// Called on the main actor with the current value the moment it is set,
@@ -32,6 +35,20 @@ final class UpdateController {
     /// reported `false` would otherwise stay disabled until the next one.
     var onCanCheckForUpdatesChanged: ((Bool) -> Void)? {
         didSet { onCanCheckForUpdatesChanged?(updaterController.updater.canCheckForUpdates) }
+    }
+
+    /// The update a background check found, replayed the moment this is set
+    /// and called again on every change; nil once the update is installed or
+    /// put off.
+    var onWaitingUpdateChanged: ((StatusMenuSpec.WaitingUpdate?) -> Void)? {
+        didSet { onWaitingUpdateChanged?(reminder.waiting) }
+    }
+
+    /// Whether the status item is on screen to carry the reminder. Without it
+    /// Sparkle shows a background find in its own window.
+    var isStatusItemVisible: () -> Bool {
+        get { reminder.isStatusItemVisible }
+        set { reminder.isStatusItemVisible = newValue }
     }
 
     /// Nil when the bundle carries no feed or no public key; nothing of
@@ -43,9 +60,12 @@ final class UpdateController {
             Self.log.notice("no update feed in this bundle: updater not started")
             return nil
         }
+        // Sparkle reads the delegate once, while the controller is built.
+        reminder = ScheduledUpdateReminder()
         updaterController = SPUStandardUpdaterController(startingUpdater: true,
                                                         updaterDelegate: nil,
-                                                        userDriverDelegate: nil)
+                                                        userDriverDelegate: reminder)
+        reminder.onChange = { [weak self] waiting in self?.onWaitingUpdateChanged?(waiting) }
         let host = URL(string: Self.trimmed(feedURL))?.host() ?? "unknown"
         Self.log.notice("updater started feed host=\(host, privacy: .public)")
         // Sparkle's own menu validation never runs while the status menu
@@ -69,5 +89,53 @@ final class UpdateController {
     /// recognises the accessory activation policy.
     func checkForUpdates() {
         updaterController.checkForUpdates(nil)
+    }
+}
+
+/// Keeps an update found by a scheduled check out of a window of its own.
+/// Sparkle opens that window without activating an accessory app, so it lands
+/// behind whatever is in front and no further scheduled check runs while it
+/// waits; the status item carries the reminder instead.
+///
+/// Sparkle calls every method here on the main thread.
+@MainActor
+private final class ScheduledUpdateReminder: NSObject, @preconcurrency SPUStandardUserDriverDelegate {
+    private static let log = Log.make("updates")
+
+    /// True keeps a background find in the menu bar, including the one at
+    /// launch that Sparkle would otherwise bring to the front.
+    var isStatusItemVisible: () -> Bool = { true }
+    var onChange: ((StatusMenuSpec.WaitingUpdate?) -> Void)?
+
+    private(set) var waiting: StatusMenuSpec.WaitingUpdate? {
+        didSet {
+            guard waiting != oldValue else { return }
+            onChange?(waiting)
+        }
+    }
+
+    var supportsGentleScheduledUpdateReminders: Bool { true }
+
+    /// Sparkle requires this to have no side effects; the reminder is
+    /// recorded in the call that follows it.
+    func standardUserDriverShouldHandleShowingScheduledUpdate(_ update: SUAppcastItem,
+                                                             andInImmediateFocus immediateFocus: Bool) -> Bool {
+        !isStatusItemVisible()
+    }
+
+    func standardUserDriverWillHandleShowingUpdate(_ handleShowingUpdate: Bool,
+                                                   forUpdate update: SUAppcastItem,
+                                                   state: SPUUserUpdateState) {
+        guard !handleShowingUpdate, !state.userInitiated else { return }
+        Self.log.notice("update waiting in the menu bar version=\(update.displayVersionString, privacy: .public)")
+        waiting = StatusMenuSpec.WaitingUpdate(version: update.displayVersionString)
+    }
+
+    func standardUserDriverDidReceiveUserAttention(forUpdate update: SUAppcastItem) {
+        waiting?.seen = true
+    }
+
+    func standardUserDriverWillFinishUpdateSession() {
+        waiting = nil
     }
 }

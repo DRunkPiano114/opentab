@@ -21,9 +21,12 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     var tabsAwaitingRequest: [String] = []
     /// Whether the running copy has an updater at all; the development copy
     /// has none, and an item that cannot work is worse than no item.
-    var hasUpdater = false
+    var hasUpdater = false { didSet { refreshBadge() } }
     /// The updater's own gate: false while a check or an install is running.
     var canCheckForUpdates = true
+    /// An update a background check found, shown in the menu instead of in a
+    /// window of its own.
+    var waitingUpdate: StatusMenuSpec.WaitingUpdate? { didSet { refreshBadge() } }
     /// Hiding the icon is a setting; the settings window stays reachable by
     /// launching the app again, which reopens it.
     var isIconVisible = true { didSet { item.isVisible = isIconVisible } }
@@ -69,6 +72,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         inputs.tabsAwaitingRequest = tabsAwaitingRequest
         inputs.hasUpdater = hasUpdater
         inputs.canCheckForUpdates = canCheckForUpdates
+        inputs.waitingUpdate = waitingUpdate
         let chords = boundChords()
         inputs.mainShortcut = chords.first.flatMap(Self.keyEquivalent)
         inputs.searchShortcut = chords.count > 2 ? Self.keyEquivalent(chords[2]) : nil
@@ -179,19 +183,27 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         return marked
     }
 
-    /// The same marker the attention row carries, on the item itself. It goes
-    /// in the title rather than the image, because compositing it into the
-    /// icon would lose the menu bar's own tinting.
+    /// The same marker the attention row carries, on the item itself, or a
+    /// blue one for a waiting update. It goes in the title rather than the
+    /// image, because compositing it into the icon would lose the menu bar's
+    /// own tinting.
     private func refreshBadge() {
         guard let button = item.button else { return }
-        let degraded = !StatusMenuSpec.conditions(inputs).isEmpty
-        if degraded {
+        switch StatusMenuSpec.badge(inputs) {
+        case .attention:
             button.attributedTitle = NSAttributedString(string: "\u{25CF}",
                                                         attributes: [.foregroundColor: NSColor.systemOrange])
-        } else {
+            button.setAccessibilityLabel("OpenTab, needs attention")
+        case .update:
+            // A fixed blue: the accent colour can itself be orange, and then
+            // an update would read as something broken.
+            button.attributedTitle = NSAttributedString(string: "\u{25CF}",
+                                                        attributes: [.foregroundColor: NSColor.systemBlue])
+            button.setAccessibilityLabel("OpenTab, update available")
+        case .none:
             button.title = ""
+            button.setAccessibilityLabel("OpenTab")
         }
-        button.setAccessibilityLabel(degraded ? "OpenTab, needs attention" : "OpenTab")
     }
 
     private func handler(for action: StatusMenuSpec.Action) -> (Selector, AnyObject?) {
