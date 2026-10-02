@@ -4,6 +4,17 @@ What's new in each release of OpenTab, written for the people who use it.
 Version headings and dates follow Keep a Changelog; categories are
 New / Changed / Improved / Fixed / Security.
 
+## [0.4.0] - 2026-10-02
+
+### New
+
+- When OpenTab finds an update in the background, the menu bar icon shows a blue dot and the menu offers "Update Available: x.y.z…" in place of Check for Updates…. The update window used to open behind your other apps, where it was easy to miss. If you leave the update unopened for three days, its window comes forward once. With the menu bar icon hidden, the window opens as before.
+- Settings › About has a "Download and install updates automatically" option, off by default. A downloaded update installs when OpenTab quits, or right away from "Restart to Update" in the menu bar menu or in About.
+
+### Changed
+
+- OpenTab checks for updates every six hours instead of once a day.
+
 ## [0.3.4] - 2026-10-02
 
 ### Fixed
