@@ -114,6 +114,15 @@ final class UpdateController {
                 Task { @MainActor in self?.onAutomaticallyDownloadsUpdatesChanged?(downloads) }
             }
         }
+        // The limit is days long, so an hour late is close enough; waking
+        // from sleep checks at once as well.
+        Task { [weak self] in
+            while true {
+                try? await Task.sleep(for: .seconds(60 * 60))
+                guard let self else { return }
+                self.bringForwardIfUnseen()
+            }
+        }
     }
 
     /// Sparkle owns this preference and writes it to the app's own defaults
@@ -143,6 +152,17 @@ final class UpdateController {
     func showWaitingUpdate() {
         guard waits.state.canBringForward else { return }
         checkForUpdates()
+    }
+
+    /// Brings a found update's window forward once when it has waited in the
+    /// menu unseen for too long: the status item can be out of sight without
+    /// OpenTab knowing, and no scheduled check runs while the update waits.
+    /// `now` is wall-clock time, so time asleep counts.
+    func bringForwardIfUnseen(now: Date = Date()) {
+        guard waits.state.bringsForward(now: now) else { return }
+        Self.log.notice("bringing forward an update left unseen")
+        waits.state.apply(.broughtForward)
+        showWaitingUpdate()
     }
 
     /// Installs the downloaded update and relaunches, with no window of
@@ -258,7 +278,7 @@ private final class ScheduledUpdateReminder: NSObject, @preconcurrency SPUStanda
                                                    state: SPUUserUpdateState) {
         let before = waits.state.waiting
         waits.state.apply(.found(version: update.displayVersionString, shownByUpdater: handleShowingUpdate,
-                                 userInitiated: state.userInitiated))
+                                 userInitiated: state.userInitiated, date: Date()))
         if waits.state.waiting != before {
             Self.log.notice("update waiting in the menu bar version=\(update.displayVersionString, privacy: .public)")
         }

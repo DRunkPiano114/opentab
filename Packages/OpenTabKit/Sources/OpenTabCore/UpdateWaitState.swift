@@ -6,11 +6,14 @@ import Foundation
 /// suite reaches them.
 public struct UpdateWaitState: Equatable, Sendable {
     public enum Event: Equatable, Sendable {
-        /// A check found `version`. `shownByUpdater` is true when the updater
-        /// presents it in its own window.
-        case found(version: String, shownByUpdater: Bool, userInitiated: Bool)
+        /// A check found `version` at `date`. `shownByUpdater` is true when
+        /// the updater presents it in its own window.
+        case found(version: String, shownByUpdater: Bool, userInitiated: Bool, date: Date)
         /// The found update's window has been in front of the user.
         case seen
+        /// The found update's window was brought forward without the user
+        /// asking, after going unseen for too long.
+        case broughtForward
         /// The session for the found update ended: installed, put off or
         /// skipped.
         case sessionFinished
@@ -24,6 +27,13 @@ public struct UpdateWaitState: Equatable, Sendable {
     public private(set) var waiting: StatusMenuSpec.WaitingUpdate?
     /// The version of a downloaded update held for the restart item.
     public private(set) var readyToInstall: String?
+    private var foundDate: Date?
+    private var wasBroughtForward = false
+
+    /// How long a found update may wait unseen before its window is brought
+    /// forward. The status item can be out of sight without the app knowing,
+    /// and the updater runs no scheduled check while the update waits.
+    public static let unseenLimit: TimeInterval = 3 * 24 * 60 * 60
 
     public init() {}
 
@@ -47,14 +57,27 @@ public struct UpdateWaitState: Equatable, Sendable {
         waiting != nil && readyToInstall == nil
     }
 
+    /// Whether the waiting update should be brought forward at `now`: once
+    /// for each found update, when it has gone unseen for `unseenLimit` of
+    /// wall-clock time.
+    public func bringsForward(now: Date) -> Bool {
+        guard canBringForward, waiting?.seen == false, !wasBroughtForward,
+              let foundDate else { return false }
+        return now.timeIntervalSince(foundDate) >= Self.unseenLimit
+    }
+
     public mutating func apply(_ event: Event) {
         switch event {
-        case let .found(version, shownByUpdater, userInitiated):
+        case let .found(version, shownByUpdater, userInitiated, date):
             // A check the user started opens its window at once.
             guard !shownByUpdater, !userInitiated else { return }
             waiting = StatusMenuSpec.WaitingUpdate(version: version)
+            foundDate = date
+            wasBroughtForward = false
         case .seen:
             waiting?.seen = true
+        case .broughtForward:
+            if waiting != nil { wasBroughtForward = true }
         case let .held(version):
             readyToInstall = version
         case .sessionFinished, .cycleEnded:

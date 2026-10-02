@@ -8,8 +8,16 @@ final class UpdateWaitStateTests: XCTestCase {
         return state
     }
 
+    private static let foundDate = Date(timeIntervalSinceReferenceDate: 800_000_000)
+    /// Three days of wall-clock time.
+    private static let limit: TimeInterval = 259_200
+
     private let backgroundFind = UpdateWaitState.Event.found(version: "0.4.0", shownByUpdater: false,
-                                                             userInitiated: false)
+                                                             userInitiated: false, date: UpdateWaitStateTests.foundDate)
+
+    private func later(_ interval: TimeInterval) -> Date {
+        Self.foundDate.addingTimeInterval(interval)
+    }
 
     func testTheMenuCarriesOnlyANonCriticalUpdateWhileTheIconIsShown() {
         XCTAssertTrue(UpdateWaitState.menuCarries(statusItemVisible: true, isCritical: false))
@@ -25,11 +33,11 @@ final class UpdateWaitStateTests: XCTestCase {
     }
 
     func testAFindTheUpdaterShowsItselfDoesNotWait() {
-        XCTAssertNil(state(.found(version: "0.4.0", shownByUpdater: true, userInitiated: false)).waiting)
+        XCTAssertNil(state(.found(version: "0.4.0", shownByUpdater: true, userInitiated: false, date: Self.foundDate)).waiting)
     }
 
     func testAFindFromAUserCheckDoesNotWait() {
-        XCTAssertNil(state(.found(version: "0.4.0", shownByUpdater: false, userInitiated: true)).waiting)
+        XCTAssertNil(state(.found(version: "0.4.0", shownByUpdater: false, userInitiated: true, date: Self.foundDate)).waiting)
     }
 
     func testSeeingTheUpdateKeepsItWaiting() {
@@ -83,5 +91,41 @@ final class UpdateWaitStateTests: XCTestCase {
         XCTAssertFalse(state(.held(version: "0.4.1")).canBringForward)
         XCTAssertFalse(state(backgroundFind, .held(version: "0.4.1")).canBringForward,
                        "the updater has no window for an update held for install")
+    }
+
+    func testAnUnseenUpdateIsBroughtForwardAtTheLimitAndNotBefore() {
+        XCTAssertFalse(state(backgroundFind).bringsForward(now: later(Self.limit - 1)))
+        XCTAssertTrue(state(backgroundFind).bringsForward(now: later(Self.limit)))
+        XCTAssertTrue(state(backgroundFind).bringsForward(now: later(Self.limit * 10)))
+    }
+
+    func testAnUpdateIsBroughtForwardOnlyOnce() {
+        let brought = state(backgroundFind, .broughtForward)
+        XCTAssertFalse(brought.bringsForward(now: later(Self.limit)))
+        XCTAssertFalse(brought.bringsForward(now: later(Self.limit * 10)))
+    }
+
+    func testASeenUpdateIsNotBroughtForward() {
+        XCTAssertFalse(state(backgroundFind, .seen).bringsForward(now: later(Self.limit)))
+    }
+
+    func testAHeldUpdateIsNotBroughtForwardByTheLimit() {
+        XCTAssertFalse(state(backgroundFind, .held(version: "0.4.1")).bringsForward(now: later(Self.limit)))
+        XCTAssertFalse(state(.held(version: "0.4.1")).bringsForward(now: later(Self.limit)))
+    }
+
+    func testNothingIsBroughtForwardWithNothingWaiting() {
+        XCTAssertFalse(UpdateWaitState().bringsForward(now: later(Self.limit)))
+        XCTAssertFalse(state(backgroundFind, .sessionFinished).bringsForward(now: later(Self.limit)))
+        XCTAssertEqual(state(.broughtForward), UpdateWaitState(), "nothing is recorded for no update")
+    }
+
+    func testANewFindStartsItsOwnLimit() {
+        let refound = UpdateWaitState.Event.found(version: "0.4.2", shownByUpdater: false,
+                                                  userInitiated: false, date: later(Self.limit))
+        XCTAssertFalse(state(backgroundFind, .broughtForward, refound).bringsForward(now: later(Self.limit * 2 - 1)))
+        XCTAssertTrue(state(backgroundFind, .broughtForward, refound).bringsForward(now: later(Self.limit * 2)))
+        XCTAssertTrue(state(backgroundFind, .broughtForward, .sessionFinished, refound)
+            .bringsForward(now: later(Self.limit * 2)))
     }
 }

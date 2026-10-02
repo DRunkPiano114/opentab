@@ -173,7 +173,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         systemEvents = SystemEventMonitor()
-        systemEvents.onWake = { [weak self] in self?.refreshEverything(reason: "wake") }
+        systemEvents.onWake = { [weak self] in
+            self?.refreshEverything(reason: "wake")
+            self?.updates?.bringForwardIfUnseen()
+        }
         systemEvents.onActiveSpaceChanged = { [weak self] in self?.refreshEverything(reason: "space") }
         systemEvents.onScreensChanged = { [weak self] in self?.session.screensChanged() }
         systemEvents.onSessionResigned = { [weak self] in self?.suspend(reason: "session resigned") }
