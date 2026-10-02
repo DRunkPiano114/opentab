@@ -27,14 +27,8 @@ struct AboutSettingsView: View {
                     Toggle("Download and install updates automatically", isOn: $store.automaticUpdateInstalls)
                         .disabled(!store.automaticUpdateChecks)
                     Text("""
-                        With automatic checks on, OpenTab asks GitHub for a newer version every six hours, \
-                        and stops asking while an update it found is waiting to be installed. Without \
-                        automatic installs, a new update installs only after you click Install in its \
-                        window. When a background check finds one, the menu bar offers it first, unless the \
-                        icon is hidden or the update is critical. With automatic installs, an update \
-                        downloads in the background and installs when OpenTab quits, or at once from Restart \
-                        to Update when that appears. An update that has already downloaded still installs \
-                        when OpenTab quits, even if you turn these settings off.
+                        OpenTab checks GitHub every six hours. Automatic installs happen when OpenTab \
+                        quits; otherwise an update waits for you to click Install.
                         """)
                     .settingsHelp()
                 }
