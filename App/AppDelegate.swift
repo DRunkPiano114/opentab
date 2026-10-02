@@ -421,6 +421,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             log.notice("launch at login=\(self.settings.launchesAtLogin, privacy: .public)")
         case .showMenuBarIcon:
             statusMenu.isIconVisible = settings.showMenuBarIcon
+            // A found update offered only in the menu would sit out of sight,
+            // and no further check runs while it waits.
+            if !settings.showMenuBarIcon { updates?.showWaitingUpdate() }
         case .appearance:
             Theme.apply(Theme.Style(textScale: settings.textSize.scale, isWide: settings.widePanel))
             panel.screenPosition = settings.panelPosition

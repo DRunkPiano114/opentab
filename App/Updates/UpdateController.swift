@@ -61,11 +61,14 @@ final class UpdateController {
         didSet { onReadyToInstallChanged?(pendingInstall.version) }
     }
 
-    /// Whether the status item is on screen to carry the reminder. Without it
-    /// Sparkle shows a background find in its own window.
-    var isStatusItemVisible: () -> Bool {
-        get { reminder.isStatusItemVisible }
-        set { reminder.isStatusItemVisible = newValue }
+    /// Whether the status item is on screen to carry the reminder and the
+    /// restart item. Without it Sparkle presents a background find, and a
+    /// downloaded update, the way it would with no menu at all.
+    var isStatusItemVisible: () -> Bool = { true } {
+        didSet {
+            reminder.isStatusItemVisible = isStatusItemVisible
+            pendingInstall.isStatusItemVisible = isStatusItemVisible
+        }
     }
 
     /// Nil when the bundle carries no feed or no public key; nothing of
@@ -129,6 +132,14 @@ final class UpdateController {
         updaterController.checkForUpdates(nil)
     }
 
+    /// Brings a found update's window forward once the status item that
+    /// offered it has gone. A downloaded update held for install has no window
+    /// to bring forward and stays offered in About.
+    func showWaitingUpdate() {
+        guard reminder.waiting != nil, pendingInstall.version == nil else { return }
+        checkForUpdates()
+    }
+
     /// Installs the downloaded update and relaunches, with no window of
     /// Sparkle's own. Does nothing when no update is waiting to install.
     func installNow() {
@@ -154,15 +165,24 @@ private final class PendingInstall: NSObject, SPUUpdaterDelegate {
         }
     }
 
+    /// True holds a downloaded update for the restart item.
+    var isStatusItemVisible: () -> Bool = { true }
+
     private var install: (() -> Void)?
 
-    // Returning true keeps `immediateInstallHandler` usable and holds the
-    // update cycle open: no further check runs until the handler is called or
-    // the app quits, and the next release is found after the relaunch.
-    // Returning false would drop the handler and leave only the install on
-    // quit, which happens either way.
+    // The update installs on quit whatever this returns. True keeps
+    // `immediateInstallHandler` for the restart item but holds the update
+    // cycle open, which costs Sparkle's own fallbacks: no further check runs
+    // until the handler is called or the app quits, an update left
+    // uninstalled is never shown again, and a critical one is never shown at
+    // once. False keeps them, which a hidden status item (no restart item to
+    // offer it) and a critical update both need.
     func updater(_ updater: SPUUpdater, willInstallUpdateOnQuit item: SUAppcastItem,
                  immediateInstallationBlock immediateInstallHandler: @escaping () -> Void) -> Bool {
+        guard isStatusItemVisible(), !item.isCriticalUpdate else {
+            Self.log.notice("update left to install on quit version=\(item.displayVersionString, privacy: .public)")
+            return false
+        }
         Self.log.notice("update ready to install version=\(item.displayVersionString, privacy: .public)")
         install = immediateInstallHandler
         version = item.displayVersionString
@@ -202,7 +222,8 @@ private final class ScheduledUpdateReminder: NSObject, @preconcurrency SPUStanda
     private static let log = Log.make("updates")
 
     /// True keeps a background find in the menu bar, including the one at
-    /// launch that Sparkle would otherwise bring to the front.
+    /// launch that Sparkle would otherwise bring to the front. A critical
+    /// update is shown at once whatever this says.
     var isStatusItemVisible: () -> Bool = { true }
     var onChange: ((StatusMenuSpec.WaitingUpdate?) -> Void)?
 
@@ -219,7 +240,7 @@ private final class ScheduledUpdateReminder: NSObject, @preconcurrency SPUStanda
     /// recorded in the call that follows it.
     func standardUserDriverShouldHandleShowingScheduledUpdate(_ update: SUAppcastItem,
                                                              andInImmediateFocus immediateFocus: Bool) -> Bool {
-        !isStatusItemVisible()
+        !isStatusItemVisible() || update.isCriticalUpdate
     }
 
     func standardUserDriverWillHandleShowingUpdate(_ handleShowingUpdate: Bool,
