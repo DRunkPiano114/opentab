@@ -159,6 +159,15 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertFalse(updater.automaticallyDownloadsUpdates)
     }
 
+    /// The updater's window has its own checkbox for this preference, so the
+    /// toggle must start from what the updater holds.
+    func testAutomaticInstallsStartFromTheUpdater() {
+        let updater = FakeUpdatePreferences()
+        updater.automaticallyDownloadsUpdates = true
+        let store = SettingsStore(defaults: defaults, updates: updater)
+        XCTAssertTrue(store.automaticUpdateInstalls)
+    }
+
     /// With automatic checks off the updater installs nothing on its own, and
     /// the toggle must not claim otherwise.
     func testAutomaticInstallsReadOffWhileTheUpdaterRefusesThem() {

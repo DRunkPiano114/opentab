@@ -30,6 +30,9 @@ final class UpdateController {
     private let reminder: ScheduledUpdateReminder
     /// Held for the same reason: Sparkle holds its updater delegate weakly.
     private let pendingInstall: PendingInstall
+    /// Shared by both delegates, and built before them, so nothing either
+    /// reports while the updater starts is lost.
+    private let waits = WaitTracker()
     private var observation: NSKeyValueObservation?
     private var downloadsObservation: NSKeyValueObservation?
 
@@ -51,14 +54,14 @@ final class UpdateController {
     /// and called again on every change; nil once the update is installed or
     /// put off.
     var onWaitingUpdateChanged: ((StatusMenuSpec.WaitingUpdate?) -> Void)? {
-        didSet { onWaitingUpdateChanged?(reminder.waiting) }
+        didSet { onWaitingUpdateChanged?(waits.state.waiting) }
     }
 
     /// The version of an update downloaded in the background and waiting to
     /// install on quit, replayed the moment this is set and called again on
     /// every change.
     var onReadyToInstallChanged: ((String?) -> Void)? {
-        didSet { onReadyToInstallChanged?(pendingInstall.version) }
+        didSet { onReadyToInstallChanged?(waits.state.readyToInstall) }
     }
 
     /// Whether the status item is on screen to carry the reminder and the
@@ -81,13 +84,15 @@ final class UpdateController {
             return nil
         }
         // Sparkle reads both delegates once, while the controller is built.
-        reminder = ScheduledUpdateReminder()
-        pendingInstall = PendingInstall()
+        reminder = ScheduledUpdateReminder(waits: waits)
+        pendingInstall = PendingInstall(waits: waits)
         updaterController = SPUStandardUpdaterController(startingUpdater: true,
                                                         updaterDelegate: pendingInstall,
                                                         userDriverDelegate: reminder)
-        reminder.onChange = { [weak self] waiting in self?.onWaitingUpdateChanged?(waiting) }
-        pendingInstall.onChange = { [weak self] version in self?.onReadyToInstallChanged?(version) }
+        waits.onChange = { [weak self] old, new in
+            if new.waiting != old.waiting { self?.onWaitingUpdateChanged?(new.waiting) }
+            if new.readyToInstall != old.readyToInstall { self?.onReadyToInstallChanged?(new.readyToInstall) }
+        }
         let host = URL(string: Self.trimmed(feedURL))?.host() ?? "unknown"
         Self.log.notice("updater started feed host=\(host, privacy: .public)")
         // Sparkle's own menu validation never runs while the status menu
@@ -136,7 +141,7 @@ final class UpdateController {
     /// offered it has gone. A downloaded update held for install has no window
     /// to bring forward and stays offered in About.
     func showWaitingUpdate() {
-        guard reminder.waiting != nil, pendingInstall.version == nil else { return }
+        guard waits.state.waiting != nil, waits.state.readyToInstall == nil else { return }
         checkForUpdates()
     }
 
@@ -161,19 +166,15 @@ final class UpdateController {
 private final class PendingInstall: NSObject, SPUUpdaterDelegate {
     private static let log = Log.make("updates")
 
-    var onChange: ((String?) -> Void)?
-
-    private(set) var version: String? {
-        didSet {
-            guard version != oldValue else { return }
-            onChange?(version)
-        }
-    }
-
     /// True holds a downloaded update for the restart item.
     var isStatusItemVisible: () -> Bool = { true }
 
+    private let waits: WaitTracker
     private var install: (() -> Void)?
+
+    init(waits: WaitTracker) {
+        self.waits = waits
+    }
 
     // The update installs on quit whatever this returns. True keeps
     // `immediateInstallHandler` for the restart item but holds the update
@@ -184,13 +185,14 @@ private final class PendingInstall: NSObject, SPUUpdaterDelegate {
     // offer it) and a critical update both need.
     func updater(_ updater: SPUUpdater, willInstallUpdateOnQuit item: SUAppcastItem,
                  immediateInstallationBlock immediateInstallHandler: @escaping () -> Void) -> Bool {
-        guard isStatusItemVisible(), !item.isCriticalUpdate else {
+        guard UpdateWaitState.menuCarries(statusItemVisible: isStatusItemVisible(),
+                                          isCritical: item.isCriticalUpdate) else {
             Self.log.notice("update left to install on quit version=\(item.displayVersionString, privacy: .public)")
             return false
         }
         Self.log.notice("update ready to install version=\(item.displayVersionString, privacy: .public)")
         install = immediateInstallHandler
-        version = item.displayVersionString
+        waits.state.apply(.held(version: item.displayVersionString))
         return true
     }
 
@@ -212,7 +214,7 @@ private final class PendingInstall: NSObject, SPUUpdaterDelegate {
 
     private func drop() {
         install = nil
-        version = nil
+        waits.state.apply(.cycleEnded)
     }
 }
 
@@ -234,13 +236,11 @@ private final class ScheduledUpdateReminder: NSObject, @preconcurrency SPUStanda
     /// launch that Sparkle would otherwise bring to the front. A critical
     /// update is shown at once whatever this says.
     var isStatusItemVisible: () -> Bool = { true }
-    var onChange: ((StatusMenuSpec.WaitingUpdate?) -> Void)?
 
-    private(set) var waiting: StatusMenuSpec.WaitingUpdate? {
-        didSet {
-            guard waiting != oldValue else { return }
-            onChange?(waiting)
-        }
+    private let waits: WaitTracker
+
+    init(waits: WaitTracker) {
+        self.waits = waits
     }
 
     var supportsGentleScheduledUpdateReminders: Bool { true }
@@ -249,22 +249,39 @@ private final class ScheduledUpdateReminder: NSObject, @preconcurrency SPUStanda
     /// recorded in the call that follows it.
     func standardUserDriverShouldHandleShowingScheduledUpdate(_ update: SUAppcastItem,
                                                              andInImmediateFocus immediateFocus: Bool) -> Bool {
-        !isStatusItemVisible() || update.isCriticalUpdate
+        !UpdateWaitState.menuCarries(statusItemVisible: isStatusItemVisible(), isCritical: update.isCriticalUpdate)
     }
 
     func standardUserDriverWillHandleShowingUpdate(_ handleShowingUpdate: Bool,
                                                    forUpdate update: SUAppcastItem,
                                                    state: SPUUserUpdateState) {
-        guard !handleShowingUpdate, !state.userInitiated else { return }
-        Self.log.notice("update waiting in the menu bar version=\(update.displayVersionString, privacy: .public)")
-        waiting = StatusMenuSpec.WaitingUpdate(version: update.displayVersionString)
+        let before = waits.state.waiting
+        waits.state.apply(.found(version: update.displayVersionString, shownByUpdater: handleShowingUpdate,
+                                 userInitiated: state.userInitiated))
+        if waits.state.waiting != before {
+            Self.log.notice("update waiting in the menu bar version=\(update.displayVersionString, privacy: .public)")
+        }
     }
 
     func standardUserDriverDidReceiveUserAttention(forUpdate update: SUAppcastItem) {
-        waiting?.seen = true
+        waits.state.apply(.seen)
     }
 
     func standardUserDriverWillFinishUpdateSession() {
-        waiting = nil
+        waits.state.apply(.sessionFinished)
+    }
+}
+
+/// The one copy of the waiting state, reporting each change with the value
+/// it replaced.
+@MainActor
+private final class WaitTracker {
+    var onChange: ((_ old: UpdateWaitState, _ new: UpdateWaitState) -> Void)?
+
+    var state = UpdateWaitState() {
+        didSet {
+            guard state != oldValue else { return }
+            onChange?(oldValue, state)
+        }
     }
 }

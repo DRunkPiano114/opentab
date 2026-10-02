@@ -229,6 +229,33 @@ final class StatusMenuSpecTests: XCTestCase {
         XCTAssertEqual(StatusMenuSpec.badge(inputs), .attention)
     }
 
+    func testADegradationKeepsAWaitingUpdateInItsSlot() {
+        var inputs = healthy()
+        inputs.accessibilityGranted = false
+        inputs.waitingUpdate = StatusMenuSpec.WaitingUpdate(version: "0.4.0")
+        let items = StatusMenuSpec.items(inputs)
+        XCTAssertEqual(items[0], .attention(title: "Accessibility Is Not Granted", conditions: [
+            Condition(title: "Accessibility Is Not Granted", action: .openAccessibilitySettings),
+        ]))
+        XCTAssertEqual(items[1], .separator)
+        XCTAssertEqual(items[6], .action(.checkForUpdates, title: "Update Available: 0.4.0\u{2026}",
+                                         keyEquivalent: nil, isEnabled: true))
+        XCTAssertFalse(titles(items).contains("Check for Updates\u{2026}"))
+    }
+
+    func testADegradationKeepsAReadyUpdateInItsSlot() {
+        var inputs = ready()
+        inputs.tabsUnavailable = ["Safari"]
+        let items = StatusMenuSpec.items(inputs)
+        XCTAssertEqual(items[0], .attention(title: "Safari Tabs Need Automation Access", conditions: [
+            Condition(title: "Safari Tabs Need Automation Access", action: .openAutomationSettings),
+        ]))
+        XCTAssertEqual(items[1], .separator)
+        XCTAssertEqual(items[6], .action(.restartToUpdate, title: "Restart to Update to 0.4.0",
+                                         keyEquivalent: nil, isEnabled: true))
+        XCTAssertFalse(titles(items).contains("Check for Updates\u{2026}"))
+    }
+
     func testNoUpdaterOffersNoRestart() {
         var inputs = ready()
         inputs.hasUpdater = false
