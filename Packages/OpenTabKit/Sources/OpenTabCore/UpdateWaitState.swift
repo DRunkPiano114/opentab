@@ -1,8 +1,9 @@
 import Foundation
 
 /// What the menu bar holds of an update the updater has left waiting, as a
-/// value. The updater's delegates turn its callbacks into these events, so
-/// the rules live where the pure-logic suite reaches them.
+/// value. The updater's delegates turn its callbacks into these events and
+/// ask it every question they answer, so the rules live where the pure-logic
+/// suite reaches them.
 public struct UpdateWaitState: Equatable, Sendable {
     public enum Event: Equatable, Sendable {
         /// A check found `version`. `shownByUpdater` is true when the updater
@@ -34,6 +35,18 @@ public struct UpdateWaitState: Equatable, Sendable {
         statusItemVisible && !isCritical
     }
 
+    /// Whether the updater shows an update a background check found in its
+    /// own window, which is whenever the menu does not carry it.
+    public static func updaterShowsFind(statusItemVisible: Bool, isCritical: Bool) -> Bool {
+        !menuCarries(statusItemVisible: statusItemVisible, isCritical: isCritical)
+    }
+
+    /// Whether the waiting update has a window the updater can bring
+    /// forward. A downloaded update held for install has none.
+    public var canBringForward: Bool {
+        waiting != nil && readyToInstall == nil
+    }
+
     public mutating func apply(_ event: Event) {
         switch event {
         case let .found(version, shownByUpdater, userInitiated):
@@ -42,12 +55,14 @@ public struct UpdateWaitState: Equatable, Sendable {
             waiting = StatusMenuSpec.WaitingUpdate(version: version)
         case .seen:
             waiting?.seen = true
-        case .sessionFinished:
-            waiting = nil
         case let .held(version):
             readyToInstall = version
-        case .cycleEnded:
-            readyToInstall = nil
+        case .sessionFinished, .cycleEnded:
+            // The updater runs one session at a time, so a found update and
+            // a held one never wait together, and whichever end arrives
+            // closes both. One missed callback then cannot leave an item
+            // offering an update the updater has already let go of.
+            self = UpdateWaitState()
         }
     }
 }

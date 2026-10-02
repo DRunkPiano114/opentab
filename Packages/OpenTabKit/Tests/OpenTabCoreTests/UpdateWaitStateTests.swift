@@ -50,11 +50,38 @@ final class UpdateWaitStateTests: XCTestCase {
         XCTAssertNil(state(.held(version: "0.4.1"), .cycleEnded).readyToInstall)
     }
 
-    /// The two waits come from different updater callbacks, and ending one
-    /// must not erase the other.
-    func testEachWaitEndsOnlyByItsOwnEvent() {
-        let both = state(backgroundFind, .held(version: "0.4.1"))
-        XCTAssertEqual(state(backgroundFind, .held(version: "0.4.1"), .cycleEnded).waiting, both.waiting)
-        XCTAssertEqual(state(backgroundFind, .held(version: "0.4.1"), .sessionFinished).readyToInstall, "0.4.1")
+    /// Either end event arrives from a different updater callback, and one of
+    /// them going missing must not strand an item in the menu.
+    func testEitherEndEventClearsEveryWait() {
+        for end in [UpdateWaitState.Event.sessionFinished, .cycleEnded] {
+            XCTAssertEqual(state(backgroundFind, .held(version: "0.4.1"), end), UpdateWaitState(), "\(end)")
+            XCTAssertEqual(state(backgroundFind, .seen, end), UpdateWaitState(), "\(end)")
+            XCTAssertEqual(state(.held(version: "0.4.1"), end), UpdateWaitState(), "\(end)")
+        }
+    }
+
+    func testTheUpdaterShowsAFindExactlyWhenTheMenuDoesNotCarryIt() {
+        XCTAssertFalse(UpdateWaitState.updaterShowsFind(statusItemVisible: true, isCritical: false))
+        XCTAssertTrue(UpdateWaitState.updaterShowsFind(statusItemVisible: false, isCritical: false),
+                      "with the icon hidden the updater's window is the only place to show it")
+        XCTAssertTrue(UpdateWaitState.updaterShowsFind(statusItemVisible: true, isCritical: true),
+                      "a critical update is shown at once")
+        XCTAssertTrue(UpdateWaitState.updaterShowsFind(statusItemVisible: false, isCritical: true))
+    }
+
+    func testAFoundUpdateCanBeBroughtForwardSeenOrNot() {
+        XCTAssertTrue(state(backgroundFind).canBringForward)
+        XCTAssertTrue(state(backgroundFind, .seen).canBringForward)
+    }
+
+    func testNothingIsBroughtForwardWithoutAFoundUpdate() {
+        XCTAssertFalse(UpdateWaitState().canBringForward)
+        XCTAssertFalse(state(backgroundFind, .sessionFinished).canBringForward)
+    }
+
+    func testAHeldUpdateIsNeverBroughtForward() {
+        XCTAssertFalse(state(.held(version: "0.4.1")).canBringForward)
+        XCTAssertFalse(state(backgroundFind, .held(version: "0.4.1")).canBringForward,
+                       "the updater has no window for an update held for install")
     }
 }

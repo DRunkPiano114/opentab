@@ -141,7 +141,7 @@ final class UpdateController {
     /// offered it has gone. A downloaded update held for install has no window
     /// to bring forward and stays offered in About.
     func showWaitingUpdate() {
-        guard waits.state.waiting != nil, waits.state.readyToInstall == nil else { return }
+        guard waits.state.canBringForward else { return }
         checkForUpdates()
     }
 
@@ -166,7 +166,8 @@ final class UpdateController {
 private final class PendingInstall: NSObject, SPUUpdaterDelegate {
     private static let log = Log.make("updates")
 
-    /// True holds a downloaded update for the restart item.
+    /// True holds a downloaded update for the restart item, unless the update
+    /// is critical.
     var isStatusItemVisible: () -> Bool = { true }
 
     private let waits: WaitTracker
@@ -249,7 +250,7 @@ private final class ScheduledUpdateReminder: NSObject, @preconcurrency SPUStanda
     /// recorded in the call that follows it.
     func standardUserDriverShouldHandleShowingScheduledUpdate(_ update: SUAppcastItem,
                                                              andInImmediateFocus immediateFocus: Bool) -> Bool {
-        !UpdateWaitState.menuCarries(statusItemVisible: isStatusItemVisible(), isCritical: update.isCriticalUpdate)
+        UpdateWaitState.updaterShowsFind(statusItemVisible: isStatusItemVisible(), isCritical: update.isCriticalUpdate)
     }
 
     func standardUserDriverWillHandleShowingUpdate(_ handleShowingUpdate: Bool,
