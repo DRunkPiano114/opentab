@@ -28,6 +28,8 @@ final class UpdateController {
     /// Sparkle holds its user driver delegate weakly, so this is what keeps
     /// it alive.
     private let reminder: ScheduledUpdateReminder
+    /// Held for the same reason: Sparkle holds its updater delegate weakly.
+    private let pendingInstall: PendingInstall
     private var observation: NSKeyValueObservation?
     private var downloadsObservation: NSKeyValueObservation?
 
@@ -52,6 +54,13 @@ final class UpdateController {
         didSet { onWaitingUpdateChanged?(reminder.waiting) }
     }
 
+    /// The version of an update downloaded in the background and waiting to
+    /// install on quit, replayed the moment this is set and called again on
+    /// every change.
+    var onReadyToInstallChanged: ((String?) -> Void)? {
+        didSet { onReadyToInstallChanged?(pendingInstall.version) }
+    }
+
     /// Whether the status item is on screen to carry the reminder. Without it
     /// Sparkle shows a background find in its own window.
     var isStatusItemVisible: () -> Bool {
@@ -68,12 +77,14 @@ final class UpdateController {
             Self.log.notice("no update feed in this bundle: updater not started")
             return nil
         }
-        // Sparkle reads the delegate once, while the controller is built.
+        // Sparkle reads both delegates once, while the controller is built.
         reminder = ScheduledUpdateReminder()
+        pendingInstall = PendingInstall()
         updaterController = SPUStandardUpdaterController(startingUpdater: true,
-                                                        updaterDelegate: nil,
+                                                        updaterDelegate: pendingInstall,
                                                         userDriverDelegate: reminder)
         reminder.onChange = { [weak self] waiting in self?.onWaitingUpdateChanged?(waiting) }
+        pendingInstall.onChange = { [weak self] version in self?.onReadyToInstallChanged?(version) }
         let host = URL(string: Self.trimmed(feedURL))?.host() ?? "unknown"
         Self.log.notice("updater started feed host=\(host, privacy: .public)")
         // Sparkle's own menu validation never runs while the status menu
@@ -116,6 +127,67 @@ final class UpdateController {
     /// recognises the accessory activation policy.
     func checkForUpdates() {
         updaterController.checkForUpdates(nil)
+    }
+
+    /// Installs the downloaded update and relaunches, with no window of
+    /// Sparkle's own. Does nothing when no update is waiting to install.
+    func installNow() {
+        pendingInstall.installNow()
+    }
+}
+
+/// Keeps hold of an update that was downloaded in the background, so the
+/// user can install it now instead of at the next quit, which for an app that
+/// runs for weeks may be a long way off.
+///
+/// Sparkle calls every method here on the main thread.
+@MainActor
+private final class PendingInstall: NSObject, SPUUpdaterDelegate {
+    private static let log = Log.make("updates")
+
+    var onChange: ((String?) -> Void)?
+
+    private(set) var version: String? {
+        didSet {
+            guard version != oldValue else { return }
+            onChange?(version)
+        }
+    }
+
+    private var install: (() -> Void)?
+
+    // Returning true keeps `immediateInstallHandler` usable and holds the
+    // update cycle open: no further check runs until the handler is called or
+    // the app quits, and the next release is found after the relaunch.
+    // Returning false would drop the handler and leave only the install on
+    // quit, which happens either way.
+    func updater(_ updater: SPUUpdater, willInstallUpdateOnQuit item: SUAppcastItem,
+                 immediateInstallationBlock immediateInstallHandler: @escaping () -> Void) -> Bool {
+        Self.log.notice("update ready to install version=\(item.displayVersionString, privacy: .public)")
+        install = immediateInstallHandler
+        version = item.displayVersionString
+        return true
+    }
+
+    // A held cycle ends only when the install fails or is put off. The
+    // handler does nothing once its cycle has ended.
+    func updater(_ updater: SPUUpdater, didFinishUpdateCycleFor updateCheck: SPUUpdateCheck, error: (any Error)?) {
+        drop()
+    }
+
+    func updater(_ updater: SPUUpdater, didAbortWithError error: any Error) {
+        drop()
+    }
+
+    func installNow() {
+        guard let install else { return }
+        Self.log.notice("installing the downloaded update now")
+        install()
+    }
+
+    private func drop() {
+        install = nil
+        version = nil
     }
 }
 

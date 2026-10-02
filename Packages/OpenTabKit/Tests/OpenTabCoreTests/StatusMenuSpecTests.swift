@@ -183,6 +183,58 @@ final class StatusMenuSpecTests: XCTestCase {
         XCTAssertEqual(StatusMenuSpec.badge(inputs), .attention)
     }
 
+    private func ready(_ version: String = "0.4.0") -> StatusMenuSpec.Inputs {
+        var inputs = healthy()
+        inputs.readyToInstall = version
+        return inputs
+    }
+
+    func testAReadyUpdateOffersARestartInTheUpdateSlot() {
+        let items = StatusMenuSpec.items(ready())
+        XCTAssertEqual(items[4], .action(.restartToUpdate, title: "Restart to Update to 0.4.0",
+                                         keyEquivalent: nil, isEnabled: true))
+        XCTAssertEqual(items.count, StatusMenuSpec.items(healthy()).count)
+        XCTAssertFalse(titles(items).contains("Check for Updates\u{2026}"))
+    }
+
+    /// Holding the downloaded update keeps the updater busy, so following its
+    /// gate would leave the item disabled for good.
+    func testTheRestartItemIgnoresTheUpdaterGate() {
+        var inputs = ready()
+        inputs.canCheckForUpdates = false
+        XCTAssertEqual(StatusMenuSpec.items(inputs)[4],
+                       .action(.restartToUpdate, title: "Restart to Update to 0.4.0",
+                               keyEquivalent: nil, isEnabled: true))
+    }
+
+    func testAReadyUpdateWinsTheSlotOverAWaitingOne() {
+        var inputs = ready("0.4.1")
+        inputs.waitingUpdate = StatusMenuSpec.WaitingUpdate(version: "0.4.0")
+        let items = StatusMenuSpec.items(inputs)
+        XCTAssertEqual(items[4], .action(.restartToUpdate, title: "Restart to Update to 0.4.1",
+                                         keyEquivalent: nil, isEnabled: true))
+        XCTAssertNil(updateItem(items))
+    }
+
+    func testAReadyUpdateLeavesNoMark() {
+        XCTAssertEqual(StatusMenuSpec.badge(ready()), .none)
+        var inputs = ready()
+        inputs.waitingUpdate = StatusMenuSpec.WaitingUpdate(version: "0.4.0")
+        XCTAssertEqual(StatusMenuSpec.badge(inputs), .none, "the waiting update's item is not in the menu")
+    }
+
+    func testADegradationStillMarksTheItemWithAReadyUpdate() {
+        var inputs = ready()
+        inputs.accessibilityGranted = false
+        XCTAssertEqual(StatusMenuSpec.badge(inputs), .attention)
+    }
+
+    func testNoUpdaterOffersNoRestart() {
+        var inputs = ready()
+        inputs.hasUpdater = false
+        XCTAssertFalse(titles(StatusMenuSpec.items(inputs)).contains("Restart to Update to 0.4.0"))
+    }
+
     func testSwitcherItemsCarryTheBoundChords() {
         var inputs = healthy()
         let main = KeyEquivalent(key: "\t", command: true)

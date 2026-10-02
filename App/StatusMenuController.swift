@@ -27,6 +27,9 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     /// An update a background check found, shown in the menu instead of in a
     /// window of its own.
     var waitingUpdate: StatusMenuSpec.WaitingUpdate? { didSet { refreshBadge() } }
+    /// The version of an update downloaded in the background, offered as a
+    /// restart instead of waiting for the next quit.
+    var readyToInstall: String? { didSet { refreshBadge() } }
     /// Hiding the icon is a setting; the settings window stays reachable by
     /// launching the app again, which reopens it.
     var isIconVisible = true { didSet { item.isVisible = isIconVisible } }
@@ -37,6 +40,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     var onOpenSwitcher: (() -> Void)?
     var onSearchWindows: (() -> Void)?
     var onCheckForUpdates: (() -> Void)?
+    var onRestartToUpdate: (() -> Void)?
     var onOpenAbout: (() -> Void)?
     var onOpenSettings: (() -> Void)?
     var onOpenAutomationSettings: (() -> Void)?
@@ -73,6 +77,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         inputs.hasUpdater = hasUpdater
         inputs.canCheckForUpdates = canCheckForUpdates
         inputs.waitingUpdate = waitingUpdate
+        inputs.readyToInstall = readyToInstall
         let chords = boundChords()
         inputs.mainShortcut = chords.first.flatMap(Self.keyEquivalent)
         inputs.searchShortcut = chords.count > 2 ? Self.keyEquivalent(chords[2]) : nil
@@ -211,6 +216,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         case .openSwitcher: (#selector(openSwitcher), self)
         case .searchWindows: (#selector(searchWindows), self)
         case .checkForUpdates: (#selector(checkForUpdates), self)
+        case .restartToUpdate: (#selector(restartToUpdate), self)
         case .about: (#selector(openAbout), self)
         case .settings: (#selector(openSettings), self)
         case .quit: (#selector(NSApplication.terminate(_:)), NSApp)
@@ -231,6 +237,10 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
 
     @objc private func checkForUpdates() {
         onCheckForUpdates?()
+    }
+
+    @objc private func restartToUpdate() {
+        onRestartToUpdate?()
     }
 
     @objc private func openAbout() {

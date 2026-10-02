@@ -29,7 +29,7 @@ public enum StatusMenuSpec {
     }
 
     public enum Action: Equatable, Sendable {
-        case openSwitcher, searchWindows, about, checkForUpdates, settings, quit
+        case openSwitcher, searchWindows, about, checkForUpdates, restartToUpdate, settings, quit
         case openAccessibilitySettings, openAutomationSettings, openShortcutsTab, openPrivacyTab
     }
 
@@ -87,6 +87,9 @@ public enum StatusMenuSpec {
         public var hasUpdater = false
         public var canCheckForUpdates = true
         public var waitingUpdate: WaitingUpdate?
+        /// The version of an update downloaded in the background and waiting
+        /// to install on quit.
+        public var readyToInstall: String?
 
         public init() {}
     }
@@ -119,7 +122,11 @@ public enum StatusMenuSpec {
 
     public static func badge(_ inputs: Inputs) -> Badge {
         if !conditions(inputs).isEmpty { return .attention }
-        if inputs.hasUpdater, let waiting = inputs.waitingUpdate, !waiting.seen { return .update }
+        // Only while the waiting update's item is the one in the menu; an
+        // update ready to install is something the user chose and needs no mark.
+        if inputs.hasUpdater, inputs.readyToInstall == nil, let waiting = inputs.waitingUpdate, !waiting.seen {
+            return .update
+        }
         return .none
     }
 
@@ -137,7 +144,12 @@ public enum StatusMenuSpec {
         items.append(.separator)
         // About keeps this group non-empty on a copy built without an updater.
         items.append(.action(.about, title: "About OpenTab", keyEquivalent: nil, isEnabled: true))
-        if inputs.hasUpdater {
+        if inputs.hasUpdater, let ready = inputs.readyToInstall {
+            // Enabled whatever the updater's gate says: holding the update
+            // keeps the updater busy until it is installed.
+            items.append(.action(.restartToUpdate, title: "Restart to Update to \(ready)",
+                                 keyEquivalent: nil, isEnabled: true))
+        } else if inputs.hasUpdater {
             // The same action brings a waiting update's window forward
             // without fetching anything again.
             let title = inputs.waitingUpdate.map { "Update Available: \($0.version)\u{2026}" }

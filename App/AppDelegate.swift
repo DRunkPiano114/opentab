@@ -142,10 +142,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusMenu = StatusMenuController()
         statusMenu.hasUpdater = updates != nil
         statusMenu.onCheckForUpdates = { [weak self] in self?.updates?.checkForUpdates() }
+        statusMenu.onRestartToUpdate = { [weak self] in self?.updates?.installNow() }
         // Assigning the closure replays the current value, so the menu is
         // right from the first draw.
         updates?.onCanCheckForUpdatesChanged = { [weak self] can in self?.statusMenu.canCheckForUpdates = can }
         updates?.onWaitingUpdateChanged = { [weak self] waiting in self?.statusMenu.waitingUpdate = waiting }
+        updates?.onReadyToInstallChanged = { [weak self] version in self?.statusMenu.readyToInstall = version }
         updates?.onAutomaticallyDownloadsUpdatesChanged = { [weak self] downloads in
             self?.settings.automaticUpdateInstalls = downloads
         }
