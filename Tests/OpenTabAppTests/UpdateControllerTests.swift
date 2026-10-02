@@ -25,10 +25,10 @@ final class UpdateControllerTests: XCTestCase {
                      "the development bundle has no feed and must start no updater")
     }
 
-    /// Without an updater the toggle is off and inert. It must not fall back
+    /// Without an updater the toggles are off and inert. They must not fall back
     /// to a default of our own: two sources of truth for one preference means
     /// the switch and the updater eventually disagree.
-    func testTheToggleWritesNothingWhenThereIsNoUpdater() {
+    func testTheTogglesWriteNothingWhenThereIsNoUpdater() {
         // A path as the suite name, so the plist lands in the temp directory
         // rather than ~/Library/Preferences.
         let suite = FileManager.default.temporaryDirectory
@@ -41,7 +41,9 @@ final class UpdateControllerTests: XCTestCase {
 
         let store = SettingsStore(defaults: defaults, updates: nil)
         XCTAssertFalse(store.automaticUpdateChecks)
+        XCTAssertFalse(store.automaticUpdateInstalls)
         store.automaticUpdateChecks = true
+        store.automaticUpdateInstalls = true
 
         let written = defaults.persistentDomain(forName: suite) ?? [:]
         XCTAssertEqual(written.keys.filter { $0.hasPrefix("SU") }, [])

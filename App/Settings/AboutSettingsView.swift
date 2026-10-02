@@ -17,9 +17,13 @@ struct AboutSettingsView: View {
                 Section("Updates") {
                     Button("Check for Updates\u{2026}", action: actions.checkForUpdates)
                     Toggle("Check for updates automatically", isOn: $store.automaticUpdateChecks)
+                    Toggle("Download and install updates automatically", isOn: $store.automaticUpdateInstalls)
+                        .disabled(!store.automaticUpdateChecks)
                     Text("""
-                        Every six hours OpenTab asks GitHub whether a newer version exists; an update \
-                        installs only after you click Install.
+                        Every six hours OpenTab asks GitHub whether a newer version exists. Without \
+                        automatic installs, an update installs only after you click Install. With them, \
+                        it downloads in the background and installs when OpenTab quits, or at once from \
+                        Restart to Update in the menu bar.
                         """)
                     .settingsHelp()
                 }

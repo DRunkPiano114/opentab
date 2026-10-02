@@ -69,6 +69,16 @@ struct MainAppLoginItem: LoginItemService {
     }
 }
 
+/// The updater's own preferences. A seam, so a test can see what the store
+/// writes without starting a real updater.
+@MainActor
+protocol UpdatePreferences: AnyObject {
+    var automaticallyChecksForUpdates: Bool { get set }
+    var automaticallyDownloadsUpdates: Bool { get set }
+}
+
+extension UpdateController: UpdatePreferences {}
+
 /// The settings surface. Reads and writes `UserDefaults` under the keys in
 /// `DefaultsKey`, and reports each change so the running app can apply it
 /// without a relaunch.
@@ -80,16 +90,17 @@ final class SettingsStore {
 
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let log = Log.make("settings")
-    @ObservationIgnored private let updates: UpdateController?
+    @ObservationIgnored private let updates: (any UpdatePreferences)?
     @ObservationIgnored private let loginItems: any LoginItemService
 
-    init(defaults: UserDefaults = .standard, updates: UpdateController? = nil,
+    init(defaults: UserDefaults = .standard, updates: (any UpdatePreferences)? = nil,
          loginItems: any LoginItemService = MainAppLoginItem()) {
         self.defaults = defaults
         self.updates = updates
         self.loginItems = loginItems
         launchesAtLogin = loginItems.isEnabled
         automaticUpdateChecks = updates?.automaticallyChecksForUpdates ?? false
+        automaticUpdateInstalls = updates?.automaticallyDownloadsUpdates ?? false
         showMenuBarIcon = defaults.object(forKey: DefaultsKey.showMenuBarIcon) as? Bool ?? true
         panelPosition = PanelPosition(rawValue: defaults.string(forKey: DefaultsKey.panelPosition) ?? "") ?? .left
         textSize = PanelTextSize(rawValue: defaults.string(forKey: DefaultsKey.panelTextSize) ?? "") ?? .medium
@@ -134,6 +145,20 @@ final class SettingsStore {
             guard automaticUpdateChecks != oldValue else { return }
             updates?.automaticallyChecksForUpdates = automaticUpdateChecks
             log.notice("setting update checks changed")
+        }
+    }
+
+    /// Owned by the updater as well, which reads it as off while automatic
+    /// checks are off. The updater's change callback also sets it, so a value
+    /// the updater already holds is not written back. False and inert in a
+    /// build that has no updater.
+    var automaticUpdateInstalls: Bool {
+        didSet {
+            guard let updates, automaticUpdateInstalls != updates.automaticallyDownloadsUpdates else { return }
+            updates.automaticallyDownloadsUpdates = automaticUpdateInstalls
+            log.notice("setting update installs changed")
+            // The updater ignores the write while automatic checks are off.
+            automaticUpdateInstalls = updates.automaticallyDownloadsUpdates
         }
     }
 

@@ -29,12 +29,20 @@ final class UpdateController {
     /// it alive.
     private let reminder: ScheduledUpdateReminder
     private var observation: NSKeyValueObservation?
+    private var downloadsObservation: NSKeyValueObservation?
 
     /// Called on the main actor with the current value the moment it is set,
     /// and again on every change: a menu built after the updater already
     /// reported `false` would otherwise stay disabled until the next one.
     var onCanCheckForUpdatesChanged: ((Bool) -> Void)? {
         didSet { onCanCheckForUpdatesChanged?(updaterController.updater.canCheckForUpdates) }
+    }
+
+    /// Called with the current value the moment it is set, and again on every
+    /// change, including one made with the checkbox in Sparkle's own update
+    /// window, which writes the same preference.
+    var onAutomaticallyDownloadsUpdatesChanged: ((Bool) -> Void)? {
+        didSet { onAutomaticallyDownloadsUpdatesChanged?(updaterController.updater.automaticallyDownloadsUpdates) }
     }
 
     /// The update a background check found, replayed the moment this is set
@@ -76,6 +84,17 @@ final class UpdateController {
             // Sparkle changes this on the main thread.
             MainActor.assumeIsolated { self?.onCanCheckForUpdatesChanged?(can) }
         }
+        downloadsObservation = updaterController.updater.observe(\.automaticallyDownloadsUpdates,
+                                                                 options: [.new]) { [weak self] _, change in
+            guard let downloads = change.newValue else { return }
+            // Sparkle relays this from its observer of the user defaults,
+            // which is not bound to the main thread.
+            if Thread.isMainThread {
+                MainActor.assumeIsolated { self?.onAutomaticallyDownloadsUpdatesChanged?(downloads) }
+            } else {
+                Task { @MainActor in self?.onAutomaticallyDownloadsUpdatesChanged?(downloads) }
+            }
+        }
     }
 
     /// Sparkle owns this preference and writes it to the app's own defaults
@@ -83,6 +102,14 @@ final class UpdateController {
     var automaticallyChecksForUpdates: Bool {
         get { updaterController.updater.automaticallyChecksForUpdates }
         set { updaterController.updater.automaticallyChecksForUpdates = newValue }
+    }
+
+    /// Download updates in the background and install them on quit. Sparkle
+    /// reads this as false, and ignores a write, while automatic checks are
+    /// off.
+    var automaticallyDownloadsUpdates: Bool {
+        get { updaterController.updater.automaticallyDownloadsUpdates }
+        set { updaterController.updater.automaticallyDownloadsUpdates = newValue }
     }
 
     /// Sparkle activates the app itself before its windows appear, because it

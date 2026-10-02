@@ -146,6 +146,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // right from the first draw.
         updates?.onCanCheckForUpdatesChanged = { [weak self] can in self?.statusMenu.canCheckForUpdates = can }
         updates?.onWaitingUpdateChanged = { [weak self] waiting in self?.statusMenu.waitingUpdate = waiting }
+        updates?.onAutomaticallyDownloadsUpdatesChanged = { [weak self] downloads in
+            self?.settings.automaticUpdateInstalls = downloads
+        }
         updates?.isStatusItemVisible = { [weak self] in self?.statusMenu.isIconVisible ?? true }
         statusMenu.isIconVisible = settings.showMenuBarIcon
         statusMenu.windowIDBridgeAvailable = source.isWindowIDBridgeAvailable

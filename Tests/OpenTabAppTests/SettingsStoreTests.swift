@@ -146,4 +146,43 @@ final class SettingsStoreTests: XCTestCase {
         DefaultsAutomationRequestLog(defaults: defaults).markRequested("com.google.Chrome")
         XCTAssertTrue(store.hasRequestedAutomation)
     }
+
+    /// The updater keeps this preference, so the toggle has to reach it.
+    func testAutomaticInstallsAreWrittenToTheUpdater() {
+        let updater = FakeUpdatePreferences()
+        let store = SettingsStore(defaults: defaults, updates: updater)
+        XCTAssertFalse(store.automaticUpdateInstalls)
+
+        store.automaticUpdateInstalls = true
+        XCTAssertTrue(updater.automaticallyDownloadsUpdates)
+        store.automaticUpdateInstalls = false
+        XCTAssertFalse(updater.automaticallyDownloadsUpdates)
+    }
+
+    /// With automatic checks off the updater installs nothing on its own, and
+    /// the toggle must not claim otherwise.
+    func testAutomaticInstallsReadOffWhileTheUpdaterRefusesThem() {
+        let updater = FakeUpdatePreferences()
+        updater.automaticallyChecksForUpdates = false
+        let store = SettingsStore(defaults: defaults, updates: updater)
+
+        store.automaticUpdateInstalls = true
+        XCTAssertFalse(store.automaticUpdateInstalls)
+    }
+}
+
+/// Mirrors the updater's rule: automatic installs read as off, and a write
+/// to them is ignored, while automatic checks are off.
+@MainActor
+private final class FakeUpdatePreferences: UpdatePreferences {
+    var automaticallyChecksForUpdates = true
+    private var storedDownloads = false
+
+    var automaticallyDownloadsUpdates: Bool {
+        get { automaticallyChecksForUpdates && storedDownloads }
+        set {
+            guard automaticallyChecksForUpdates else { return }
+            storedDownloads = newValue
+        }
+    }
 }
