@@ -62,8 +62,10 @@ final class BundleConfigTests: XCTestCase {
         XCTAssertEqual(appInfo["SURequireSignedFeed"] as? Bool, true)
     }
 
-    /// Whether updates install on their own is left to Sparkle's defaults;
-    /// pinning the keys absent is what catches a later addition.
+    /// Absent, Sparkle allows automatic installs exactly while automatic
+    /// checks are on, which is what the Settings toggle relies on. True would
+    /// let the install preference read on with checks off; false would leave
+    /// the toggle permanently inert and hide the update window's checkbox.
     func testLeavesAutomaticInstallToSparkle() {
         XCTAssertNil(appInfo["SUAllowsAutomaticUpdates"])
     }

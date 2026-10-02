@@ -22,7 +22,8 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     /// Whether the running copy has an updater at all; the development copy
     /// has none, and an item that cannot work is worse than no item.
     var hasUpdater = false { didSet { refreshBadge() } }
-    /// The updater's own gate: false while a check or an install is running.
+    /// The updater's own gate: false while a check or an install is running,
+    /// and for as long as a downloaded update is held for install.
     var canCheckForUpdates = true
     /// An update a background check found, shown in the menu instead of in a
     /// window of its own.

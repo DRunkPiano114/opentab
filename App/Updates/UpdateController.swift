@@ -151,6 +151,11 @@ final class UpdateController {
 /// user can install it now instead of at the next quit, which for an app that
 /// runs for weeks may be a long way off.
 ///
+/// Holding it keeps Sparkle's update session open: no scheduled check runs
+/// until the user installs it or OpenTab quits. That is why the restart is
+/// offered in About as well as in the menu, and why nothing is held while the
+/// status item is hidden.
+///
 /// Sparkle calls every method here on the main thread.
 @MainActor
 private final class PendingInstall: NSObject, SPUUpdaterDelegate {
@@ -211,10 +216,14 @@ private final class PendingInstall: NSObject, SPUUpdaterDelegate {
     }
 }
 
-/// Keeps an update found by a scheduled check out of a window of its own.
-/// Sparkle opens that window without activating an accessory app, so it lands
-/// behind whatever is in front and no further scheduled check runs while it
-/// waits; the status item carries the reminder instead.
+/// Keeps an update found by a scheduled check out of a window of its own,
+/// which Sparkle opens without activating an accessory app, so it lands
+/// behind whatever is in front; the status item carries the reminder instead.
+///
+/// The reminder keeps Sparkle's update session open just as the window
+/// would: no scheduled check runs until the user acts on the update or
+/// OpenTab quits. That is why the reminder must stay reachable, and why
+/// Sparkle shows the update itself while the status item is hidden.
 ///
 /// Sparkle calls every method here on the main thread.
 @MainActor
