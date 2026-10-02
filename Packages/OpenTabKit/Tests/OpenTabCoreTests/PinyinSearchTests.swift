@@ -86,7 +86,11 @@ final class PinyinSearchTests: XCTestCase {
         XCTAssertEqual(text.pinyin.map(\.count), [0, 1, 0])
     }
 
-    func testIndexBuildIsFast() {
+    func testIndexBuildIsFast() throws {
+        // A wall-clock budget only means something on a machine whose speed is
+        // known; a shared CI runner is not one, so the budget is a local check.
+        try XCTSkipIf(ProcessInfo.processInfo.environment["CI"] != nil,
+                      "wall-clock budget is not meaningful on a shared runner")
         let title = "硕士论文提纲：第一章研究背景与文献综述，第二章方法与数据，第三章结果 - YouTube - Google Chrome"
         _ = IndexedText(title)
         let rounds = 200
