@@ -50,6 +50,10 @@ final class BundleConfigTests: XCTestCase {
         XCTAssertEqual(appInfo["SUEnableAutomaticChecks"] as? Bool, true)
     }
 
+    func testChecksForUpdatesEverySixHours() {
+        XCTAssertEqual(appInfo["SUScheduledCheckInterval"] as? Int, 21600)
+    }
+
     func testVerifiesUpdatesBeforeExtraction() {
         XCTAssertEqual(appInfo["SUVerifyUpdateBeforeExtraction"] as? Bool, true)
     }

@@ -73,6 +73,10 @@ targets:
         SUFeedURL: $(OPENTAB_FEED_URL)
         SUPublicEDKey: $(OPENTAB_SPARKLE_PUBLIC_KEY)
         SUEnableAutomaticChecks: true
+        # Six hours, in seconds. Set here and never through the updater's
+        # setter, which writes the user's defaults and from then on
+        # overrides whatever this key says.
+        SUScheduledCheckInterval: 21600
         SURequireSignedFeed: true
         SUVerifyUpdateBeforeExtraction: true
     # Debug entitlements, generated into Support/OpenTab.entitlements.

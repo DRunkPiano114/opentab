@@ -18,7 +18,7 @@ struct AboutSettingsView: View {
                     Button("Check for Updates\u{2026}", action: actions.checkForUpdates)
                     Toggle("Check for updates automatically", isOn: $store.automaticUpdateChecks)
                     Text("""
-                        Once a day OpenTab asks GitHub whether a newer version exists; an update \
+                        Every six hours OpenTab asks GitHub whether a newer version exists; an update \
                         installs only after you click Install.
                         """)
                     .settingsHelp()
