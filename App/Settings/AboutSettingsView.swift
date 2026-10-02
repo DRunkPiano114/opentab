@@ -15,15 +15,26 @@ struct AboutSettingsView: View {
             }
             if model.updatesAvailable {
                 Section("Updates") {
-                    Button("Check for Updates\u{2026}", action: actions.checkForUpdates)
+                    // A held update keeps the updater busy, so the check
+                    // button would stay disabled until the next quit.
+                    if let ready = model.readyToInstall {
+                        Button("Restart to Update to \(ready)", action: actions.installUpdate)
+                    } else {
+                        Button("Check for Updates\u{2026}", action: actions.checkForUpdates)
+                            .disabled(!model.canCheckForUpdates)
+                    }
                     Toggle("Check for updates automatically", isOn: $store.automaticUpdateChecks)
                     Toggle("Download and install updates automatically", isOn: $store.automaticUpdateInstalls)
                         .disabled(!store.automaticUpdateChecks)
                     Text("""
-                        Every six hours OpenTab asks GitHub whether a newer version exists. Without \
-                        automatic installs, an update installs only after you click Install. With them, \
-                        it downloads in the background and installs when OpenTab quits, or at once from \
-                        Restart to Update in the menu bar.
+                        With automatic checks on, OpenTab asks GitHub for a newer version every six hours, \
+                        and stops asking while an update it found is waiting to be installed. Without \
+                        automatic installs, a new update installs only after you click Install in its \
+                        window. When a background check finds one, the menu bar offers it first, unless the \
+                        icon is hidden or the update is critical. With automatic installs, an update \
+                        downloads in the background and installs when OpenTab quits, or at once from Restart \
+                        to Update when that appears. An update that has already downloaded still installs \
+                        when OpenTab quits, even if you turn these settings off.
                         """)
                     .settingsHelp()
                 }

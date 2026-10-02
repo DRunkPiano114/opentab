@@ -145,9 +145,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusMenu.onRestartToUpdate = { [weak self] in self?.updates?.installNow() }
         // Assigning the closure replays the current value, so the menu is
         // right from the first draw.
-        updates?.onCanCheckForUpdatesChanged = { [weak self] can in self?.statusMenu.canCheckForUpdates = can }
+        updates?.onCanCheckForUpdatesChanged = { [weak self] can in
+            self?.statusMenu.canCheckForUpdates = can
+            self?.settingsModel.canCheckForUpdates = can
+        }
         updates?.onWaitingUpdateChanged = { [weak self] waiting in self?.statusMenu.waitingUpdate = waiting }
-        updates?.onReadyToInstallChanged = { [weak self] version in self?.statusMenu.readyToInstall = version }
+        updates?.onReadyToInstallChanged = { [weak self] version in
+            self?.statusMenu.readyToInstall = version
+            self?.settingsModel.readyToInstall = version
+        }
         updates?.onAutomaticallyDownloadsUpdatesChanged = { [weak self] downloads in
             self?.settings.automaticUpdateInstalls = downloads
         }
@@ -387,6 +393,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.settingsModel.safariCacheGranted = granted
         }
         actions.checkForUpdates = { [weak self] in self?.updates?.checkForUpdates() }
+        actions.installUpdate = { [weak self] in self?.updates?.installNow() }
         actions.refreshHealth = { [weak self] in
             guard let self else { return }
             self.settingsModel.health = self.health.snapshot()

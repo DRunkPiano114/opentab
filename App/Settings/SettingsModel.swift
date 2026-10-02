@@ -16,6 +16,12 @@ final class SettingsModel {
     var safariCacheGranted = false
     /// Whether this copy has an updater at all; the development copy has none.
     var updatesAvailable = false
+    /// The updater's own gate: false while a check runs or a downloaded update
+    /// is held for install.
+    var canCheckForUpdates = true
+    /// The version of an update downloaded in the background and held for
+    /// install, which About offers as a restart.
+    var readyToInstall: String?
     /// Set while another copy of OpenTab is running, which makes every press
     /// of the shortcut open two panels.
     var otherInstance: String?
@@ -40,6 +46,8 @@ struct SettingsActions {
     /// Asks the updater to look now. Inert in a build that has no updater,
     /// where the About page draws no update controls either.
     var checkForUpdates: () -> Void = {}
+    /// Installs the held update and relaunches.
+    var installUpdate: () -> Void = {}
     /// True while a shortcut field is capturing; the global chords are
     /// released so the field can see them.
     var setRecording: (Bool) -> Void = { _ in }
