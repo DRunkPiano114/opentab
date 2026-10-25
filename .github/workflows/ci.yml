@@ -39,6 +39,16 @@ jobs:
       # has neither, so they can only be run on a developer's machine.
       - name: Unit tests
         run: make test
+      # Code and comments must stand on their own for a public reader, so they
+      # carry no references to private planning documents or their numbering.
+      - name: No private references
+        # git grep exits 1 for no match; 0 is a leak and anything else (a git
+        # built without PCRE) must not pass as clean.
+        run: |
+          set +e
+          git grep -nIP 'runbook|notes/|packet|\bE[0-9]b?\b|\b[UP][0-9]\b|\bL[0-9]{1,2}\b' \
+            -- App Packages Tests Scripts Support project.yml Makefile .github ':!.github/workflows/ci.yml'
+          test $? -eq 1
       # Ad-hoc signed, so it needs no keychain and no certificate. This is a
       # compile check; the bundle is never installed or launched.
       - name: Build the app
