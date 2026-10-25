@@ -74,9 +74,14 @@ test:
 	  | { grep -E "Test Case|Executed|error:|warning:|failed" || true; }
 
 ## Tests that need the real app bundle (Info.plist contract, self-process AX).
+## They post Option-Tab and Command-Tab system-wide, so two runs at once answer
+## each other's keys; the lock makes the second run fail at once instead.
 test-app: project
 	@mkdir -p "$(HERE)/build"
-	@cd "$(HERE)" && xcodebuild test -project $(APP_NAME).xcodeproj -scheme $(APP_NAME) \
+	@lock="$${TMPDIR:-/tmp}/im.opentab.test-app.lock"; \
+	  shlock -f "$$lock" -p $$$$ || { echo "another make test-app is running (lock $$lock)"; exit 1; }; \
+	  trap 'rm -f "$$lock"' EXIT; \
+	  cd "$(HERE)" && xcodebuild test -project $(APP_NAME).xcodeproj -scheme $(APP_NAME) \
 	  -configuration Debug -destination 'platform=macOS' \
 	  -derivedDataPath "$(DERIVED)" > "$(HERE)/build/xcodebuild-test.log" 2>&1; status=$$?; \
 	  grep -E "Test Case|Executed|error:|\*\* TEST" "$(HERE)/build/xcodebuild-test.log"; exit $$status
