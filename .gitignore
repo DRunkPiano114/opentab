@@ -37,8 +37,8 @@ xcuserdata/
 .idea/
 .vscode/
 
-# Local design/planning notes — not published
-runbook/
+# Private notes, a separate git repository: not published
+notes/
 
 # Signing-identity stamp written by the Makefile
 .cert-stamp
