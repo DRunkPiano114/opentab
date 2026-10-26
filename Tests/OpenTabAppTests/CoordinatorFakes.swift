@@ -73,7 +73,7 @@ final class FakeTabProvider: TabProvider, @unchecked Sendable {
     private struct State {
         var tabs: [TabSnapshot] = []
         var readError: ScriptError?
-        var activateError: ScriptError?
+        var activateError: (any Error)?
         var reads = 0
         var activated: [TabSnapshot] = []
         /// Applied to `tabs` after each activation, to script what the
@@ -93,6 +93,7 @@ final class FakeTabProvider: TabProvider, @unchecked Sendable {
     func set(tabs: [TabSnapshot]) { lock.withLock { $0.tabs = tabs } }
     func failReads(with error: ScriptError?) { lock.withLock { $0.readError = error } }
     func failActivation(with error: ScriptError?) { lock.withLock { $0.activateError = error } }
+    func failActivation(with error: any Error) { lock.withLock { $0.activateError = error } }
     func onActivate(_ body: @escaping @Sendable (TabSnapshot, inout [TabSnapshot]) -> Void) {
         lock.withLock { $0.onActivate = body }
     }
@@ -110,7 +111,7 @@ final class FakeTabProvider: TabProvider, @unchecked Sendable {
     }
 
     func activate(_ tab: TabSnapshot, deadline: ContinuousClock.Instant) async throws {
-        let error = lock.withLock { state -> ScriptError? in
+        let error = lock.withLock { state -> (any Error)? in
             state.activated.append(tab)
             if let error = state.activateError { return error }
             state.onActivate?(tab, &state.tabs)

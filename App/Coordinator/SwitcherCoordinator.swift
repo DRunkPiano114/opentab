@@ -597,6 +597,19 @@ final class SwitcherCoordinator {
                 guard let tabs = await readTabsNow(of: app, provider: provider, coalesce: false) else { return .gone }
                 return Self.landing(of: tab, stability: provider.tokenStability, in: tabs, selected: false)
             }
+        } catch let error as AXSourceError {
+            log.notice("tab select failed pid=\(app.pid, privacy: .public) error=\(error.name, privacy: .public)")
+            switch error {
+            case .deadlineExceeded, .cannotComplete, .notTrusted:
+                return .unknown
+            case .invalidElement, .failure, .notImplemented:
+                // The pressed element is one an earlier read returned. Raising
+                // a window from another Space can replace it, and a fresh read
+                // names the button the tab has now. A stale element says
+                // nothing about the tab, so a failed read removes nothing.
+                guard let tabs = await readTabsNow(of: app, provider: provider, coalesce: false) else { return .unknown }
+                return Self.landing(of: tab, stability: provider.tokenStability, in: tabs, selected: false)
+            }
         } catch {
             return .unknown
         }

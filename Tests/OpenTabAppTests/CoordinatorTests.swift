@@ -308,6 +308,51 @@ final class CoordinatorTests: XCTestCase {
         XCTAssertEqual(tabs.map(\.title), ["Apple", "WWDC", "Swift Forums"], "the read taken for the landing check is kept")
     }
 
+    /// A Finder-like group of three positional tabs in window 82, read once.
+    private func nativeTabGroup() async -> (provider: FakeTabProvider, group: WindowKey, two: Entry) {
+        let finder = AppInfo(bundleID: "com.apple.finder", pid: 600, localizedName: "Finder")
+        let finderProvider = FakeTabProvider(bundleIDs: [finder.bundleID], tokenStability: .positional)
+        harness = CoordinatorHarness(providers: [finderProvider], live: [82])
+        harness.directory.set(apps: [finder])
+        harness.source.set([window(82, finder, title: "one", focused: true)], for: finder)
+        func tab(_ index: Int, _ title: String, active: Bool = false) -> TabSnapshot {
+            TabSnapshot(windowKey: .cg(82), token: String(index), title: title, url: nil, isActive: active, isPrivate: false)
+        }
+        finderProvider.set(tabs: [tab(0, "one", active: true), tab(1, "two"), tab(2, "three")])
+        await harness.coordinator.handle(.appActivated(finder, FocusGeneration(raw: 1)))
+        let group = harness.entries.first!.key
+        let two = harness.coordinator.store.tabs(in: group).first { $0.title == "two" }!
+        return (finderProvider, group, two)
+    }
+
+    /// An Accessibility provider presses a tab button it read earlier. For a
+    /// group read on another Space, raising the window can leave that element
+    /// stale, and the press fails with `invalidElement`. A fresh read then
+    /// names the tab's current button, found by title, and that one is pressed.
+    func testStaleTabButtonIsReadAgainAndPressedOnceMore() async {
+        let (provider, group, two) = await nativeTabGroup()
+        provider.failActivation(with: AXSourceError.invalidElement)
+        let reads = provider.reads
+        await harness.coordinator.activate(two)
+
+        XCTAssertEqual(provider.activated.map(\.title), ["two", "two"],
+                       "the failed press is followed by one press of the tab the fresh read found")
+        XCTAssertEqual(provider.reads, reads + 2, "each failed press is followed by one read")
+        XCTAssertEqual(harness.coordinator.store.tabs(in: group).map(\.title), ["one", "two", "three"])
+    }
+
+    /// Unlike a provider reporting the tab missing, a stale element says
+    /// nothing about the tab, so no read to settle it removes nothing.
+    func testStaleTabButtonWithoutAFreshReadKeepsTheTab() async {
+        let (provider, group, two) = await nativeTabGroup()
+        provider.failActivation(with: AXSourceError.invalidElement)
+        provider.failReads(with: .timedOut)
+        await harness.coordinator.activate(two)
+
+        XCTAssertEqual(provider.activated.count, 1)
+        XCTAssertEqual(harness.coordinator.store.tabs(in: group).map(\.title), ["one", "two", "three"])
+    }
+
     /// A neighbouring tab whose title merely extends the expected one is
     /// not a landing, and two equally plausible candidates mean no retry.
     func testPositionalLandingIsExactAndAmbiguityStopsTheRetry() async {
