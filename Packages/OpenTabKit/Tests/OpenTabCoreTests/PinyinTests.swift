@@ -66,17 +66,19 @@ final class PinyinTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(covered, 20000)
     }
 
-    func testDecodingTheTableIsFastEnoughForStartup() {
+    func testDecodingTheTableIsFastEnoughForStartup() throws {
         let start = DispatchTime.now().uptimeNanoseconds
         let table = PinyinTable.decode()
         let elapsed = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
         print("PinyinTable decode: \(elapsed) ms")
         XCTAssertEqual(table.offsets.count, 0x9FFF - 0x4E00 + 2)
         XCTAssertEqual(Int(table.offsets.last!), table.ids.count)
+        try XCTSkipIf(ProcessInfo.processInfo.environment["CI"] != nil,
+                      "wall-clock budget is not meaningful on a shared runner")
         XCTAssertLessThan(elapsed, 100)
     }
 
-    func testLookupThroughput() {
+    func testLookupThroughput() throws {
         _ = Pinyin.readings(of: "硕")
         var generator = SystemRandomNumberGenerator()
         let scalars = (0..<100_000).map { _ in
@@ -88,6 +90,8 @@ final class PinyinTests: XCTestCase {
         let elapsed = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
         print("PinyinTable 100k lookups: \(elapsed) ms, \(elapsed * 10) ns/op, \(total) readings")
         XCTAssertGreaterThan(total, 0)
+        try XCTSkipIf(ProcessInfo.processInfo.environment["CI"] != nil,
+                      "wall-clock budget is not meaningful on a shared runner")
         XCTAssertLessThan(elapsed, 200)
     }
 }
