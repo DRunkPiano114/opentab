@@ -122,17 +122,7 @@ public final class AXTabProvider: TabProvider, TabCloser, AccessibilityTabReads,
 
     // MARK: - Scanning (runs on the pid's queue)
 
-    private struct AppScan {
-        var snapshots: [TabSnapshot] = []
-        var windowsScanned = 0
-        var windowsWithoutOneActiveTab = 0
-        var windowsUsingDeclaredTabs = 0
-        var nodesVisited = 0
-        var stops: Set<TabScanStop> = []
-        var incomplete = false
-    }
-
-    private func scan(app: AppInfo, deadline: ContinuousClock.Instant) throws -> AppScan {
+    private func scan(app: AppInfo, deadline: ContinuousClock.Instant) throws -> TabScanEngine<AXTabTreeSource>.Scan {
         try Self.checkDeadline(deadline)
         let appElement = AXElement.application(pid: app.pid)
         let windows = AXRead.value(appElement, kAXWindowsAttribute)
@@ -145,50 +135,12 @@ public final class AXTabProvider: TabProvider, TabCloser, AccessibilityTabReads,
         default:
             throw AXSourceError.from(windows.error)
         }
-        // No window is not the same as no tabs: a full-screen app reports zero
-        // AX windows while the window is plainly still there. Saying nothing
-        // keeps the rows; saying "empty" would delete them.
-        guard !elements.isEmpty else { throw AXSourceError.cannotComplete }
 
-        var scan = AppScan()
-        var tabs: [CGWindowID: [AXElement]] = [:]
+        let engine = TabScanEngine(source: tree, limits: limits, isListable: Self.isListable,
+                                   windowID: windowID(of:), layer: cgTable.layer(of:))
+        let scan = try engine.scan(.init(axWindows: elements.map(AXElement.init)), deadline: deadline)
 
-        for raw in elements {
-            try Self.checkDeadline(deadline)
-            let window = AXElement(raw)
-            guard isListable(window), let id = windowID(of: window) else { continue }
-            scan.windowsScanned += 1
-
-            let result = TabTreeScanner.scan(window: window, source: tree, limits: limits, deadline: deadline)
-            scan.nodesVisited += result.nodesVisited
-            scan.stops.formUnion(result.stops)
-            if result.stops.contains(.deadline) || result.stops.contains(.unreadable)
-                || result.stops.contains(.nodes) {
-                scan.incomplete = true
-            }
-            guard !result.tabs.isEmpty else { continue }
-            if result.usedDeclaredTabs { scan.windowsUsingDeclaredTabs += 1 }
-
-            // Exactly one tab per window carries `AXValue == true`. More than
-            // one, or none, means the read caught the strip mid-change; the
-            // first selected tab wins and the discrepancy is counted.
-            let selected = result.tabs.indices.filter { result.tabs[$0].attributes.isSelected }
-            if selected.count != 1 { scan.windowsWithoutOneActiveTab += 1 }
-            let active = selected.first
-
-            tabs[id] = result.tabs.map(\.node)
-            for (index, tab) in result.tabs.enumerated() {
-                scan.snapshots.append(TabSnapshot(windowKey: .cg(id), token: String(index),
-                                                  title: tab.attributes.displayTitle, url: nil,
-                                                  isActive: index == active, isPrivate: false))
-            }
-        }
-
-        // An inconclusive scan must not be reported as "no tabs": that answer
-        // is acted on as evidence.
-        if scan.snapshots.isEmpty, scan.incomplete { throw AXSourceError.cannotComplete }
-
-        let replacement = tabs
+        let replacement = scan.tabs
         let pid = app.pid
         state.withLock { state in
             for (id, owner) in state.owners where owner == pid && replacement[id] == nil {
@@ -211,7 +163,7 @@ public final class AXTabProvider: TabProvider, TabCloser, AccessibilityTabReads,
     /// always a window the list already has a row for: both subroles are kept
     /// and window state is never inferred from the subrole, and a record
     /// that is not a real window is dropped by its layer.
-    private func isListable(_ window: AXElement) -> Bool {
+    private static func isListable(_ window: AXElement) -> Bool {
         guard let slots = AXRead.multiple(window, [kAXRoleAttribute, kAXSubroleAttribute]).values,
               (slots[0] as? String) == kAXWindowRole else { return false }
         let subrole = (slots[1] as? String) ?? ""
@@ -221,7 +173,7 @@ public final class AXTabProvider: TabProvider, TabCloser, AccessibilityTabReads,
     private func windowID(of element: AXElement) -> CGWindowID? {
         guard let getWindow else { return nil }
         var id: CGWindowID = 0
-        guard getWindow(element.raw, &id) == .success, id != 0, cgTable.layer(of: id) == 0 else { return nil }
+        guard getWindow(element.raw, &id) == .success, id != 0 else { return nil }
         return id
     }
 
@@ -281,7 +233,7 @@ public final class AXTabProvider: TabProvider, TabCloser, AccessibilityTabReads,
     }
 
     private static func checkDeadline(_ deadline: ContinuousClock.Instant) throws {
-        if ContinuousClock.now >= deadline { throw AXSourceError.deadlineExceeded }
+        try TabScanEngine<AXTabTreeSource>.checkDeadline(deadline)
     }
 }
 
