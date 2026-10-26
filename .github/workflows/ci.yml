@@ -124,3 +124,9 @@ jobs:
       - name: Failures
         if: failure()
         run: grep -E "error:|Executed .* tests|\*\* TEST" build/xcodebuild-test.log | tail -60 || true
+      # The test host logs what it did (keys, sessions, activations) to the
+      # unified log, which the test output does not carry. Nothing on a runner
+      # is private.
+      - name: App log
+        if: failure()
+        run: /usr/bin/log show --last 30m --info --style compact --predicate 'subsystem BEGINSWITH "im.opentab"' | tail -400
