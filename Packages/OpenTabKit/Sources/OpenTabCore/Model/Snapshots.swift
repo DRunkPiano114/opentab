@@ -18,10 +18,17 @@ public struct WindowSnapshot: Sendable, Hashable {
     /// Whether this window is the app's focused window (`kAXFocusedWindowAttribute`).
     /// Drives `Entry.focusTick` when the app is activated.
     public let isFocused: Bool
+    /// The WindowServer still lists the window, AX does not, and it is no
+    /// longer a switch target: on no Space past the source's grace period, or
+    /// ordered out on the active Space. A background native tab is such a
+    /// window and lives as long as its tab, so this flag, not the window's
+    /// disappearance, is the evidence that removes its row. A store never
+    /// adds a row for it.
+    public let isOrderedOut: Bool
 
     public init(key: WindowKey, app: AppInfo, title: String, subrole: String,
                 isMinimized: Bool, isOnActiveSpace: Bool = true, level: Int32? = nil,
-                isFocused: Bool = false) {
+                isFocused: Bool = false, isOrderedOut: Bool = false) {
         self.key = key
         self.app = app
         self.title = title
@@ -30,6 +37,7 @@ public struct WindowSnapshot: Sendable, Hashable {
         self.isOnActiveSpace = isOnActiveSpace
         self.level = level
         self.isFocused = isFocused
+        self.isOrderedOut = isOrderedOut
     }
 }
 

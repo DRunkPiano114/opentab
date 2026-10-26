@@ -242,11 +242,12 @@ public final class OffSpaceWindowSource: WindowSource, @unchecked Sendable {
         var snapshots = axSnapshots
         var unresolved: Set<CGWindowID> = []
         var kept: Set<CGWindowID> = []
+        var orderedOut: Set<CGWindowID> = []
         let active = backend.activeSpaces()
 
         func finish() -> [WindowSnapshot] {
             snapshots = snapshots.map { snapshot in
-                guard case .cg(let wid) = snapshot.key else { return snapshot }
+                guard case .cg(let wid) = snapshot.key, !snapshot.isOrderedOut else { return snapshot }
                 let spaces = backend.spacesOfWindow(wid)
                 let onActive: Bool
                 if let active {
@@ -276,7 +277,8 @@ public final class OffSpaceWindowSource: WindowSource, @unchecked Sendable {
         // is scanned, and every window known from before stands in.
         guard let rows = backend.rows(pid) else {
             report.windowListUnknown = true
-            for (wid, cached) in pidState.lastSnapshot where !axWindowIDs.contains(wid) {
+            for (wid, cached) in pidState.lastSnapshot
+            where !axWindowIDs.contains(wid) && !cached.snapshot.isOrderedOut {
                 snapshots.append(cached.snapshot)
                 report.keptUnreached += 1
             }
@@ -292,26 +294,41 @@ public final class OffSpaceWindowSource: WindowSource, @unchecked Sendable {
         for wid in axWindowIDs { pidState.reached.removeValue(forKey: wid) }
 
         var candidates = Set(rows.filter(WindowServerTable.isCandidate).map(\.id)).subtracting(axWindowIDs)
+        // A window this source listed before is reported ordered out on every
+        // read while the condition holds. A background native tab lives as
+        // long as its tab, so that report is the only way its row goes, and
+        // one read the store drops must not lose the evidence for good.
+        func orderOut(_ wid: CGWindowID) {
+            candidates.remove(wid)
+            pidState.reached.removeValue(forKey: wid)
+            guard let cached = pidState.lastSnapshot[wid]?.snapshot else { return }
+            pidState.lastSnapshot[wid]?.snapshot = WindowSnapshot(
+                key: cached.key, app: cached.app, title: cached.title, subrole: cached.subrole,
+                isMinimized: cached.isMinimized, isOnActiveSpace: false, level: cached.level,
+                isFocused: false, isOrderedOut: true)
+            orderedOut.insert(wid)
+        }
         if let active {
             for wid in candidates {
                 let spaces = backend.spacesOfWindow(wid)
                 if spaces.isEmpty {
-                    candidates.remove(wid)
-                    if let cached = pidState.lastSnapshot[wid], now - cached.onSpaceAt < configuration.noSpaceGrace {
+                    if let cached = pidState.lastSnapshot[wid], !cached.snapshot.isOrderedOut,
+                       now - cached.onSpaceAt < configuration.noSpaceGrace {
+                        candidates.remove(wid)
                         kept.insert(wid)
                     } else {
-                        pidState.lastSnapshot.removeValue(forKey: wid)
-                        pidState.reached.removeValue(forKey: wid)
+                        orderOut(wid)
                         report.noSpace += 1
                     }
                 } else if spaces.contains(where: { active.contains($0) }),
                           let row = rows.first(where: { $0.id == wid }), !row.isOnscreen {
                     // On the Space we are looking at, yet neither on screen nor
                     // listed by AX (which lists minimized windows): ordered out.
-                    candidates.remove(wid)
-                    pidState.lastSnapshot.removeValue(forKey: wid)
-                    pidState.reached.removeValue(forKey: wid)
+                    orderOut(wid)
                     report.orderedOut += 1
+                } else if pidState.lastSnapshot[wid]?.snapshot.isOrderedOut == true {
+                    // Back on a Space: an ordinary candidate again.
+                    pidState.lastSnapshot.removeValue(forKey: wid)
                 }
             }
         }
@@ -398,7 +415,7 @@ public final class OffSpaceWindowSource: WindowSource, @unchecked Sendable {
         // A miss says nothing about the window. While the WindowServer
         // lists it, the last snapshot stands in.
         for wid in unresolved {
-            if pidState.lastSnapshot[wid] != nil {
+            if let cached = pidState.lastSnapshot[wid], !cached.snapshot.isOrderedOut {
                 kept.insert(wid)
             } else {
                 report.unreached += 1
@@ -408,6 +425,10 @@ public final class OffSpaceWindowSource: WindowSource, @unchecked Sendable {
             guard let cached = pidState.lastSnapshot[wid] else { continue }
             snapshots.append(cached.snapshot)
             report.keptUnreached += 1
+        }
+        for wid in orderedOut {
+            guard let cached = pidState.lastSnapshot[wid] else { continue }
+            snapshots.append(cached.snapshot)
         }
         return finish()
     }

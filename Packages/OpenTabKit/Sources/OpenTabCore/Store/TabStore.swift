@@ -140,17 +140,26 @@ public struct TabStore: Sendable {
     /// An empty read is rejected outright. A non-empty read removes the
     /// app's active-Space windows it does not list; windows on other Spaces
     /// are invisible to AX enumeration and are left to the sweep.
+    ///
+    /// A snapshot marked `isOrderedOut` is not a listing: it removes that
+    /// window's row whatever its Space flag, adds none, and does not make
+    /// an otherwise empty read remove what it omits.
     public mutating func applyWindows(_ snapshots: [WindowSnapshot], for app: AppInfo, isHidden: Bool,
                                       bumpFocused: Bool = false, stamp: ReadStamp,
                                       now: ContinuousClock.Instant = .now) -> ApplyResult {
         if let rejected = rejection(of: stamp, expecting: .windows) { return .dropped(rejected) }
-        let kept = snapshots.filter { !ignoreRules.ignores($0) }
+        var changed = false
+        let orderedOut = Set(snapshots.filter(\.isOrderedOut).map { EntryID.window($0.key) })
+        for id in orderedOut where windowClosed(id, reason: .windowClosed) { changed = true }
+        let kept = snapshots.filter { !$0.isOrderedOut && !ignoreRules.ignores($0) }
         guard !kept.isEmpty else {
+            guard orderedOut.isEmpty else {
+                return ApplyResult(disposition: .applied, changed: changed, claims: [], releasedWindows: [])
+            }
             Self.log.debug("empty window read rejected pid=\(app.pid, privacy: .public)")
             return .dropped(.rejectedEmpty)
         }
 
-        var changed = false
         var seen: Set<EntryID> = []
         for snapshot in kept {
             let id = EntryID.window(snapshot.key)

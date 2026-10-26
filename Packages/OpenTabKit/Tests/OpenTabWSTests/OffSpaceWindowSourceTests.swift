@@ -185,8 +185,8 @@ final class OffSpaceWindowSourceTests: XCTestCase {
 
     /// A fullscreen transition leaves the window on no Space for about a
     /// second. A window read moments ago keeps its row through that; one
-    /// that stays on no Space past the grace is ordered out and dropped.
-    func testKnownWindowOnNoSpaceIsKeptWithinGraceThenDropped() {
+    /// that stays on no Space past the grace is reported ordered out.
+    func testKnownWindowOnNoSpaceIsKeptWithinGraceThenReportedOrderedOut() {
         world.rows = [row(91), row(82)]
         world.spaces = [91: [3], 82: [1088]]
         world.elements = [5: 82]
@@ -206,9 +206,45 @@ final class OffSpaceWindowSourceTests: XCTestCase {
 
         source.clock = { start + .seconds(11) }
         let after = source.augment([axSnapshot(91)], of: app, deadline: far)
-        XCTAssertEqual(keys(after), [.cg(91)], "past the grace it is an ordered-out window")
+        XCTAssertEqual(keys(after.filter { !$0.isOrderedOut }), [.cg(91)], "past the grace it is no switch target")
+        XCTAssertEqual(keys(after.filter(\.isOrderedOut)), [.cg(82)])
+        XCTAssertEqual(after.first { $0.key == .cg(82) }?.isOnActiveSpace, false)
         XCTAssertEqual(source.report(for: 996)?.noSpace, 1)
         XCTAssertNil(source.reachedElement(for: .cg(82)))
+    }
+
+    /// The report repeats on every read while the window stays on no Space,
+    /// so a read the store drops does not lose it. A failed window list is
+    /// no evidence and repeats nothing; a Space again ends the report.
+    func testOrderedOutReportRepeatsUntilTheWindowIsBackOnASpace() {
+        world.rows = [row(91), row(82)]
+        world.spaces = [91: [3], 82: [1088]]
+        world.elements = [5: 82]
+        world.windowRoles = [5]
+        world.reads = [82: .window(subrole: "AXStandardWindow", title: "t", isMinimized: false)]
+        let source = source()
+        let start = ContinuousClock.now
+        source.clock = { start }
+        _ = source.augment([axSnapshot(91)], of: app, deadline: far)
+        world.spaces[82] = []
+        source.clock = { start + .seconds(11) }
+        _ = source.augment([axSnapshot(91)], of: app, deadline: far)
+
+        source.clock = { start + .seconds(60) }
+        let probes = world.probes
+        let later = source.augment([axSnapshot(91)], of: app, deadline: far)
+        XCTAssertEqual(keys(later.filter(\.isOrderedOut)), [.cg(82)])
+        XCTAssertEqual(world.probes, probes, "an ordered-out window costs no scan")
+
+        world.rowsUnknown = true
+        let unknown = source.augment([axSnapshot(91)], of: app, deadline: far)
+        XCTAssertEqual(keys(unknown), [.cg(91)])
+        world.rowsUnknown = false
+
+        world.spaces[82] = [1088]
+        let back = source.augment([axSnapshot(91)], of: app, deadline: far)
+        XCTAssertEqual(keys(back), [.cg(91), .cg(82)])
+        XCTAssertFalse(back.contains(where: \.isOrderedOut))
     }
 
     /// A failed `CGWindowListCopyWindowInfo` is not a window list. Nothing is
@@ -325,5 +361,127 @@ final class OffSpaceWindowSourceTests: XCTestCase {
         XCTAssertEqual(result.count, 1)
         XCTAssertEqual(result.first?.title, "ax 82")
         XCTAssertNil(source.reachedElement(for: .cg(82)), "the pure-AX activator owns it now")
+    }
+
+    // MARK: Through the store
+
+    /// One refresh as production runs it: the source's answer applied to the
+    /// store, then a sweep against every window the WindowServer lists.
+    private func tick(_ source: OffSpaceWindowSource, _ store: inout TabStore, ax: [WindowSnapshot],
+                      at now: ContinuousClock.Instant) {
+        source.clock = { now }
+        let snapshots = source.augment(ax, of: app, deadline: far)
+        let stamp = store.beginRead(for: app, kind: .windows)
+        _ = store.applyWindows(snapshots, for: app, isHidden: false, stamp: stamp, now: now)
+        _ = store.sweep(liveWindowIDs: Set(world.rows.map(\.id)), now: now)
+    }
+
+    private func shown(_ store: TabStore) -> Set<WindowKey> { Set(store.sorted().map(\.key)) }
+
+    /// Turns `wid` into a background native tab. It stays in the WindowServer
+    /// for as long as the tab exists, off screen, on no Space and absent from AX.
+    private func makeBackgroundTab(_ wid: CGWindowID) {
+        world.rows = world.rows.map { $0.id == wid ? row(wid, onscreen: false) : $0 }
+        world.spaces[wid] = []
+    }
+
+    /// A native tab group on the active Space: 91 and 82 are tabs, and the
+    /// user selects 91, so 82 becomes a background tab.
+    func testBackgroundTabSeenOnTheActiveSpaceLosesItsRowPastTheGrace() {
+        world.rows = [row(91, onscreen: true), row(82, onscreen: true)]
+        world.spaces = [91: [3], 82: [3]]
+        let source = source()
+        var store = TabStore()
+        let start = ContinuousClock.now
+        tick(source, &store, ax: [axSnapshot(91), axSnapshot(82)], at: start)
+        XCTAssertEqual(shown(store), [.cg(91), .cg(82)])
+
+        makeBackgroundTab(82)
+        tick(source, &store, ax: [axSnapshot(91)], at: start + .seconds(1))
+        tick(source, &store, ax: [axSnapshot(91)], at: start + .seconds(11))
+        XCTAssertEqual(shown(store), [.cg(91)], "past the grace a window on no Space is no switch target")
+        for seconds in [20, 40, 60] {
+            tick(source, &store, ax: [axSnapshot(91)], at: start + .seconds(seconds))
+        }
+        XCTAssertEqual(shown(store), [.cg(91)], "the WindowServer still listing the tab brings nothing back")
+
+        world.rows = [row(91, onscreen: true), row(82, onscreen: true)]
+        world.spaces[82] = [3]
+        tick(source, &store, ax: [axSnapshot(91), axSnapshot(82)], at: start + .seconds(61))
+        XCTAssertEqual(shown(store), [.cg(91), .cg(82)], "selected again, the tab is a window again")
+    }
+
+    func testBackgroundTabFirstSeenOnAnotherSpaceLosesItsRowPastTheGrace() {
+        world.rows = [row(91, onscreen: true), row(82)]
+        world.spaces = [91: [3], 82: [1088]]
+        world.elements = [5: 82]
+        world.windowRoles = [5]
+        world.reads = [82: .window(subrole: "AXStandardWindow", title: "Documents", isMinimized: false)]
+        let source = source()
+        var store = TabStore()
+        let start = ContinuousClock.now
+        tick(source, &store, ax: [axSnapshot(91)], at: start)
+        XCTAssertEqual(shown(store), [.cg(91), .cg(82)])
+        XCTAssertEqual(store.entries[.window(.cg(82))]?.isOnActiveSpace, false)
+
+        makeBackgroundTab(82)
+        tick(source, &store, ax: [axSnapshot(91)], at: start + .seconds(1))
+        tick(source, &store, ax: [axSnapshot(91)], at: start + .seconds(11))
+        tick(source, &store, ax: [axSnapshot(91)], at: start + .seconds(30))
+        XCTAssertEqual(shown(store), [.cg(91)])
+    }
+
+    /// A fullscreen transition also leaves a window on no Space for about a
+    /// second; within the grace nothing about the row changes.
+    func testWindowOnNoSpaceKeepsItsRowWithinTheGrace() {
+        world.rows = [row(91, onscreen: true), row(82, onscreen: true)]
+        world.spaces = [91: [3], 82: [3]]
+        let source = source()
+        var store = TabStore()
+        let start = ContinuousClock.now
+        tick(source, &store, ax: [axSnapshot(91), axSnapshot(82)], at: start)
+
+        makeBackgroundTab(82)
+        for milliseconds in [1_000, 5_000, 9_900] {
+            tick(source, &store, ax: [axSnapshot(91)], at: start + .milliseconds(milliseconds))
+            XCTAssertEqual(shown(store), [.cg(91), .cg(82)], "at \(milliseconds) ms")
+        }
+        XCTAssertEqual(store.entries[.window(.cg(82))]?.title, "ax 82")
+    }
+
+    /// Minimized and hidden windows keep their Space and stay in AX; a
+    /// minimized window reporting no Space at all is listed by AX all the same.
+    func testMinimizedAndHiddenWindowsKeepTheirRows() {
+        world.rows = [row(91, onscreen: true), row(70, onscreen: false), row(71, onscreen: false),
+                      row(72, onscreen: false)]
+        world.spaces = [91: [3], 70: [3], 71: [], 72: [3]]
+        let ax = [axSnapshot(91), axSnapshot(70, minimized: true), axSnapshot(71, minimized: true), axSnapshot(72)]
+        let source = source()
+        var store = TabStore()
+        let start = ContinuousClock.now
+        for seconds in [0, 11, 60] {
+            tick(source, &store, ax: ax, at: start + .seconds(seconds))
+        }
+        XCTAssertEqual(shown(store), [.cg(91), .cg(70), .cg(71), .cg(72)])
+    }
+
+    /// A window known on another Space that turns up ordered out on the
+    /// active Space is no switch target either, whatever its last flag said.
+    func testOffSpaceWindowOrderedOutOnTheActiveSpaceLosesItsRow() {
+        world.rows = [row(91, onscreen: true), row(82)]
+        world.spaces = [91: [3], 82: [1088]]
+        world.elements = [5: 82]
+        world.windowRoles = [5]
+        world.reads = [82: .window(subrole: "AXStandardWindow", title: "Documents", isMinimized: false)]
+        let source = source()
+        var store = TabStore()
+        let start = ContinuousClock.now
+        tick(source, &store, ax: [axSnapshot(91)], at: start)
+        XCTAssertEqual(store.entries[.window(.cg(82))]?.isOnActiveSpace, false)
+
+        world.spaces[82] = [3]
+        tick(source, &store, ax: [axSnapshot(91)], at: start + .seconds(1))
+        tick(source, &store, ax: [axSnapshot(91)], at: start + .seconds(30))
+        XCTAssertEqual(shown(store), [.cg(91)])
     }
 }

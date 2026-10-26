@@ -61,7 +61,7 @@ public enum OffSpaceDiagnostics {
         lines.append("per app (bundle ax cg0 candidates token kept unreached exhausted probed filtered noSpace orderedOut onActive/total):")
         for app in apps.sorted(by: { $0.bundleID < $1.bundleID }) {
             let deadline = ContinuousClock.now + .seconds(1)
-            guard let snapshots = try? await source.snapshot(of: app, deadline: deadline) else {
+            guard let snapshots = try? await source.snapshot(of: app, deadline: deadline).filter({ !$0.isOrderedOut }) else {
                 lines.append("  \(label(app)) readFailed")
                 continue
             }

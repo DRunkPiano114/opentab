@@ -347,6 +347,64 @@ final class TabStoreTests: XCTestCase {
         XCTAssertEqual(h.shownKeys, [.cg(1)], "back on the active Space, omission is evidence again")
     }
 
+    // MARK: Windows that left every Space
+
+    private func orderedOut(_ id: UInt32, _ page: String) -> WindowSnapshot {
+        WindowSnapshot(key: .cg(id), app: chrome, title: "\(page) - Google Chrome", subrole: "AXStandardWindow",
+                       isMinimized: false, isOnActiveSpace: false, isOrderedOut: true)
+    }
+
+    func testOrderedOutWindowLosesItsRowWhateverItsSpaceFlag() {
+        var h = StoreHarness()
+        h.windows([chromeWindow(1, "GitHub"), chromeWindow(2, "Docs"),
+                   chromeWindow(3, "Mail", onActiveSpace: false)], for: chrome)
+        h.windows([chromeWindow(1, "GitHub"), orderedOut(2, "Docs"), orderedOut(3, "Mail")], for: chrome)
+        XCTAssertEqual(h.shownKeys, [.cg(1)])
+        h.sweep(live: [1, 2, 3])
+        h.windows([chromeWindow(1, "GitHub")], for: chrome)
+        XCTAssertEqual(h.shownKeys, [.cg(1)])
+    }
+
+    func testOrderedOutWindowIsNeverAdded() {
+        var h = StoreHarness()
+        h.windows([chromeWindow(1, "GitHub"), orderedOut(5, "Docs")], for: chrome)
+        XCTAssertEqual(h.shownKeys, [.cg(1)])
+        XCTAssertNil(h.store.entries[.window(.cg(5))])
+    }
+
+    /// A read that lists no window is no evidence about the windows it omits,
+    /// even when it carries evidence about the ones it marks.
+    func testReadOfOnlyOrderedOutWindowsRemovesThoseAndNothingElse() {
+        var h = StoreHarness()
+        h.windows([chromeWindow(1, "GitHub"), chromeWindow(2, "Docs")], for: chrome)
+        let result = h.windows([orderedOut(2, "Docs")], for: chrome)
+        XCTAssertEqual(result.disposition, .applied)
+        XCTAssertTrue(result.changed)
+        XCTAssertEqual(h.shownKeys, [.cg(1)])
+    }
+
+    func testOrderedOutClaimedWindowTakesItsTabsWithIt() {
+        var h = StoreHarness()
+        h.windows([chromeWindow(1, "GitHub")], for: chrome)
+        h.tabs([tab(github, "t1", "GitHub", active: true)], for: chrome)
+        XCTAssertEqual(h.shownKeys, [github])
+        h.windows([orderedOut(1, "GitHub")], for: chrome)
+        XCTAssertTrue(h.shownKeys.isEmpty)
+        XCTAssertTrue(h.store.tabs(in: github).isEmpty)
+        XCTAssertTrue(h.store.isEmpty)
+    }
+
+    func testOrderedOutRemovalWaitsForThePanelToClose() {
+        var h = StoreHarness()
+        h.windows([chromeWindow(1, "GitHub"), chromeWindow(2, "Docs", onActiveSpace: false)], for: chrome)
+        let before = h.shownIDs
+        h.store.setPanelVisible(true)
+        h.windows([chromeWindow(1, "GitHub"), orderedOut(2, "Docs")], for: chrome)
+        XCTAssertEqual(h.shownIDs, before)
+        XCTAssertTrue(h.store.setPanelVisible(false, now: h.now))
+        XCTAssertEqual(h.shownKeys, [.cg(1)])
+    }
+
     // MARK: 14-16 Chrome-shaped titles
 
     func test14ChromeWindowTitleIsClaimedByItsTab() {
