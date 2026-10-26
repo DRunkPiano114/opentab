@@ -4,6 +4,16 @@ What's new in each release of OpenTab, written for the people who use it.
 Version headings and dates follow Keep a Changelog; categories are
 New / Changed / Improved / Fixed / Security.
 
+## [0.4.1] - 2026-10-27
+
+### Fixed
+
+- A Finder, Preview or Ghostty window with tabs shows as one row with a tab count, including when it is on another desktop or in full screen. Right Arrow lists its tabs, and choosing one switches to that desktop and that tab. Each tab used to linger as a row of its own, and choosing one only brought the app forward.
+
+### Changed
+
+- In the tab list (Right Arrow), Enter switches to the selected tab. In the main list, Enter still starts a search.
+
 ## [0.4.0] - 2026-10-02
 
 ### New
