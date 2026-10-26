@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  # `gh workflow run ci.yml --ref <branch>` runs both jobs on a branch
+  # without opening a pull request.
+  workflow_dispatch:
 
 permissions:
   contents: read
