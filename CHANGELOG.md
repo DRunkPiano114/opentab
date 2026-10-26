@@ -4,6 +4,12 @@ What's new in each release of OpenTab, written for the people who use it.
 Version headings and dates follow Keep a Changelog; categories are
 New / Changed / Improved / Fixed / Security.
 
+## [0.4.2] - 2026-10-27
+
+### Fixed
+
+- After you switch tabs in a Finder, Preview or Ghostty window, the tab you left no longer appears as a row of its own for several seconds. A window with tabs also no longer turns into a plain row for a moment while its app is busy.
+
 ## [0.4.1] - 2026-10-27
 
 ### Fixed
