@@ -10,13 +10,26 @@ struct TabScanEngine<Source: TabTreeSource> {
     struct Input {
         /// `kAXWindows`, in the app's order.
         var axWindows: [Source.Node]
+        /// Windows `kAXWindows` omits (other Spaces, full screen), as the
+        /// off-Space source lists them. A `nil` node is a window the source
+        /// still lists but did not reach this round.
+        var offSpace: [(windowID: CGWindowID, node: Source.Node?)] = []
+        /// The previous scan's `Scan.emitted`.
+        var cached: [CGWindowID: [TabSnapshot]] = [:]
     }
 
     struct Scan {
         var snapshots: [TabSnapshot] = []
         /// Tab nodes per window, indexed by token.
         var tabs: [CGWindowID: [Source.Node]] = [:]
+        /// Windows whose snapshots were carried over from `Input.cached`
+        /// rather than read; their tab nodes from the earlier read stand.
+        var reused: Set<CGWindowID> = []
+        /// Snapshots per window, for the next scan's `Input.cached`.
+        var emitted: [CGWindowID: [TabSnapshot]] = [:]
         var windowsScanned = 0
+        /// Of `windowsScanned`, those only the off-Space source listed.
+        var windowsOffSpace = 0
         var windowsWithoutOneActiveTab = 0
         var windowsUsingDeclaredTabs = 0
         var nodesVisited = 0
@@ -36,13 +49,34 @@ struct TabScanEngine<Source: TabTreeSource> {
         // No window is not the same as no tabs: a full-screen app reports zero
         // AX windows while the window is plainly still there. Saying nothing
         // keeps the rows; saying "empty" would delete them.
-        guard !input.axWindows.isEmpty else { throw AXSourceError.cannotComplete }
+        guard !(input.axWindows.isEmpty && input.offSpace.isEmpty) else { throw AXSourceError.cannotComplete }
 
         var scan = Scan()
+        var seen: Set<CGWindowID> = []
         for window in input.axWindows {
             try Self.checkDeadline(deadline)
-            guard isListable(window), let id = windowID(window), layer(id) == 0 else { continue }
+            guard isListable(window), let id = windowID(window), layer(id) == 0,
+                  seen.insert(id).inserted else { continue }
             read(window, id: id, into: &scan, deadline: deadline)
+        }
+        // The off-Space source applied the role and subrole filter already,
+        // and its list can trail a window that has since come back to AX.
+        for (id, node) in input.offSpace {
+            try Self.checkDeadline(deadline)
+            guard layer(id) == 0, seen.insert(id).inserted else { continue }
+            guard let node else {
+                // Listed, not reached this round. Without its last tabs the
+                // store would drop the group's rows and add them back on the
+                // next round that reaches it.
+                if let cached = input.cached[id], !cached.isEmpty {
+                    scan.snapshots.append(contentsOf: cached)
+                    scan.emitted[id] = cached
+                    scan.reused.insert(id)
+                }
+                continue
+            }
+            scan.windowsOffSpace += 1
+            read(node, id: id, into: &scan, deadline: deadline)
         }
 
         // An inconclusive scan must not be reported as "no tabs": that answer
@@ -72,11 +106,12 @@ struct TabScanEngine<Source: TabTreeSource> {
         let active = selected.first
 
         scan.tabs[id] = result.tabs.map(\.node)
-        for (index, tab) in result.tabs.enumerated() {
-            scan.snapshots.append(TabSnapshot(windowKey: .cg(id), token: String(index),
-                                              title: tab.attributes.displayTitle, url: nil,
-                                              isActive: index == active, isPrivate: false))
+        let snapshots = result.tabs.enumerated().map { index, tab in
+            TabSnapshot(windowKey: .cg(id), token: String(index), title: tab.attributes.displayTitle, url: nil,
+                        isActive: index == active, isPrivate: false)
         }
+        scan.snapshots.append(contentsOf: snapshots)
+        scan.emitted[id] = snapshots
     }
 
     static func checkDeadline(_ deadline: ContinuousClock.Instant) throws {

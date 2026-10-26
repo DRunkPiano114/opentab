@@ -20,6 +20,23 @@ import os
 /// lose its tabs would leave its rows behind for good.
 public protocol AccessibilityTabReads {}
 
+/// A window of a pid that `kAXWindows` omits (another Space, full screen), as
+/// the off-Space window source lists it.
+public struct OffSpaceWindow: @unchecked Sendable {
+    public let windowID: CGWindowID
+    /// `nil` when the source still lists the window but did not reach it this
+    /// round.
+    public let element: AXUIElement?
+
+    public init(windowID: CGWindowID, element: AXUIElement?) {
+        self.windowID = windowID
+        self.element = element
+    }
+}
+
+/// Answers from the off-Space source's last read without messaging the app.
+public typealias OffSpaceWindowSupplier = @Sendable (pid_t) -> [OffSpaceWindow]
+
 /// Reads tabs out of the Accessibility tree for apps no scripting dictionary
 /// covers: Finder, Ghostty and other native tab groups.
 ///
@@ -42,6 +59,8 @@ public final class AXTabProvider: TabProvider, TabCloser, AccessibilityTabReads,
     public struct ScanReport: Sendable {
         public var bundleID: String
         public var windowsScanned: Int
+        /// Of `windowsScanned`, those only the off-Space source listed.
+        public var windowsOffSpace: Int
         public var tabsFound: Int
         public var titlesNonEmpty: Int
         /// Windows whose tab strip did not report exactly one selected tab.
@@ -58,6 +77,8 @@ public final class AXTabProvider: TabProvider, TabCloser, AccessibilityTabReads,
         /// Tab elements of the last read, per window, indexed by token.
         var tabs: [CGWindowID: [AXElement]] = [:]
         var owners: [CGWindowID: pid_t] = [:]
+        /// What the last scan of each pid reported per window.
+        var emitted: [pid_t: [CGWindowID: [TabSnapshot]]] = [:]
     }
 
     private let limits = TabScanLimits()
@@ -65,11 +86,15 @@ public final class AXTabProvider: TabProvider, TabCloser, AccessibilityTabReads,
     private let cgTable = CGWindowTable()
     private let tree = AXTabTreeSource()
     private let getWindow: AXGetWindowFunction?
+    private let offSpaceWindows: OffSpaceWindowSupplier?
     private let state = OSAllocatedUnfairLock(initialState: State())
     private let log = Log.make("ax.tabs")
 
-    public init() {
+    /// Without `offSpaceWindows` only the windows `kAXWindows` lists are
+    /// scanned, so a tab group on another Space shows as a plain window row.
+    public init(offSpaceWindows: OffSpaceWindowSupplier? = nil) {
         getWindow = PrivateSymbols.getWindow
+        self.offSpaceWindows = offSpaceWindows
     }
 
     /// Whether tabs can be reported at all. Without the window-number bridge a
@@ -111,7 +136,7 @@ public final class AXTabProvider: TabProvider, TabCloser, AccessibilityTabReads,
         let read = try? await queues.perform(on: app.pid) { try self.scan(app: app, deadline: deadline) }
         guard let read else { return nil }
         return ScanReport(bundleID: app.bundleID, windowsScanned: read.windowsScanned,
-                          tabsFound: read.snapshots.count,
+                          windowsOffSpace: read.windowsOffSpace, tabsFound: read.snapshots.count,
                           titlesNonEmpty: read.snapshots.count(where: { !$0.title.isEmpty }),
                           windowsWithoutOneActiveTab: read.windowsWithoutOneActiveTab,
                           nodesVisited: read.nodesVisited,
@@ -136,14 +161,19 @@ public final class AXTabProvider: TabProvider, TabCloser, AccessibilityTabReads,
             throw AXSourceError.from(windows.error)
         }
 
+        let pid = app.pid
+        let offSpace = (offSpaceWindows?(pid) ?? []).map { ($0.windowID, $0.element.map(AXElement.init)) }
+        let cached = state.withLock { $0.emitted[pid] ?? [:] }
         let engine = TabScanEngine(source: tree, limits: limits, isListable: Self.isListable,
                                    windowID: windowID(of:), layer: cgTable.layer(of:))
-        let scan = try engine.scan(.init(axWindows: elements.map(AXElement.init)), deadline: deadline)
+        let scan = try engine.scan(.init(axWindows: elements.map(AXElement.init), offSpace: offSpace,
+                                         cached: cached),
+                                   deadline: deadline)
 
         let replacement = scan.tabs
-        let pid = app.pid
         state.withLock { state in
-            for (id, owner) in state.owners where owner == pid && replacement[id] == nil {
+            for (id, owner) in state.owners
+            where owner == pid && replacement[id] == nil && !scan.reused.contains(id) {
                 state.tabs[id] = nil
                 state.owners[id] = nil
             }
@@ -151,9 +181,11 @@ public final class AXTabProvider: TabProvider, TabCloser, AccessibilityTabReads,
                 state.tabs[id] = elements
                 state.owners[id] = pid
             }
+            state.emitted[pid] = scan.emitted
         }
         log.debug("""
             ax tabs read pid=\(pid, privacy: .public) windows=\(scan.windowsScanned, privacy: .public) \
+            offSpace=\(scan.windowsOffSpace, privacy: .public) reused=\(scan.reused.count, privacy: .public) \
             tabs=\(scan.snapshots.count, privacy: .public) nodes=\(scan.nodesVisited, privacy: .public)
             """)
         return scan
