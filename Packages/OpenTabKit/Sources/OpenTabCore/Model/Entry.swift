@@ -25,7 +25,8 @@ public struct Entry: Sendable, Identifiable, Hashable {
     public var focusTick: UInt64
     /// Monotonic, assigned on insertion and never reassigned; stable tie-break.
     public var discoveryRank: UInt64
-    /// Always 0 in `EntryStore`; `TabStore`'s sweep maintains it.
+    /// Consecutive `TabStore` sweeps that did not find this window among the
+    /// live windows; reset to 0 when it is seen again.
     public var missingStrikes: Int
 
     public init(id: EntryID, kind: EntryKind, key: WindowKey, app: AppInfo, title: String,
