@@ -55,6 +55,8 @@ final class TabScanEngineTests: XCTestCase {
     }
 
     private func node(_ id: CGWindowID) -> Int { Windows.node(id) }
+    private func reached(_ id: CGWindowID) -> (windowID: CGWindowID, node: Int?) { (id, node(id)) }
+    private func unreached(_ id: CGWindowID) -> (windowID: CGWindowID, node: Int?) { (id, nil) }
 
     // MARK: Windows Accessibility lists
 
@@ -103,7 +105,7 @@ final class TabScanEngineTests: XCTestCase {
 
     func testWindowInBothListsIsReadOnce() throws {
         let engine = engine([91: .init(tabs: ["alpha", "beta"], active: 0)])
-        let scan = try engine.scan(.init(axWindows: [node(91)], offSpace: [(91, node(91))]), deadline: far)
+        let scan = try engine.scan(.init(axWindows: [node(91)], offSpace: [reached(91)]), deadline: far)
         XCTAssertEqual(scan.snapshots.map(\.token), ["0", "1"])
         XCTAssertEqual(scan.windowsScanned, 1)
         XCTAssertEqual(scan.windowsOffSpace, 0)
@@ -113,7 +115,7 @@ final class TabScanEngineTests: XCTestCase {
     /// off-Space source reached one.
     func testOffSpaceWindowIsScannedWhenAccessibilityListsNone() throws {
         let engine = engine([82: .init(tabs: ["one", "two", "three"], active: 2)])
-        let scan = try engine.scan(.init(axWindows: [], offSpace: [(82, node(82))]), deadline: far)
+        let scan = try engine.scan(.init(axWindows: [], offSpace: [reached(82)]), deadline: far)
         XCTAssertEqual(scan.snapshots.map(\.windowKey), [.cg(82), .cg(82), .cg(82)])
         XCTAssertEqual(scan.snapshots.map(\.token), ["0", "1", "2"])
         XCTAssertEqual(scan.snapshots.map(\.title), ["one", "two", "three"])
@@ -126,7 +128,7 @@ final class TabScanEngineTests: XCTestCase {
 
     func testOffSpaceWindowAlongsideAccessibilityWindows() throws {
         let engine = engine([91: .init(tabs: ["alpha"], active: 0), 82: .init(tabs: ["one", "two"], active: 0)])
-        let scan = try engine.scan(.init(axWindows: [node(91)], offSpace: [(82, node(82))]), deadline: far)
+        let scan = try engine.scan(.init(axWindows: [node(91)], offSpace: [reached(82)]), deadline: far)
         XCTAssertEqual(scan.snapshots.map(\.windowKey), [.cg(91), .cg(82), .cg(82)])
         XCTAssertEqual(scan.snapshots.filter(\.isActive).map(\.windowKey), [.cg(91), .cg(82)])
     }
@@ -134,7 +136,7 @@ final class TabScanEngineTests: XCTestCase {
     func testOffSpaceWindowOffLayerZeroIsSkipped() throws {
         let engine = engine([91: .init(tabs: ["alpha"], active: 0), 82: .init(tabs: ["one"], active: 0)],
                             layers: [91: 0, 82: 3])
-        let scan = try engine.scan(.init(axWindows: [node(91)], offSpace: [(82, node(82))]), deadline: far)
+        let scan = try engine.scan(.init(axWindows: [node(91)], offSpace: [reached(82)]), deadline: far)
         XCTAssertEqual(Set(scan.snapshots.map(\.windowKey)), [.cg(91)])
         XCTAssertEqual(scan.windowsOffSpace, 0)
     }
@@ -143,7 +145,7 @@ final class TabScanEngineTests: XCTestCase {
     /// that stopped answering says nothing about its tabs.
     func testUnreadableOffSpaceWindowAloneIsNoEvidence() {
         let engine = engine([82: .init(tabs: ["one"], active: 0, unreadable: true)])
-        XCTAssertThrowsError(try engine.scan(.init(axWindows: [], offSpace: [(82, node(82))]), deadline: far)) {
+        XCTAssertThrowsError(try engine.scan(.init(axWindows: [], offSpace: [reached(82)]), deadline: far)) {
             XCTAssertEqual($0 as? AXSourceError, .cannotComplete)
         }
     }
@@ -156,7 +158,7 @@ final class TabScanEngineTests: XCTestCase {
         let before = try engine.scan(.init(axWindows: [node(91), node(82)]), deadline: far)
         XCTAssertEqual(before.snapshots.count, 3)
 
-        let after = try engine.scan(.init(axWindows: [node(91)], offSpace: [(82, nil)], cached: before.emitted),
+        let after = try engine.scan(.init(axWindows: [node(91)], offSpace: [unreached(82)], cached: before.emitted),
                                     deadline: far)
         XCTAssertEqual(after.snapshots, before.snapshots)
         XCTAssertEqual(after.reused, [82])
@@ -167,7 +169,7 @@ final class TabScanEngineTests: XCTestCase {
 
     func testUnreachedWindowWithNoEarlierTabsAddsNothing() throws {
         let engine = engine([91: .init(tabs: ["alpha"], active: 0)])
-        let scan = try engine.scan(.init(axWindows: [node(91)], offSpace: [(82, nil)]), deadline: far)
+        let scan = try engine.scan(.init(axWindows: [node(91)], offSpace: [unreached(82)]), deadline: far)
         XCTAssertEqual(Set(scan.snapshots.map(\.windowKey)), [.cg(91)])
         XCTAssertTrue(scan.reused.isEmpty)
     }
@@ -176,7 +178,7 @@ final class TabScanEngineTests: XCTestCase {
     /// was read, so the scan must not report that the app has no tabs.
     func testUnreachedWindowAloneIsNoEvidence() {
         let engine = engine([:], layers: [82: 0])
-        XCTAssertThrowsError(try engine.scan(.init(axWindows: [], offSpace: [(82, nil)]), deadline: far)) {
+        XCTAssertThrowsError(try engine.scan(.init(axWindows: [], offSpace: [unreached(82)]), deadline: far)) {
             XCTAssertEqual($0 as? AXSourceError, .cannotComplete)
         }
     }
@@ -245,16 +247,16 @@ final class TabScanEngineTests: XCTestCase {
         let engine = engine([91: .init(tabs: [], active: nil), 82: .init(tabs: ["one", "two", "three"], active: 1)])
         var store = TabStore()
         applyWindows([window(91, onActiveSpace: true), window(82, onActiveSpace: false)], to: &store)
-        let scan = try engine.scan(.init(axWindows: [node(91)], offSpace: [(82, node(82))]), deadline: far)
+        let scan = try engine.scan(.init(axWindows: [node(91)], offSpace: [reached(82)]), deadline: far)
         applyTabs(scan, to: &store)
         assertOneOffSpaceGroupRow(store)
 
         // The next round: AX lists only 91 and the token element of 82 did not
         // answer the source's check, so 82 comes without an element.
         applyWindows([window(91, onActiveSpace: true)], to: &store)
-        let unreached = try engine.scan(.init(axWindows: [node(91)], offSpace: [(82, nil)], cached: scan.emitted),
-                                        deadline: far)
-        applyTabs(unreached, to: &store)
+        let later = try engine.scan(.init(axWindows: [node(91)], offSpace: [unreached(82)], cached: scan.emitted),
+                                    deadline: far)
+        applyTabs(later, to: &store)
         assertOneOffSpaceGroupRow(store)
     }
 }
