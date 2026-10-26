@@ -72,6 +72,8 @@ struct TabScanEngine<Source: TabTreeSource> {
                     scan.snapshots.append(contentsOf: cached)
                     scan.emitted[id] = cached
                     scan.reused.insert(id)
+                } else {
+                    scan.incomplete = true
                 }
                 continue
             }

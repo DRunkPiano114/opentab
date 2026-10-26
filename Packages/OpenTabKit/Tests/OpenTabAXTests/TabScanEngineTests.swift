@@ -172,6 +172,15 @@ final class TabScanEngineTests: XCTestCase {
         XCTAssertTrue(scan.reused.isEmpty)
     }
 
+    /// A full-screen group the source lists but did not reach yet: nothing
+    /// was read, so the scan must not report that the app has no tabs.
+    func testUnreachedWindowAloneIsNoEvidence() {
+        let engine = engine([:], layers: [82: 0])
+        XCTAssertThrowsError(try engine.scan(.init(axWindows: [], offSpace: [(82, nil)]), deadline: far)) {
+            XCTAssertEqual($0 as? AXSourceError, .cannotComplete)
+        }
+    }
+
     /// A window neither list names any more is gone; what it showed is not
     /// carried forward.
     func testWindowNoLongerListedIsNotCarriedForward() throws {
