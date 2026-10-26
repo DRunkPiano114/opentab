@@ -33,10 +33,7 @@ jobs:
       - name: Install xcodegen
         run: Scripts/install-xcodegen.sh "$RUNNER_TEMP" >> "$GITHUB_PATH"
       # OpenTabKit only: pure logic, no window server, no permissions. The
-      # app-hosted test targets stay out of CI on purpose — they drive the
-      # Accessibility API against the host app, which needs a granted
-      # Accessibility permission and a real graphical login session. A runner
-      # has neither, so they can only be run on a developer's machine.
+      # app-hosted targets run in their own job below.
       - name: Unit tests
         run: make test
       # Code and comments must stand on their own for a public reader, so they
@@ -53,3 +50,74 @@ jobs:
       # compile check; the bundle is never installed or launched.
       - name: Build the app
         run: make ci-build
+
+  # The app-hosted targets drive the Accessibility API, post Option-Tab and
+  # Command-Tab system-wide and open windows. A GitHub-hosted macOS runner is
+  # a throwaway VM with a logged-in GUI session and SIP disabled, so the job
+  # can grant itself the permission the tests need.
+  app-tests:
+    name: App-hosted tests
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install xcodegen
+        run: Scripts/install-xcodegen.sh "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      # The Debug build signs with the identity named in project.yml. A
+      # throwaway one lives in its own keychain; set-key-partition-list lets
+      # codesign use it without a prompt, and `list-keychains -s` replaces the
+      # search list, so login is listed again.
+      - name: Signing identity
+        run: |
+          keychain="$RUNNER_TEMP/dev.keychain-db"
+          password="$(uuidgen)"
+          cd "$RUNNER_TEMP"
+          printf '[req]\ndistinguished_name=dn\nprompt=no\nx509_extensions=v3\n[dn]\nCN=OpenTab Dev Signing\n[v3]\nbasicConstraints=critical,CA:false\nkeyUsage=critical,digitalSignature\nextendedKeyUsage=critical,codeSigning\nsubjectKeyIdentifier=hash\n' > ext.cnf
+          openssl req -x509 -newkey rsa:2048 -nodes -days 2 -keyout key.pem -out cert.pem -config ext.cnf 2>/dev/null
+          openssl pkcs12 -export -inkey key.pem -in cert.pem -out id.p12 -passout pass:temp -name "OpenTab Dev Signing" \
+            -certpbe PBE-SHA1-3DES -keypbe PBE-SHA1-3DES -macalg sha1 2>/dev/null
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import id.p12 -k "$keychain" -P temp -f pkcs12 -T /usr/bin/codesign
+          security set-key-partition-list -S 'apple-tool:,apple:,codesign:' -s -k "$password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain" login.keychain-db
+          rm -f key.pem id.p12
+      # A row without a code requirement matches the bundle id under any
+      # signature. tccd caches the database, so it is restarted.
+      - name: Grant Accessibility
+        run: |
+          db="/Library/Application Support/com.apple.TCC/TCC.db"
+          for service in kTCCServiceAccessibility kTCCServicePostEvent; do
+            sudo sqlite3 "$db" "insert or replace into access (service, client, client_type, auth_value, auth_reason, auth_version, flags) values ('$service','im.opentab.app.dev',0,2,4,1,0);"
+          done
+          sudo pkill -x tccd || true
+      # The input method tests need Pinyin enabled; enabling only its input
+      # mode leaves it unlisted, so the method is enabled as well. Calculator,
+      # launched by the tests without activation, took the front on runners
+      # where no app held a document window; TextEdit holding one and Finder
+      # in front keep it behind.
+      - name: Desktop fixtures
+        run: |
+          cat > "$RUNNER_TEMP/pinyin.swift" <<'SWIFT'
+          import Carbon
+          for id in ["com.apple.inputmethod.SCIM", "com.apple.inputmethod.SCIM.ITABC"] {
+            let props = [kTISPropertyInputSourceID as String: id] as CFDictionary
+            let sources = (TISCreateInputSourceList(props, true)?.takeRetainedValue() as? [TISInputSource]) ?? []
+            guard !sources.isEmpty else { fatalError("\(id) is not installed") }
+            for source in sources where TISEnableInputSource(source) != noErr { fatalError("cannot enable \(id)") }
+          }
+          SWIFT
+          swiftc -o "$RUNNER_TEMP/pinyin" "$RUNNER_TEMP/pinyin.swift"
+          "$RUNNER_TEMP/pinyin"
+          open ~ && open /Applications && sleep 2
+          printf 'fixture\n' > "$RUNNER_TEMP/fixture.txt"
+          open -a TextEdit "$RUNNER_TEMP/fixture.txt" && sleep 3
+          open -a Finder && sleep 1
+      - name: App-hosted tests
+        run: make test-app
+      - name: Failures
+        if: failure()
+        run: grep -E "error:|Executed .* tests|\*\* TEST" build/xcodebuild-test.log | tail -60 || true
