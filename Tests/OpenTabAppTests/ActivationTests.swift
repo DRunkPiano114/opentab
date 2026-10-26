@@ -28,7 +28,12 @@ final class ActivationTests: XCTestCase {
     }
 
     override func tearDown() async throws {
-        calculator?.terminate()
+        // Until it is gone, the next test's launch returns this quitting
+        // instance, which never shows a window.
+        if let calculator {
+            calculator.terminate()
+            try? await poll("calculator terminated", timeout: .seconds(3)) { calculator.isTerminated }
+        }
         if let previous {
             _ = previous.activate(options: [])
             try? await poll("previous app frontmost again", timeout: .seconds(2)) {
