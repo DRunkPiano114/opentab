@@ -46,7 +46,7 @@ help:
 	@echo "make build        xcodegen generate + xcodebuild, print the designated requirement"
 	@echo "make ci-build     Ad-hoc signed Debug build for CI; never touches the keychain"
 	@echo "make release      Unit tests, then Developer ID build, notarize, staple, zip into dist/ (VERSION=x.y.z)"
-	@echo "make tag          Run every check and both test suites, then create the annotated tag (VERSION=x.y.z)"
+	@echo "make tag          Check the tree, changelog and CI on HEAD, then create the annotated tag (VERSION=x.y.z)"
 	@echo "make test         swift test (pure logic, no GUI, no permissions)"
 	@echo "make test-app     xcodebuild test, app-hosted (needs a logged-in GUI session)"
 	@echo "make install      Copy the built app to ~/Applications/OpenTab Dev.app"
@@ -128,14 +128,9 @@ release: test project
 
 ## Everything that has to hold before the version exists, cheapest check first:
 ## the tag is new, the tree is clean, main is pushed, the changelog carries the
-## section that becomes the release body, no copy of OpenTab is running, and
-## both suites pass. Pushing the tag is what publishes, so that stays manual.
-##
-## The app-hosted suite needs the Accessibility grant and a graphics session, so
-## no runner can ever run it, and it posts Option-Tab and Command-Tab
-## system-wide, which any running instance would answer as well. A tag is
-## created by hand on one machine; this is the only place those tests can be
-## required.
+## section that becomes the release body, and every CI job on the commit,
+## both test suites included, finished green. A job run again counts by its
+## latest attempt. Pushing the tag is what publishes, so that stays manual.
 ##
 ## Each step is a separate recipe line. GNU Make executes a recipe line
 ## containing $(MAKE) even under `-n`, so joining the steps would make
@@ -152,10 +147,9 @@ tag:
 	@cd "$(HERE)" && test "$$(git rev-parse HEAD)" = "$$(git rev-parse FETCH_HEAD)" \
 	  || { echo "HEAD differs from origin/main; push main first"; exit 1; }
 	@"$(HERE)/Scripts/release-notes.sh" "$(VERSION)" >/dev/null
-	@if pgrep -fl '/Contents/MacOS/$(APP_NAME)( |$$)'; then \
-	  echo "quit every copy of OpenTab (including the one in /Applications) before tagging: the app-hosted tests post ⌥⇥ and ⌘⇥ system-wide"; exit 1; fi
-	@$(MAKE) --no-print-directory test
-	@$(MAKE) --no-print-directory test-app
+	@cd "$(HERE)" && verdict=$$(gh api "repos/{owner}/{repo}/commits/$$(git rev-parse HEAD)/check-runs" \
+	  --jq '[.check_runs | group_by(.name)[] | max_by(.started_at)] as $$runs | if ($$runs | map(.name) | index("App-hosted tests")) == null then "no app-hosted run" elif ($$runs | all(.conclusion == "success")) then "green" else ($$runs | map("\(.name): \(.conclusion // .status)") | join(", ")) end') \
+	  && test "$$verdict" = green || { echo "CI is not green on HEAD ($$verdict); wait for it or fix main"; exit 1; }
 	@cd "$(HERE)" && git tag -a "v$(VERSION)" -m "OpenTab $(VERSION)"
 	@echo "created v$(VERSION); publish it with: git push origin v$(VERSION)"
 
