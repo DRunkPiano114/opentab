@@ -134,6 +134,8 @@ public final class OffSpaceWindowSource: WindowSource, @unchecked Sendable {
         var reached: [CGWindowID: Reached] = [:]
         var lastSnapshot: [CGWindowID: Cached] = [:]
         var filtered: Set<CGWindowID> = []
+        /// What the last read added to the AX windows, ordered-out ones aside.
+        var offSpace: Set<CGWindowID> = []
         var lastReport = AppReport()
         var bundleID = ""
     }
@@ -204,6 +206,19 @@ public final class OffSpaceWindowSource: WindowSource, @unchecked Sendable {
         }
     }
 
+    /// The windows of `pid` the last read listed beyond what AX returned, for
+    /// the tab provider: reached ones with their element, kept ones without.
+    /// An ordered-out window is never among them. Takes the lock only;
+    /// nothing is messaged.
+    public func offSpaceWindows(for pid: pid_t) -> [OffSpaceWindow] {
+        state.withLock { state in
+            guard let pidState = state.pids[pid] else { return [] }
+            return pidState.offSpace.sorted().map {
+                OffSpaceWindow(windowID: $0, element: pidState.reached[$0]?.element.raw)
+            }
+        }
+    }
+
     // MARK: Module-internal support for the activator
 
     func reachedElement(for key: WindowKey) -> (pid: pid_t, element: RemoteElement)? {
@@ -267,6 +282,11 @@ public final class OffSpaceWindowSource: WindowSource, @unchecked Sendable {
                 pidState.lastSnapshot[wid] = Cached(snapshot: cached, onSpaceAt: spaces.isEmpty ? (previous ?? now) : now)
                 return annotated
             }
+            pidState.offSpace = Set(snapshots.compactMap { snapshot -> CGWindowID? in
+                guard case .cg(let wid) = snapshot.key, !snapshot.isOrderedOut,
+                      !axWindowIDs.contains(wid) else { return nil }
+                return wid
+            })
             pidState.lastReport = report
             let finished = pidState
             state.withLock { $0.pids[pid] = finished }

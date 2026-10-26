@@ -363,6 +363,127 @@ final class OffSpaceWindowSourceTests: XCTestCase {
         XCTAssertNil(source.reachedElement(for: .cg(82)), "the pure-AX activator owns it now")
     }
 
+    // MARK: Off-Space windows for the tab provider
+
+    private func offered(_ source: OffSpaceWindowSource) -> [CGWindowID] {
+        source.offSpaceWindows(for: 996).map(\.windowID).sorted()
+    }
+
+    func testReachedWindowIsOfferedWithItsElement() {
+        world.rows = [row(91), row(82)]
+        world.spaces = [91: [3], 82: [1088]]
+        world.elements = [5: 82]
+        world.windowRoles = [5]
+        world.reads = [82: .window(subrole: "AXStandardWindow", title: "t", isMinimized: false)]
+        let source = source()
+        _ = source.augment([axSnapshot(91)], of: app, deadline: far)
+        let windows = source.offSpaceWindows(for: 996)
+        XCTAssertEqual(windows.map(\.windowID), [82], "a window AX returned is the provider's own to read")
+        let element = windows.first?.element
+        XCTAssertNotNil(element)
+        XCTAssertEqual(element.map(RemoteElement.init), source.reachedElement(for: .cg(82))?.element)
+        XCTAssertTrue(source.offSpaceWindows(for: 997).isEmpty)
+    }
+
+    func testKeptUnreachedWindowIsOfferedWithoutAnElement() {
+        world.rows = [row(82)]
+        world.spaces = [82: [1088]]
+        world.elements = [5: 82]
+        world.windowRoles = [5]
+        world.reads = [82: .window(subrole: "AXStandardWindow", title: "t", isMinimized: false)]
+        let source = source(maxElementID: 10)
+        _ = source.augment([], of: app, deadline: far)
+        world.verifyFails = [82]
+        world.elements = [:]
+        _ = source.augment([], of: app, deadline: far)
+        let windows = source.offSpaceWindows(for: 996)
+        XCTAssertEqual(windows.map(\.windowID), [82])
+        XCTAssertNil(windows.first?.element)
+    }
+
+    func testWindowAXListsAgainIsNoLongerOffered() {
+        world.rows = [row(82)]
+        world.spaces = [82: [1088]]
+        world.elements = [5: 82]
+        world.windowRoles = [5]
+        world.reads = [82: .window(subrole: "AXStandardWindow", title: "t", isMinimized: false)]
+        let source = source()
+        _ = source.augment([], of: app, deadline: far)
+        XCTAssertEqual(offered(source), [82])
+        _ = source.augment([axSnapshot(82)], of: app, deadline: far)
+        XCTAssertEqual(offered(source), [])
+    }
+
+    func testWindowGoneFromWindowServerIsNoLongerOffered() {
+        world.rows = [row(82)]
+        world.spaces = [82: [1088]]
+        world.elements = [5: 82]
+        world.windowRoles = [5]
+        world.reads = [82: .window(subrole: "AXStandardWindow", title: "t", isMinimized: false)]
+        let source = source()
+        _ = source.augment([], of: app, deadline: far)
+        world.rows = []
+        _ = source.augment([], of: app, deadline: far)
+        XCTAssertEqual(offered(source), [])
+    }
+
+    func testNonListableWindowIsNotOffered() {
+        world.rows = [row(70)]
+        world.spaces = [70: [1088]]
+        world.elements = [4: 70]
+        world.windowRoles = [4]
+        world.reads = [70: .notListable("subrole:AXFloatingWindow")]
+        let source = source()
+        _ = source.augment([], of: app, deadline: far)
+        XCTAssertEqual(offered(source), [])
+    }
+
+    /// A window on no Space past the grace is a background tab: it belongs to
+    /// no Space and is no group window to scan, whatever the source keeps
+    /// about it, and a failed window list does not bring it back.
+    func testOrderedOutWindowIsNeverOffered() {
+        world.rows = [row(91), row(82)]
+        world.spaces = [91: [3], 82: [1088]]
+        world.elements = [5: 82]
+        world.windowRoles = [5]
+        world.reads = [82: .window(subrole: "AXStandardWindow", title: "t", isMinimized: false)]
+        let source = source()
+        let start = ContinuousClock.now
+        source.clock = { start }
+        _ = source.augment([axSnapshot(91)], of: app, deadline: far)
+        XCTAssertEqual(offered(source), [82])
+
+        world.spaces[82] = []
+        source.clock = { start + .seconds(1) }
+        _ = source.augment([axSnapshot(91)], of: app, deadline: far)
+        XCTAssertEqual(offered(source), [82], "within the grace the window is still a target")
+
+        source.clock = { start + .seconds(11) }
+        let after = source.augment([axSnapshot(91)], of: app, deadline: far)
+        XCTAssertEqual(keys(after.filter(\.isOrderedOut)), [.cg(82)])
+        XCTAssertEqual(offered(source), [])
+
+        world.rowsUnknown = true
+        _ = source.augment([axSnapshot(91)], of: app, deadline: far)
+        XCTAssertEqual(offered(source), [])
+    }
+
+    func testWindowOrderedOutOnTheActiveSpaceIsNeverOffered() {
+        world.rows = [row(91, onscreen: true), row(82)]
+        world.spaces = [91: [3], 82: [1088]]
+        world.elements = [5: 82]
+        world.windowRoles = [5]
+        world.reads = [82: .window(subrole: "AXStandardWindow", title: "t", isMinimized: false)]
+        let source = source()
+        _ = source.augment([axSnapshot(91)], of: app, deadline: far)
+        XCTAssertEqual(offered(source), [82])
+
+        world.spaces[82] = [3]
+        let after = source.augment([axSnapshot(91)], of: app, deadline: far)
+        XCTAssertEqual(keys(after.filter(\.isOrderedOut)), [.cg(82)])
+        XCTAssertEqual(offered(source), [])
+    }
+
     // MARK: Through the store
 
     /// One refresh as production runs it: the source's answer applied to the
