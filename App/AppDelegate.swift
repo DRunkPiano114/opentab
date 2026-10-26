@@ -111,7 +111,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         var storeConfiguration = TabStore.Configuration()
         storeConfiguration.includesPrivateTabs = includesPrivate
         engine = AppleScriptEngine()
-        providers = TabProviderRegistry(engine: engine, includesPrivate: includesPrivate)
+        let windowSource = offSpace.windowSource
+        let axTabs = AXTabProvider(offSpaceWindows: { windowSource.offSpaceWindows(for: $0) })
+        providers = TabProviderRegistry(engine: engine, includesPrivate: includesPrivate, accessibility: axTabs)
         automation = AutomationGateKeeper()
         coordinator = SwitcherCoordinator(source: offSpace.windowSource, activator: offSpace.activator,
                                           directory: directory, providers: providers, gate: automation,

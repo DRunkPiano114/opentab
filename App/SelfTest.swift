@@ -38,7 +38,7 @@ enum SelfTest {
             let report = await source.measure(apps: apps)
             lines.append(report.text)
             lines.append(contentsOf: await perAppSummary(apps: apps, source: source, directory: directory))
-            lines.append(contentsOf: await accessibilityTabScan(apps: apps))
+            lines.append(contentsOf: await accessibilityTabScan(apps: apps, base: source))
             if let bundleID = argument("--activate") {
                 lines.append(contentsOf: await activationCheck(bundleID: bundleID, apps: apps, source: source))
             }
@@ -124,20 +124,24 @@ enum SelfTest {
     /// Chromium tabs over AppleScript, which is the only route that can tell
     /// an incognito window apart, so the scan itself is verified here
     /// rather than through the list.
-    private static func accessibilityTabScan(apps: [AppInfo]) async -> [String] {
-        let provider = AXTabProvider()
+    private static func accessibilityTabScan(apps: [AppInfo], base: AXWindowSource) async -> [String] {
+        // The provider scans the off-Space windows this source's last read of
+        // the app found, so each app is read through the source first.
+        let offSpace = OffSpaceWindowSource(base: base)
+        let provider = AXTabProvider(offSpaceWindows: { offSpace.offSpaceWindows(for: $0) })
         guard provider.isAvailable else { return ["axTabs: unavailable, _AXUIElementGetWindow did not resolve"] }
-        var lines = ["axTabs (bundle windows tabs titlesNonEmpty windowsNotExactlyOneActive declaredTabs nodes stops took):"]
+        var lines = ["axTabs (bundle windows offSpace tabs titlesNonEmpty windowsNotExactlyOneActive declaredTabs nodes stops took):"]
         var totalNodes = 0
         var totalTabs = 0
         let started = ContinuousClock.now
         for app in apps.sorted(by: { $0.bundleID < $1.bundleID }) {
+            _ = try? await offSpace.snapshot(of: app, deadline: .now + .seconds(1))
             guard let report = await provider.report(for: app, deadline: .now + .milliseconds(500)),
                   report.windowsScanned > 0 else { continue }
             totalNodes += report.nodesVisited
             totalTabs += report.tabsFound
             let name = report.bundleID.isEmpty ? "pid\(app.pid)" : report.bundleID
-            lines.append("  \(name) \(report.windowsScanned) \(report.tabsFound) \(report.titlesNonEmpty) " +
+            lines.append("  \(name) \(report.windowsScanned) \(report.windowsOffSpace) \(report.tabsFound) \(report.titlesNonEmpty) " +
                          "\(report.windowsWithoutOneActiveTab) \(report.windowsUsingDeclaredTabs) " +
                          "\(report.nodesVisited) " +
                          "\(report.stops.isEmpty ? "-" : report.stops.joined(separator: ",")) \(format(report.duration))")
@@ -182,7 +186,8 @@ enum SelfTest {
         let offSpace = OffSpaceWindowSource(base: source)
         let engine = AppleScriptEngine()
         let gate = AutomationGateKeeper()
-        let providers = TabProviderRegistry(engine: engine, includesPrivate: false)
+        let providers = TabProviderRegistry(engine: engine, includesPrivate: false,
+                                            accessibility: AXTabProvider(offSpaceWindows: { offSpace.offSpaceWindows(for: $0) }))
         let coordinator = SwitcherCoordinator(source: offSpace, activator: OffSpaceWindowActivator(source: offSpace),
                                               directory: WorkspaceAppDirectory(), providers: providers,
                                               gate: gate, resolver: WindowResolver(directBridge: source.isWindowIDBridgeAvailable),

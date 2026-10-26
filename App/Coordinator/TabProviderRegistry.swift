@@ -27,16 +27,17 @@ final class TabProviderRegistry: TabProviderLookup {
             rejected.removeAll()
         }
     }
-    private let accessibility = AXTabProvider()
+    private let accessibility: AXTabProvider
     private var providers: [String: any TabProvider] = [:]
     private var rejected: Set<String> = []
     private let log = Log.make("providers")
 
     /// `includesPrivate` is the user's explicit opt-in. Safari cannot
     /// tell private windows apart, so without it Safari contributes no tabs.
-    init(engine: AppleScriptEngine, includesPrivate: Bool) {
+    init(engine: AppleScriptEngine, includesPrivate: Bool, accessibility: AXTabProvider = AXTabProvider()) {
         self.engine = engine
         self.includesPrivate = includesPrivate
+        self.accessibility = accessibility
     }
 
     /// Whether this app's tabs travel over Apple Events, and so needs the
