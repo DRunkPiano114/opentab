@@ -5,24 +5,37 @@ import OpenTabScript
 import XCTest
 @testable import OpenTab
 
-/// A provider that reads over Accessibility: no Apple Events consent, and an
-/// empty read that means "no tab strip" rather than "no answer".
+/// A provider that reads over Accessibility: no Apple Events consent, and a
+/// read that names the windows it covered, so an empty one means "no tab
+/// strip" for those windows rather than "no answer".
 private final class FakeAccessibilityProvider: TabProvider, TabCloser, AccessibilityTabReads, @unchecked Sendable {
     let bundleIDs: [String]
     let tokenStability = TokenStability.positional
 
     private let lock = NSLock()
     private var tabs: [TabSnapshot] = []
+    private var covered: Set<WindowKey> = []
     private(set) var closed: [TabSnapshot] = []
     private var closeError: (any Error)?
 
     init(bundleIDs: [String]) { self.bundleIDs = bundleIDs }
 
-    func set(tabs: [TabSnapshot]) { lock.withLock { self.tabs = tabs } }
+    /// Without `covering`, the read covers the windows its tabs are in.
+    func set(tabs: [TabSnapshot], covering: [UInt32]? = nil) {
+        lock.withLock {
+            self.tabs = tabs
+            covered = covering.map { Set($0.map { .cg($0) }) } ?? Set(tabs.map(\.windowKey))
+        }
+    }
+
     func failClose(with error: (any Error)?) { lock.withLock { closeError = error } }
 
     func readTabs(for app: AppInfo, deadline: ContinuousClock.Instant) async throws -> [TabSnapshot] {
         lock.withLock { tabs }
+    }
+
+    func readTabsWithCoverage(for app: AppInfo, deadline: ContinuousClock.Instant) async throws -> TabRead {
+        lock.withLock { TabRead(snapshots: tabs, coverage: .windows(covered)) }
     }
 
     func activate(_ tab: TabSnapshot, deadline: ContinuousClock.Instant) async throws {}
@@ -143,9 +156,9 @@ final class DetailPaneTests: XCTestCase {
 
     // MARK: - The Accessibility provider's contract with the coordinator
 
-    /// A scan that completed and saw no tab strip is evidence: Finder hides
-    /// its tab bar the moment a window drops to one tab, and the rows for the
-    /// tabs it used to have must go.
+    /// A scan that read a window and saw no tab strip is evidence: Finder
+    /// hides its tab bar the moment a window drops to one tab, and the rows
+    /// for the tabs it used to have must go.
     func testEmptyAccessibilityReadDropsTheTabRows() async {
         let provider = FakeAccessibilityProvider(bundleIDs: [notes.bundleID])
         let coordinator = makeCoordinator(provider)
@@ -155,11 +168,30 @@ final class DetailPaneTests: XCTestCase {
         await coordinator.refresh(app: notes)
         XCTAssertEqual(coordinator.entries.filter { $0.kind == .tab }.count, 1)
 
-        provider.set(tabs: [])
+        provider.set(tabs: [], covering: [41])
         await coordinator.refresh(app: notes)
 
         XCTAssertTrue(coordinator.entries.allSatisfy { $0.kind == .window })
         XCTAssertEqual(coordinator.entries.count, 1)
+    }
+
+    /// A busy app can fail the window filter for one read, and the scan then
+    /// skips the window: it read nothing there, so the group stays.
+    func testAccessibilityReadThatSkippedAWindowKeepsItsTabRows() async {
+        let provider = FakeAccessibilityProvider(bundleIDs: [notes.bundleID])
+        let coordinator = makeCoordinator(provider)
+        directory.set(apps: [notes])
+        source.set([window(44, notes, title: "Scratch")], for: notes)
+        provider.set(tabs: [tab(44, "0", "first", active: true), tab(44, "1", "second")])
+        await coordinator.refresh(app: notes)
+        guard let window = coordinator.entries.first.flatMap({ coordinator.scriptWindow(for: $0) }) else {
+            return XCTFail("no script window")
+        }
+
+        provider.set(tabs: [], covering: [])
+        await coordinator.refresh(app: notes)
+
+        XCTAssertEqual(coordinator.tabs(in: window).count, 2)
     }
 
     /// The same empty answer from a script provider says nothing: it may have

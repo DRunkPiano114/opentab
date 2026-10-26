@@ -183,8 +183,8 @@ final class TabScanEngineTests: XCTestCase {
         }
     }
 
-    /// A window neither list names any more is gone; what it showed is not
-    /// carried forward.
+    /// A window the WindowServer no longer lists is gone; what it showed is
+    /// not carried forward.
     func testWindowNoLongerListedIsNotCarriedForward() throws {
         let engine = engine([91: .init(tabs: ["alpha"], active: 0)])
         let stale = [TabSnapshot(windowKey: .cg(82), token: "0", title: "one", url: nil, isActive: true,
@@ -194,13 +194,53 @@ final class TabScanEngineTests: XCTestCase {
         XCTAssertNil(scan.emitted[82])
     }
 
+    // MARK: Coverage
+
+    private func stale(_ id: CGWindowID) -> [TabSnapshot] {
+        [TabSnapshot(windowKey: .cg(id), token: "0", title: "one", url: nil, isActive: true, isPrivate: false)]
+    }
+
+    /// The scan speaks for a window it read to the end, with or without a tab
+    /// strip, and for one whose last tabs it repeated. A window it skipped,
+    /// stopped inside or found in neither list may have tabs nobody read.
+    func testOnlyWindowsReadToTheEndOrRepeatedAreCovered() throws {
+        let engine = engine([91: .init(tabs: ["alpha"], active: 0),
+                             92: .init(tabs: [], active: nil),
+                             93: .init(tabs: ["beta"], active: 0, role: "AXUnknown"),
+                             94: .init(tabs: ["gamma"], active: 0, unreadable: true),
+                             82: .init(tabs: ["one"], active: 0)],
+                            layers: [91: 0, 92: 0, 93: 0, 94: 0, 82: 0, 83: 0, 84: 0])
+        let scan = try engine.scan(.init(axWindows: [node(91), node(92), node(93), node(94)],
+                                         offSpace: [reached(82), unreached(83)],
+                                         cached: [83: stale(83), 84: stale(84), 93: stale(93)]),
+                                   deadline: far)
+        XCTAssertEqual(scan.covered, [91, 92, 82, 83])
+    }
+
+    /// The deselected tab of a native group leaves `kAXWindows` before the
+    /// off-Space source lists it. It still exists, so its tabs are kept for
+    /// the round that reaches it, and nothing is said about it now.
+    func testLiveWindowInNeitherListKeepsItsTabsUncovered() throws {
+        let engine = engine([91: .init(tabs: ["alpha"], active: 0)], layers: [91: 0, 82: 0])
+        let scan = try engine.scan(.init(axWindows: [node(91)], cached: [82: stale(82)]), deadline: far)
+        XCTAssertEqual(Set(scan.snapshots.map(\.windowKey)), [.cg(91)])
+        XCTAssertEqual(scan.emitted[82], stale(82))
+        XCTAssertFalse(scan.covered.contains(82))
+    }
+
+    func testWindowGoneFromTheWindowServerIsCovered() throws {
+        let engine = engine([91: .init(tabs: ["alpha"], active: 0)])
+        let scan = try engine.scan(.init(axWindows: [node(91)], cached: [82: stale(82)]), deadline: far)
+        XCTAssertTrue(scan.covered.contains(82))
+    }
+
     // MARK: Through the store
 
     private let finder = AppInfo(bundleID: "com.apple.finder", pid: 500, localizedName: "Finder")
     private var group: WindowKey { .scripted(bundleID: finder.bundleID, token: "82") }
 
-    private func window(_ id: CGWindowID, onActiveSpace: Bool) -> WindowSnapshot {
-        WindowSnapshot(key: .cg(id), app: finder, title: "window \(id)", subrole: "AXStandardWindow",
+    private func window(_ id: CGWindowID, onActiveSpace: Bool, title: String? = nil) -> WindowSnapshot {
+        WindowSnapshot(key: .cg(id), app: finder, title: title ?? "window \(id)", subrole: "AXStandardWindow",
                        isMinimized: false, isOnActiveSpace: onActiveSpace, level: 0)
     }
 
@@ -209,24 +249,24 @@ final class TabScanEngineTests: XCTestCase {
         _ = store.applyWindows(snapshots, for: finder, isHidden: false, stamp: stamp)
     }
 
+    private func scripted(_ wid: CGWindowID) -> WindowKey {
+        .scripted(bundleID: finder.bundleID, token: String(wid))
+    }
+
     /// What the coordinator does with an Accessibility read: a `.cg` window
     /// becomes the scripted form the store keys tabs by, the window number is
-    /// recorded as the claim, and a read with no tab at all drops the app's
-    /// tab rows.
-    private func applyTabs(_ scan: TabScanEngine<Windows>.Scan, to store: inout TabStore) {
-        guard !scan.snapshots.isEmpty else {
-            _ = store.removeTabs(for: finder)
-            return
-        }
+    /// recorded as the claim, and the read speaks for the windows it covered.
+    @discardableResult
+    private func applyTabs(_ scan: TabScanEngine<Windows>.Scan, to store: inout TabStore) -> ApplyResult {
         let rekeyed = scan.snapshots.map { snapshot -> TabSnapshot in
             guard case .cg(let wid) = snapshot.windowKey else { return snapshot }
-            let key = WindowKey.scripted(bundleID: finder.bundleID, token: String(wid))
-            _ = store.resolve(window: .cg(wid), toScriptWindow: key)
-            return TabSnapshot(windowKey: key, token: snapshot.token, title: snapshot.title, url: snapshot.url,
-                               isActive: snapshot.isActive, isPrivate: snapshot.isPrivate)
+            _ = store.resolve(window: .cg(wid), toScriptWindow: scripted(wid))
+            return TabSnapshot(windowKey: scripted(wid), token: snapshot.token, title: snapshot.title,
+                               url: snapshot.url, isActive: snapshot.isActive, isPrivate: snapshot.isPrivate)
         }
         let stamp = store.beginRead(for: finder, kind: .tabs)
-        _ = store.applyTabs(rekeyed, for: finder, stability: .positional, stamp: stamp)
+        return store.applyTabs(rekeyed, for: finder, stability: .positional,
+                               coverage: .windows(Set(scan.covered.map(scripted))), stamp: stamp)
     }
 
     private func assertOneOffSpaceGroupRow(_ store: TabStore, file: StaticString = #filePath, line: UInt = #line) {
@@ -258,5 +298,31 @@ final class TabScanEngineTests: XCTestCase {
                                     deadline: far)
         applyTabs(later, to: &store)
         assertOneOffSpaceGroupRow(store)
+    }
+
+    /// Selecting a tab of a native group moves the group to that tab's
+    /// window (2). The tab read of the same refresh runs on the off-Space list
+    /// of the previous window read, which does not have the deselected window
+    /// (1) yet, so neither list names it.
+    func testTabSwitchDoesNotReleaseTheDeselectedWindow() throws {
+        let titles = ["one", "two", "three"]
+        var store = TabStore()
+        applyWindows([window(1, onActiveSpace: true, title: "one")], to: &store)
+        let before = try engine([1: .init(tabs: titles, active: 0)])
+            .scan(.init(axWindows: [node(1)]), deadline: far)
+        applyTabs(before, to: &store)
+        XCTAssertEqual(store.sorted().map(\.key), [scripted(1)])
+
+        applyWindows([window(2, onActiveSpace: true, title: "two"), window(1, onActiveSpace: false, title: "one")],
+                     to: &store)
+        let after = try engine([2: .init(tabs: titles, active: 1), 1: .init(tabs: titles, active: 0)])
+            .scan(.init(axWindows: [node(2)], cached: before.emitted), deadline: far)
+        let result = applyTabs(after, to: &store)
+        XCTAssertEqual(result.releasedWindows, [])
+
+        applyWindows([window(2, onActiveSpace: true, title: "two"), window(1, onActiveSpace: false, title: "one")],
+                     to: &store)
+        XCTAssertEqual(store.flapCount, 0)
+        XCTAssertFalse(store.sorted().map(\.key).contains(.cg(1)), "the deselected tab is no plain window row")
     }
 }

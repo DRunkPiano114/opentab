@@ -63,6 +63,21 @@ public struct ApplyResult: Sendable, Equatable {
     }
 }
 
+/// The script windows a tab read can speak for.
+public enum TabCoverage: Sendable, Equatable {
+    /// Every window of the app: a script window the read omits is closed.
+    case complete
+    /// Only these: the read says nothing about any other script window.
+    case windows(Set<WindowKey>)
+
+    func covers(_ scriptWindow: WindowKey) -> Bool {
+        switch self {
+        case .complete: true
+        case .windows(let keys): keys.contains(scriptWindow)
+        }
+    }
+}
+
 public enum RemovalReason: Sendable, Equatable {
     case windowClosed
     case tabClosed

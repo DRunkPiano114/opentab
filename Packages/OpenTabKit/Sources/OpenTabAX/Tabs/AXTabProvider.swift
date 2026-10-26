@@ -11,13 +11,14 @@ import os
 /// asks for it: sending a non-browser through that gate would ask the user to
 /// authorise Apple Events for an app nothing ever scripts.
 ///
-/// And its empty read is evidence rather than silence. A script call that
-/// answers nothing may have been refused, throttled or aimed at a browser
-/// that is still starting, so `TabStore` keeps the rows it has. A scan that
-/// ran to completion and found no tab button is a different statement:
-/// the app has no tab strip right now. Finder hides its tab bar the moment a
-/// window drops to one tab, so without the distinction the last window to
-/// lose its tabs would leave its rows behind for good.
+/// And its read names the windows it covered, which makes an empty read
+/// evidence rather than silence. A script call that answers nothing may have
+/// been refused, throttled or aimed at a browser that is still starting, so
+/// `TabStore` keeps the rows it has. A scan that read a window to the end and
+/// found no tab button is a different statement: that window has no tab
+/// strip right now. Finder hides its tab bar the moment a window drops to one
+/// tab, so without the distinction the last window to lose its tabs would
+/// leave its rows behind for good.
 public protocol AccessibilityTabReads {}
 
 /// A window of a pid that `kAXWindows` omits (another Space, full screen), as
@@ -105,9 +106,16 @@ public final class AXTabProvider: TabProvider, TabCloser, AccessibilityTabReads,
     // MARK: - TabProvider
 
     public func readTabs(for app: AppInfo, deadline: ContinuousClock.Instant) async throws -> [TabSnapshot] {
+        try await readTabsWithCoverage(for: app, deadline: deadline).snapshots
+    }
+
+    /// Covers the windows the scan read to the end, those whose last tabs it
+    /// repeated, and those the WindowServer no longer lists.
+    public func readTabsWithCoverage(for app: AppInfo, deadline: ContinuousClock.Instant) async throws -> TabRead {
         guard isAvailable else { throw AXSourceError.notImplemented }
         return try await queues.perform(on: app.pid) {
-            try self.scan(app: app, deadline: deadline).snapshots
+            let scan = try self.scan(app: app, deadline: deadline)
+            return TabRead(snapshots: scan.snapshots, coverage: .windows(Set(scan.covered.map { .cg($0) })))
         }
     }
 
@@ -172,8 +180,9 @@ public final class AXTabProvider: TabProvider, TabCloser, AccessibilityTabReads,
 
         let replacement = scan.tabs
         state.withLock { state in
-            for (id, owner) in state.owners
-            where owner == pid && replacement[id] == nil && !scan.reused.contains(id) {
+            // A window whose tabs the scan carried without reading keeps the
+            // nodes of the read that found them.
+            for (id, owner) in state.owners where owner == pid && scan.emitted[id] == nil {
                 state.tabs[id] = nil
                 state.owners[id] = nil
             }

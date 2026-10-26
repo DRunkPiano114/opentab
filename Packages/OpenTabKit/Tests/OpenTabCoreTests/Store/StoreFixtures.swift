@@ -39,10 +39,10 @@ struct StoreHarness {
     }
 
     @discardableResult
-    mutating func tabs(_ snapshots: [TabSnapshot], for app: AppInfo,
-                       stability: TokenStability = .stable) -> ApplyResult {
+    mutating func tabs(_ snapshots: [TabSnapshot], for app: AppInfo, stability: TokenStability = .stable,
+                       coverage: TabCoverage = .complete) -> ApplyResult {
         let stamp = store.beginRead(for: app, kind: .tabs)
-        return store.applyTabs(snapshots, for: app, stability: stability, stamp: stamp, now: now)
+        return store.applyTabs(snapshots, for: app, stability: stability, coverage: coverage, stamp: stamp, now: now)
     }
 
     @discardableResult

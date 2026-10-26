@@ -223,12 +223,19 @@ public struct TabStore: Sendable {
     // MARK: - Tab reads
 
     /// Applies one tab read of `app`. Tabs are grouped by `windowKey` into
-    /// script windows; a script window the read no longer lists is closed,
-    /// and its claimed window entry is released.
+    /// script windows; a script window the read covers but no longer lists is
+    /// closed, and its claimed window entry is released.
+    ///
+    /// An empty read with `.complete` coverage is rejected: a script call that
+    /// answers nothing may have been refused or throttled. A read that names
+    /// the windows it covers is evidence for exactly those, empty or not. A
+    /// window it releases was read alive or has left the WindowServer, so one
+    /// coming back is no misfiring claim.
     public mutating func applyTabs(_ snapshots: [TabSnapshot], for app: AppInfo, stability: TokenStability,
-                                   stamp: ReadStamp, now: ContinuousClock.Instant = .now) -> ApplyResult {
+                                   coverage: TabCoverage = .complete, stamp: ReadStamp,
+                                   now: ContinuousClock.Instant = .now) -> ApplyResult {
         if let rejected = rejection(of: stamp, expecting: .tabs) { return .dropped(rejected) }
-        guard !snapshots.isEmpty, !ignoreRules.ignores(app: app) else {
+        guard !(snapshots.isEmpty && coverage == .complete), !ignoreRules.ignores(app: app) else {
             Self.log.debug("empty tab read rejected pid=\(app.pid, privacy: .public); keeping existing entries")
             return .dropped(.rejectedEmpty)
         }
@@ -246,7 +253,8 @@ public struct TabStore: Sendable {
 
         var changed = false
         var releasedNow: [EntryID] = []
-        for scriptWindow in scriptWindows(of: app) where grouped[scriptWindow] == nil {
+        for scriptWindow in scriptWindows(of: app)
+        where grouped[scriptWindow] == nil && coverage.covers(scriptWindow) {
             if removeScriptWindow(scriptWindow, reason: .windowClosed, released: &releasedNow) { changed = true }
         }
         for scriptWindow in windowsInRead {
@@ -256,6 +264,10 @@ public struct TabStore: Sendable {
             } else if applyScriptWindow(scriptWindow, tabs: tabs, app: app, stability: stability) {
                 changed = true
             }
+        }
+
+        if coverage != .complete {
+            for id in releasedNow { released[id]?.countsAsFlap = false }
         }
 
         if notePrivateWindows(snapshots.filter(\.withholdsTabs), for: app) { changed = true }

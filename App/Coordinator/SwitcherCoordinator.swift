@@ -368,9 +368,9 @@ final class SwitcherCoordinator {
     private func performTabRead(of app: AppInfo, provider: any TabProvider) async -> [TabSnapshot]? {
         let stamp = store.beginRead(for: app, kind: .tabs)
         let deadline = ContinuousClock.now + configuration.tabReadBudget
-        let snapshots: [TabSnapshot]
+        let read: TabRead
         do {
-            snapshots = try await provider.readTabs(for: app, deadline: deadline)
+            read = try await provider.readTabsWithCoverage(for: app, deadline: deadline)
         } catch let error as ScriptError {
             await tabReadFailed(app, error: error)
             return nil
@@ -380,14 +380,9 @@ final class SwitcherCoordinator {
         }
         tabFailures[app.key] = nil
         var changed = tabsUnavailable.remove(app.key) != nil
-        let rekeyed = rekeyScriptWindows(in: snapshots, app: app)
-        let result = store.applyTabs(rekeyed, for: app, stability: provider.tokenStability, stamp: stamp)
-        // An Accessibility scan that completed and saw no tab strip is direct
-        // evidence, unlike a script call that answered nothing.
-        if result.disposition == .rejectedEmpty, rekeyed.isEmpty, provider is any AccessibilityTabReads {
-            await dropTabs(of: app)
-            return rekeyed
-        }
+        let rekeyed = rekeyScriptWindows(in: read.snapshots, app: app)
+        let result = store.applyTabs(rekeyed, for: app, stability: provider.tokenStability,
+                                     coverage: Self.rekeyed(read.coverage, app: app), stamp: stamp)
         if result.disposition == .applied, result.changed { changed = true }
         if changed { notify() }
         if result.disposition == .applied {
@@ -457,6 +452,14 @@ final class SwitcherCoordinator {
             if result.changed { notify() }
         }
         return rekeyed
+    }
+
+    private static func rekeyed(_ coverage: TabCoverage, app: AppInfo) -> TabCoverage {
+        guard case .windows(let keys) = coverage else { return coverage }
+        return .windows(Set(keys.map { key in
+            guard case .cg(let wid) = key else { return key }
+            return scriptedKey(for: wid, app: app)
+        }))
     }
 
     private static func scriptedKey(for wid: UInt32, app: AppInfo) -> WindowKey {

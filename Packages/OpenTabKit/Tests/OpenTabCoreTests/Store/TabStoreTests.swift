@@ -548,6 +548,88 @@ final class TabStoreTests: XCTestCase {
         XCTAssertEqual(h.store.tabs(in: github).count, 1)
     }
 
+    // MARK: Coverage (native tab groups)
+
+    private let finder = AppInfo(bundleID: "com.apple.finder", pid: 600, localizedName: "Finder")
+
+    private func finderWindow(_ id: UInt32, _ title: String, focused: Bool = false,
+                              onActiveSpace: Bool = true) -> WindowSnapshot {
+        WindowSnapshot(key: .cg(id), app: finder, title: title, subrole: "AXStandardWindow", isMinimized: false,
+                       isOnActiveSpace: onActiveSpace, isFocused: focused)
+    }
+
+    private func group(_ id: UInt32) -> WindowKey { scripted(finder, String(id)) }
+
+    /// What the coordinator does with an Accessibility read: each window that
+    /// has tabs is resolved to the script window keyed by its number.
+    @discardableResult
+    private func axRead(_ h: inout StoreHarness, _ groups: [(window: UInt32, titles: [String], active: Int)],
+                        covering: [UInt32]) -> ApplyResult {
+        var tabs: [TabSnapshot] = []
+        for (window, titles, active) in groups {
+            _ = h.store.resolve(window: .cg(window), toScriptWindow: group(window), now: h.now)
+            tabs += titles.indices.map { tab(group(window), String($0), titles[$0], active: $0 == active) }
+        }
+        return h.tabs(tabs, for: finder, stability: .positional, coverage: .windows(Set(covering.map(group))))
+    }
+
+    /// Each tab of a native group is its own window, and selecting a tab
+    /// moves the group to that tab's window. A read taken before any list
+    /// named the deselected window says nothing about it.
+    func testATabReadThatDoesNotCoverAGroupsWindowReleasesNothingAndFlapsNothing() {
+        var h = StoreHarness()
+        h.windows([finderWindow(1, "Alpha", focused: true)], for: finder, bumpFocused: true)
+        axRead(&h, [(1, ["Alpha", "Beta", "Gamma"], 0)], covering: [1])
+        XCTAssertEqual(h.shownKeys, [group(1)])
+
+        h.advance(.milliseconds(100))
+        h.windows([finderWindow(2, "Beta", focused: true), finderWindow(1, "Alpha", onActiveSpace: false)],
+                  for: finder, bumpFocused: true)
+        let read = axRead(&h, [(2, ["Alpha", "Beta", "Gamma"], 1)], covering: [2])
+        XCTAssertEqual(read.releasedWindows, [])
+        XCTAssertEqual(h.store.tabs(in: group(1)).count, 3, "a group the read did not cover keeps its tabs")
+
+        h.advance(.milliseconds(50))
+        h.windows([finderWindow(2, "Beta", focused: true), finderWindow(1, "Alpha", onActiveSpace: false)],
+                  for: finder)
+        XCTAssertEqual(h.store.flapCount, 0)
+        XCTAssertFalse(h.shownKeys.contains(.cg(1)), "the deselected tab is no plain window row")
+    }
+
+    /// Finder hides the tab bar the moment a group drops to one tab. A read
+    /// that covered the window and found no strip is evidence, and the window
+    /// it releases was alive when read, so its return is no misfiring claim.
+    func testACoveredWindowWithoutATabStripClosesItsGroupWithoutAFlap() {
+        var h = StoreHarness()
+        h.windows([finderWindow(1, "Alpha", focused: true), finderWindow(3, "Delta")], for: finder)
+        axRead(&h, [(1, ["Alpha", "Beta"], 0), (3, ["Delta", "Epsilon"], 0)], covering: [1, 3])
+        XCTAssertEqual(Set(h.shownKeys), [group(1), group(3)])
+
+        h.advance(.milliseconds(100))
+        let read = axRead(&h, [(3, ["Delta", "Epsilon"], 0)], covering: [1, 3])
+        XCTAssertEqual(read.releasedWindows, [.window(.cg(1))])
+        XCTAssertTrue(h.store.tabs(in: group(1)).isEmpty)
+
+        h.advance(.milliseconds(50))
+        h.windows([finderWindow(1, "Alpha", focused: true), finderWindow(3, "Delta")], for: finder)
+        XCTAssertEqual(Set(h.shownKeys), [.cg(1), group(3)])
+        XCTAssertEqual(h.store.flapCount, 0)
+    }
+
+    /// An Accessibility read with no tab at all is still evidence, for the
+    /// windows it covered and no others.
+    func testAnEmptyReadClosesOnlyTheGroupsItCovers() {
+        var h = StoreHarness()
+        h.windows([finderWindow(1, "Alpha", focused: true), finderWindow(3, "Delta")], for: finder)
+        axRead(&h, [(1, ["Alpha", "Beta"], 0), (3, ["Delta", "Epsilon"], 0)], covering: [1, 3])
+
+        let read = axRead(&h, [], covering: [1])
+        XCTAssertEqual(read.disposition, .applied)
+        XCTAssertEqual(read.releasedWindows, [.window(.cg(1))])
+        XCTAssertTrue(h.store.tabs(in: group(1)).isEmpty)
+        XCTAssertEqual(h.store.tabs(in: group(3)).count, 2)
+    }
+
     // MARK: Positional tokens (Safari)
 
     func testPositionalTokensFollowTheTabWhenItIsDragged() {

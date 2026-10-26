@@ -25,8 +25,12 @@ struct TabScanEngine<Source: TabTreeSource> {
         /// Windows whose snapshots were carried over from `Input.cached`
         /// rather than read; their tab nodes from the earlier read stand.
         var reused: Set<CGWindowID> = []
-        /// Snapshots per window, for the next scan's `Input.cached`.
+        /// Snapshots per window, for the next scan's `Input.cached`, including
+        /// those of live windows neither list named, which `snapshots` omits.
         var emitted: [CGWindowID: [TabSnapshot]] = [:]
+        /// Windows this scan speaks for. A window it does not cover may have
+        /// tabs nobody read, so the store must not close its group.
+        var covered: Set<CGWindowID> = []
         var windowsScanned = 0
         /// Of `windowsScanned`, those only the off-Space source listed.
         var windowsOffSpace = 0
@@ -72,6 +76,7 @@ struct TabScanEngine<Source: TabTreeSource> {
                     scan.snapshots.append(contentsOf: cached)
                     scan.emitted[id] = cached
                     scan.reused.insert(id)
+                    scan.covered.insert(id)
                 } else {
                     scan.incomplete = true
                 }
@@ -79,6 +84,17 @@ struct TabScanEngine<Source: TabTreeSource> {
             }
             scan.windowsOffSpace += 1
             read(node, id: id, into: &scan, deadline: deadline)
+        }
+        // The deselected tab of a native group leaves `kAXWindows` before the
+        // off-Space source lists it, so a window neither list names may still
+        // exist. Its tabs are kept for the round that reaches it. One the
+        // WindowServer no longer lists is gone, and the scan speaks for it.
+        for (id, cached) in input.cached where !seen.contains(id) {
+            if layer(id) == nil {
+                scan.covered.insert(id)
+            } else {
+                scan.emitted[id] = cached
+            }
         }
 
         // An inconclusive scan must not be reported as "no tabs": that answer
@@ -96,6 +112,8 @@ struct TabScanEngine<Source: TabTreeSource> {
         if result.stops.contains(.deadline) || result.stops.contains(.unreadable)
             || result.stops.contains(.nodes) {
             scan.incomplete = true
+        } else {
+            scan.covered.insert(id)
         }
         guard !result.tabs.isEmpty else { return }
         if result.usedDeclaredTabs { scan.windowsUsingDeclaredTabs += 1 }
