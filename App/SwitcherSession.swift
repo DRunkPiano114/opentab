@@ -4,9 +4,10 @@ import OpenTabCore
 import os
 
 /// The hold / tap / release state machine: idle until Option+Tab, engaged
-/// while the panel is up, committed when Option is released. Enter (or the
-/// search hotkey) moves it to the search state, where the app is active and
-/// the text field owns the keyboard until commit or cancel.
+/// while the panel is up, committed when Option is released. Enter in the
+/// main list (or the search hotkey anywhere) moves it to the search state,
+/// where the app is active and the text field owns the keyboard until commit
+/// or cancel; Enter in the tab pane commits the selected tab.
 @MainActor
 final class SwitcherSession {
     /// Supplied by the owner; read once per open to refresh the frontmost app
@@ -184,7 +185,9 @@ final class SwitcherSession {
         case .left: exitDetail()
         case .escape:
             if detailWindow != nil { exitDetail() } else { close() }
-        case .commit, .search: enterSearch()
+        case .commit:
+            if detailWindow != nil { commit() } else { enterSearch() }
+        case .search: enterSearch()
         }
     }
 

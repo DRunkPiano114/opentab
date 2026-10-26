@@ -22,6 +22,7 @@ macOS 26 or later, Apple silicon.
 | `⇧ ⌘ Tab` | Same, stepping backward |
 | `Enter` (in the list) or `⇧ ⌘ L` | Search by app, window title, tab title or address |
 | `Right Arrow` / `Left Arrow` | Open a window's tabs in a side pane / go back |
+| `Enter` (in the side pane) | Switch to the selected tab |
 | `⌘ W` (while searching) | Close the selected tab |
 | `Escape` | Clear the search, leave the side pane, then dismiss |
 
