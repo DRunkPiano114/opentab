@@ -118,7 +118,10 @@ final class OffSpaceReachTests: XCTestCase {
         logRows(of: app.pid, label: "before fullscreen")
 
         // Into fullscreen (its own Space), then back to the desktop Space so
-        // the window is off-space from where we look.
+        // the window is off-space from where we look. The app answers the
+        // request only once the transition is under way, which can outlast
+        // the short process-wide messaging timeout.
+        AXUIElementSetMessagingTimeout(window, 3)
         XCTAssertEqual(AXUIElementSetAttributeValue(window, "AXFullScreen" as CFString, true as CFBoolean), .success)
         try await poll("window reports fullscreen", timeout: .seconds(5)) {
             (self.attribute(window, "AXFullScreen") as? Bool) == true
