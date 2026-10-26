@@ -27,7 +27,7 @@ final class TabProviderRegistryTests: XCTestCase {
     /// asking Launch Services who handles `https` is the wrong question.
     func testTerminalWithNativeTabsIsNotABrowser() throws {
         let bundleID = "com.googlecode.iterm2"
-        let url = try XCTUnwrap(installedURL(bundleID), "iTerm2 is not installed")
+        guard let url = installedURL(bundleID) else { throw XCTSkip("iTerm2 is not installed") }
         XCTAssertFalse(TabProviderRegistry.isBrowser(app(bundleID), appURL: url))
     }
 
@@ -49,7 +49,7 @@ final class TabProviderRegistryTests: XCTestCase {
     /// so a fork nobody enumerated is caught as well.
     func testChromiumIsABrowserThroughTheScriptingProbe() throws {
         let bundleID = "com.google.Chrome"
-        let url = try XCTUnwrap(installedURL(bundleID), "Google Chrome is not installed")
+        guard let url = installedURL(bundleID) else { throw XCTSkip("Google Chrome is not installed") }
         XCTAssertFalse(TabProviderRegistry.namedBrowserBundleIDs.contains(bundleID))
         XCTAssertTrue(TabProviderRegistry.isBrowser(app(bundleID), appURL: url))
     }
